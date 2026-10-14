@@ -1,0 +1,6 @@
+#!/bin/sh
+# Block commits that publish private addresses, personal emails, secrets, or a non-anonymous git identity.
+# See scripts/privacy-scan.mjs.
+set -e
+cd "$(git rev-parse --show-toplevel)"
+exec node scripts/privacy-scan.mjs --identity --staged

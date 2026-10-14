@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Normal permission, required by AlarmClock.ACTION_SET_TIMER / ACTION_SET_ALARM. -->
+    <uses-permission android:name="com.android.alarm.permission.SET_ALARM" />
+    <!-- Runtime permission, asked from the settings: lets "chiama Mario" find the number. -->
+    <uses-permission android:name="android.permission.READ_CONTACTS" />
+    <!-- Runtime permissions for the agent's reads, asked only when their switch is turned on in the settings. -->
+    <uses-permission android:name="android.permission.READ_CALENDAR" />
+    <uses-permission android:name="android.permission.WRITE_CALENDAR" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+
+    <!-- Package visibility (Android 11+): list the launchable apps ("apri Signal") and the dialer. -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
+        <intent><action android:name="android.intent.action.DIAL" /></intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="geo" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="https" />
+        </intent>
+        <package android:name="com.cappielloantonio.notquitemy.tempo" />
+        <package android:name="com.cappielloantonio.tempo" />
+        <package android:name="org.thoughtcrime.securesms" />
+        <package android:name="it.niedermann.owncloud.notes" />
+        <intent>
+            <action android:name="android.intent.action.SENDTO" />
+            <data android:scheme="smsto" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.INSERT" />
+            <data android:mimeType="vnd.android.cursor.dir/event" />
+        </intent>
+    </queries>
+
+    <application>
+        <!-- Lets the agent read recent notifications, only after the user grants notification access in Android. -->
+        <service android:name="dev.nanovoice.actions.NanoNotificationListener"
+            android:exported="false"
+            android:label="NanoVoice"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+    </application>
+</manifest>

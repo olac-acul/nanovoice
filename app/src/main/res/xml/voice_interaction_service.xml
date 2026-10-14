@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Makes NanoVoice selectable as the device's digital assistant. It may open on the lock screen (wake word, assistant
+     gesture), but there it answers only the time, the date, timers and alarms: the agent, apps and calls need the
+     phone unlocked (ChatEngine.respond localOnly, AssistantActivity). -->
+<voice-interaction-service xmlns:android="http://schemas.android.com/apk/res/android"
+    android:sessionService="dev.nanovoice.assistant.NanoVoiceSessionService"
+    android:recognitionService="dev.nanovoice.assistant.NanoVoiceRecognitionService"
+    android:settingsActivity="dev.nanovoice.MainActivity"
+    android:supportsAssist="true"
+    android:supportsLaunchVoiceAssistFromKeyguard="true" />

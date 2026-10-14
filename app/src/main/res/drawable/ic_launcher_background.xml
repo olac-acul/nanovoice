@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Diagonal gradient sampled from the icon artwork (docs/branding/icon-source.png), mapped onto the 72 dp visible part
+     (18..90) of the 108 dp adaptive canvas: teal top-left, blue in the middle, deep blue bottom-right. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path android:pathData="M0,0h108v108h-108z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="linear"
+                android:startX="18"
+                android:startY="18"
+                android:endX="90"
+                android:endY="90">
+                <item android:offset="0" android:color="#02F9D3" />
+                <item android:offset="0.32" android:color="#01C0ED" />
+                <item android:offset="0.5" android:color="#0189EB" />
+                <item android:offset="0.81" android:color="#0149ED" />
+                <item android:offset="1" android:color="#001EE1" />
+            </gradient>
+        </aapt:attr>
+    </path>
+</vector>

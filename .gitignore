@@ -1,0 +1,15 @@
+build/
+.gradle/
+local.properties
+*.iml
+.idea/
+.kotlin/
+voice/libs/
+__pycache__/
+
+# Signing material never goes in the repository
+*.jks
+*.keystore
+keystore.properties
+*.p12
+.env

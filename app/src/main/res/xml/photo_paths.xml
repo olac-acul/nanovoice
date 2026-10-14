@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <cache-path name="camera" path="camera/" />
+    <!-- The copy of a photo an image search page may upload (deleted when the page closes). -->
+    <cache-path name="search" path="search/" />
+</paths>

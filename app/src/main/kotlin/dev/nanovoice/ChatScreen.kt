@@ -1,0 +1,624 @@
+package dev.nanovoice
+
+import android.Manifest
+import android.content.ActivityNotFoundException
+import android.content.pm.PackageManager
+import android.net.Uri
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.ImageBitmap
+import dev.nanovoice.agent.AgentImage
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.FileProvider
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.File
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.ime
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import dev.nanovoice.ui.TypingBubble
+import dev.nanovoice.ui.WorkingStatus
+import dev.nanovoice.ui.ConsentCard
+import kotlinx.coroutines.delay
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import dev.nanovoice.ui.Icons
+import dev.nanovoice.ui.Wordmark
+import dev.nanovoice.ui.LinkPreviewCard
+import dev.nanovoice.ui.firstUrl
+import dev.nanovoice.ui.OrbState
+import dev.nanovoice.ui.VoiceOrb
+import dev.nanovoice.ui.extra
+import dev.nanovoice.voice.SttError
+import dev.nanovoice.voice.TtsStatus
+
+@Composable
+fun ChatScreen(
+    viewModel: ChatViewModel,
+    hasMicPermission: () -> Boolean,
+    requestMicPermission: () -> Unit,
+    onOpenSettings: () -> Unit,
+) {
+    val messages by viewModel.messages.collectAsState()
+    val status by viewModel.status.collectAsState()
+    val voice by viewModel.voice.state.collectAsState()
+    val thinking by viewModel.thinking.collectAsState()
+    val working by viewModel.working.collectAsState()
+    val speaking by viewModel.speaking.collectAsState()
+    val ttsStatus by viewModel.ttsStatus.collectAsState()
+    var input by remember { mutableStateOf("") }
+    var showHelp by remember { mutableStateOf(false) }
+    var confirmNew by remember { mutableStateOf(false) }
+    // While typing, the keyboard takes most of the screen: the orb gives way so the conversation keeps its room.
+    val keyboardOpen = WindowInsets.ime.getBottom(LocalDensity.current) > 0
+    val listState = rememberLazyListState()
+
+    // The dots appear only if the reply takes more than half a second, so instant answers do not flash them.
+    var waited by remember { mutableStateOf(false) }
+    LaunchedEffect(thinking) {
+        if (thinking) {
+            delay(TYPING_DELAY_MS)
+            waited = true
+        } else {
+            waited = false
+        }
+    }
+    // When the agent says it is working, the dots show at once and stay until its answer arrives.
+    val workingText by viewModel.workingText.collectAsState()
+    val appSettings by viewModel.appSettings.collectAsState()
+    val showStatus = working && workingText.isNotEmpty()
+    val showTyping = (waited || working) && !showStatus
+
+
+    val photo by viewModel.photo.collectAsState()
+    val barcode by viewModel.barcode.collectAsState()
+    val productQuestion = stringResource(R.string.barcode_question)
+
+    fun submit() {
+        // A scanned code alone still needs a question for the agent, and a bubble that says what was asked.
+        viewModel.send(if (input.isBlank() && barcode != null && photo == null) productQuestion else input)
+        input = ""
+    }
+
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    fun load(uri: Uri, cleanup: () -> Unit = {}) = scope.launch {
+        val prepared = withContext(Dispatchers.IO) { Photos.prepare(context.contentResolver, uri).also { cleanup() } }
+        if (prepared == null) Toast.makeText(context, R.string.photo_failed, Toast.LENGTH_SHORT).show()
+        else viewModel.attachPhoto(prepared)
+    }
+    val picker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri -> uri?.let { load(it) } }
+    // The camera app writes the shot into our cache through a FileProvider; it is deleted once read.
+    val shot = remember { File(context.cacheDir, "camera/shot.jpg") }
+    val shotUri = remember { shot.parentFile?.mkdirs(); FileProvider.getUriForFile(context, "${context.packageName}.photos", shot) }
+    val camera = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { ok ->
+        if (ok) load(shotUri) { shot.delete() } else shot.delete()
+    }
+    // The scanner needs the camera permission; once the app declares it, Android asks it for the camera app too.
+    var afterCameraGrant by remember { mutableStateOf<(() -> Unit)?>(null) }
+    val cameraPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) afterCameraGrant?.invoke() else Toast.makeText(context, R.string.camera_denied, Toast.LENGTH_SHORT).show()
+        afterCameraGrant = null
+    }
+    fun withCamera(action: () -> Unit) {
+        if (context.checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
+            action()
+        } else {
+            afterCameraGrant = action
+            cameraPermission.launch(Manifest.permission.CAMERA)
+        }
+    }
+    val scanner = rememberLauncherForActivityResult(BarcodeScanActivity.Scan()) { code -> code?.let(viewModel::attachBarcode) }
+    val onTakePhoto = {
+        withCamera {
+            try {
+                camera.launch(shotUri)
+            } catch (_: ActivityNotFoundException) {
+                Toast.makeText(context, R.string.photo_no_camera, Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+    val onPickPhoto = { picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }
+    val onScanBarcode = { withCamera { scanner.launch(Unit) } }
+
+    // The text field shows only after a tap on the keyboard button, and goes away with the keyboard when nothing was typed.
+    var typing by rememberSaveable { mutableStateOf(false) }
+    val focus = remember { FocusRequester() }
+    val keyboard = LocalSoftwareKeyboardController.current
+    var imeShown by remember { mutableStateOf(false) }
+    // The keyboard was closed with something typed: the field stays, and the orb comes back above it.
+    var closedWithText by remember { mutableStateOf(false) }
+    LaunchedEffect(keyboardOpen) {
+        if (keyboardOpen) {
+            imeShown = true
+            closedWithText = false
+        } else if (imeShown) {
+            imeShown = false
+            if (input.isBlank()) typing = false else closedWithText = true
+        }
+    }
+    fun openKeyboard() {
+        focus.requestFocus()
+        keyboard?.show()
+    }
+    LaunchedEffect(typing) {
+        if (typing) {
+            openKeyboard()
+            viewModel.startTyping()
+        } else {
+            closedWithText = false
+        }
+    }
+    // The orb gives way as soon as the keyboard is asked for, not when it has opened: both move together.
+    val showOrb = !typing || closedWithText
+    val orbAction by viewModel.orbAction.collectAsState()
+
+    val orbState = when {
+        voice.listening && !voice.finishing -> OrbState.Listening
+        voice.finishing || thinking || working -> OrbState.Thinking
+        speaking -> OrbState.Speaking
+        else -> OrbState.Idle
+    }
+
+    if (showHelp) HelpDialog(onDismiss = { showHelp = false })
+    val consentRequest by viewModel.consentRequest.collectAsState()
+    val replyingTo by viewModel.replyingTo.collectAsState()
+    if (confirmNew) {
+        AlertDialog(
+            onDismissRequest = { confirmNew = false },
+            title = { Text(stringResource(R.string.new_chat_title)) },
+            text = { Text(stringResource(R.string.new_chat_body)) },
+            confirmButton = { TextButton(onClick = { confirmNew = false; viewModel.newConversation() }) { Text(stringResource(R.string.new_chat_confirm)) } },
+            dismissButton = { TextButton(onClick = { confirmNew = false }) { Text(stringResource(R.string.cancel)) } },
+        )
+    }
+
+    Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+        Column(modifier = Modifier.safeDrawingPadding().padding(horizontal = 16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Wordmark()
+                    StatusLine(status)
+                }
+                Box(
+                    modifier = Modifier
+                        .size(44.dp)
+                        .background(MaterialTheme.colorScheme.surfaceContainerHigh, CircleShape)
+                        .clickable { confirmNew = true },
+                    contentAlignment = Alignment.Center,
+                ) { Icons.Flame(MaterialTheme.colorScheme.onSurface) }
+                Spacer(Modifier.width(8.dp))
+                Box(
+                    modifier = Modifier
+                        .size(44.dp)
+                        .background(MaterialTheme.colorScheme.surfaceContainerHigh, CircleShape)
+                        .clickable { showHelp = true },
+                    contentAlignment = Alignment.Center,
+                ) { Text("?", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface) }
+                Spacer(Modifier.width(8.dp))
+                Box(
+                    modifier = Modifier
+                        .size(44.dp)
+                        .background(MaterialTheme.colorScheme.surfaceContainerHigh, CircleShape)
+                        .clickable(onClick = onOpenSettings),
+                    contentAlignment = Alignment.Center,
+                ) { Icons.Settings(MaterialTheme.colorScheme.onSurface) }
+            }
+            Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                if (messages.isEmpty() && !showStatus && !showTyping) {
+                    EmptyHint(modifier = Modifier.align(Alignment.Center))
+                } else {
+                    ChatList(
+                        messages = messages,
+                        listState = listState,
+                        previews = viewModel.linkPreviews,
+                        previewsOn = appSettings.linkPreviews,
+                        showTyping = showTyping,
+                        workingText = workingText.takeIf { showStatus },
+                        actions = remember(viewModel) {
+                            MessageActions(reply = viewModel::replyTo, retry = viewModel::retry, readAloud = viewModel::readAloud)
+                        },
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                }
+            }
+            if (ttsStatus == TtsStatus.NeedsVoice || ttsStatus == TtsStatus.Failed) {
+                Text(
+                    stringResource(R.string.tts_notice),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.padding(bottom = 4.dp),
+                )
+            }
+            // While the text field is closed, the attachment row has its own send button: the photo or the code can go
+            // without a word (the agent describes the photo, or is asked "che prodotto è?").
+            val sendAttachment = if (typing) null else ::submit
+            replyingTo?.let { ReplyBar(it, onCancel = { viewModel.replyTo(null) }) }
+            consentRequest?.let { request ->
+                ConsentCard(request, onAnswer = { viewModel.answerConsent(request.id, it) }, modifier = Modifier.padding(top = 8.dp))
+            }
+            photo?.let { AttachedPhoto(it.preview, onRemove = { viewModel.attachPhoto(null) }, onSend = sendAttachment.takeIf { barcode == null }) }
+            barcode?.let { AttachedBarcode(it, onRemove = { viewModel.attachBarcode(null) }, onSend = sendAttachment) }
+            AnimatedVisibility(
+                visible = showOrb,
+                enter = fadeIn(tween(TRANSITION_MS)) + expandVertically(tween(TRANSITION_MS), expandFrom = Alignment.Top),
+                exit = fadeOut(tween(TRANSITION_MS / 2)) + shrinkVertically(tween(TRANSITION_MS), shrinkTowards = Alignment.Top),
+            ) {
+                Surface(
+                    shape = MaterialTheme.shapes.extraLarge,
+                    color = MaterialTheme.colorScheme.surfaceContainer,
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                    modifier = Modifier.fillMaxWidth().padding(top = 12.dp, bottom = if (typing) 4.dp else 12.dp),
+                ) {
+                    Column(modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                        VoiceCaption(voice, speaking, orbAction)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceEvenly,
+                        ) {
+                            AttachButton(onTakePhoto, onPickPhoto, onScanBarcode)
+                            Orb(
+                                state = orbState,
+                                action = orbAction,
+                                onTap = {
+                                    if (orbAction == OrbAction.Listen && !hasMicPermission()) requestMicPermission() else viewModel.orbTap()
+                                },
+                            )
+                            // With text kept from before, typing is already on: just bring the keyboard back.
+                            RoundButton(stringResource(R.string.keyboard_open), onClick = { if (typing) { closedWithText = false; openKeyboard() } else typing = true }) {
+                                Icons.Keyboard(MaterialTheme.colorScheme.onSurface)
+                            }
+                        }
+                    }
+                }
+            }
+            AnimatedVisibility(
+                visible = typing,
+                enter = fadeIn(tween(TRANSITION_MS)) + expandVertically(tween(TRANSITION_MS), expandFrom = Alignment.Bottom),
+                exit = fadeOut(tween(TRANSITION_MS / 2)) + shrinkVertically(tween(TRANSITION_MS), shrinkTowards = Alignment.Bottom),
+            ) {
+                val busy by viewModel.busy.collectAsState()
+                Composer(
+                    input,
+                    busy,
+                    hasPhoto = photo != null,
+                    focus = focus,
+                    onChange = { input = it },
+                    onSend = ::submit,
+                    onStop = viewModel::interrupt,
+                )
+            }
+        }
+    }
+}
+
+/** What can be asked: the local requests work offline, everything else goes to NanoClaw. */
+@Composable
+private fun HelpDialog(onDismiss: () -> Unit) {
+    val examples = listOf(
+        R.string.help_time to R.string.help_time_ex,
+        R.string.help_date to R.string.help_date_ex,
+        R.string.help_timer to R.string.help_timer_ex,
+        R.string.help_alarm to R.string.help_alarm_ex,
+        R.string.help_apps to R.string.help_apps_ex,
+        R.string.help_call to R.string.help_call_ex,
+    )
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.help_title)) },
+        text = {
+            Column(modifier = Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(stringResource(R.string.help_local_intro), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                for ((title, example) in examples) {
+                    Column {
+                        Text(stringResource(title), style = MaterialTheme.typography.titleMedium)
+                        Text(stringResource(example), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+                Text(stringResource(R.string.help_agent_title), style = MaterialTheme.typography.titleMedium)
+                Text(stringResource(R.string.help_agent_body), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(stringResource(R.string.help_photo), style = MaterialTheme.typography.titleMedium)
+                Text(stringResource(R.string.help_photo_ex), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.assistant_close)) } },
+    )
+}
+
+@Composable
+private fun StatusLine(status: AgentStatus) {
+    val color = when (status) {
+        AgentStatus.Connected -> MaterialTheme.extra.success
+        AgentStatus.NeedsVpn -> MaterialTheme.extra.warning
+        AgentStatus.Connecting -> MaterialTheme.extra.warning
+        else -> MaterialTheme.colorScheme.outline
+    }
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        Box(Modifier.size(8.dp).background(color, CircleShape))
+        Text(statusLabel(status), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+@Composable
+private fun EmptyHint(modifier: Modifier = Modifier) {
+    Column(modifier.padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(stringResource(R.string.empty_title), style = MaterialTheme.typography.titleLarge, textAlign = TextAlign.Center)
+        Text(
+            stringResource(R.string.empty_hint),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+        )
+    }
+}
+
+@Composable
+private fun VoiceCaption(voice: VoiceUiState, speaking: Boolean, action: OrbAction) {
+    val text = when {
+        voice.error != null && action == OrbAction.Listen -> stringResource(sttErrorText(voice.error))
+        action == OrbAction.Finish -> voice.partial.ifEmpty { stringResource(R.string.voice_listening_tap) }
+        action == OrbAction.Cancel && speaking -> stringResource(R.string.voice_speaking_tap)
+        action == OrbAction.Cancel -> stringResource(R.string.voice_cancel)
+        else -> stringResource(R.string.voice_hold)
+    }
+    Text(
+        text,
+        style = MaterialTheme.typography.bodyMedium,
+        color = if (voice.error != null && action == OrbAction.Listen) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+        textAlign = TextAlign.Center,
+        modifier = Modifier.padding(horizontal = 16.dp),
+    )
+}
+
+/** Tap to talk, tap to stop; while the request is answered, a tap cancels it (the stop mark says so). */
+@Composable
+private fun Orb(state: OrbState, action: OrbAction, onTap: () -> Unit) {
+    val label = stringResource(
+        when (action) {
+            OrbAction.Listen -> R.string.orb_listen
+            OrbAction.Finish -> R.string.orb_finish
+            OrbAction.Cancel -> R.string.interrupt
+        },
+    )
+    Box(
+        modifier = Modifier
+            .padding(vertical = 4.dp)
+            .size(112.dp)
+            .clip(CircleShape)
+            .semantics { contentDescription = label }
+            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onTap),
+        contentAlignment = Alignment.Center,
+    ) {
+        VoiceOrb(state, size = 112.dp)
+        if (action == OrbAction.Cancel) {
+            Box(Modifier.size(44.dp).background(Color.Black.copy(alpha = 0.28f), CircleShape), contentAlignment = Alignment.Center) {
+                Icons.Stop(Color.White, size = 20.dp)
+            }
+        }
+    }
+}
+
+@Composable
+private fun RoundButton(label: String, onClick: () -> Unit, icon: @Composable () -> Unit) {
+    Box(
+        modifier = Modifier
+            .size(52.dp)
+            .background(MaterialTheme.colorScheme.surfaceContainerHigh, CircleShape)
+            .semantics { contentDescription = label }
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) { icon() }
+}
+
+/** Left of the orb: take a photo, pick one or scan a product barcode, for the next message. */
+@Composable
+private fun AttachButton(onTakePhoto: () -> Unit, onPickPhoto: () -> Unit, onScanBarcode: () -> Unit) {
+    var menu by remember { mutableStateOf(false) }
+    val color = MaterialTheme.colorScheme.onSurface
+    Box {
+        RoundButton(stringResource(R.string.photo_attach), onClick = { menu = true }) { Icons.Camera(color) }
+        NanoMenu(expanded = menu, onDismiss = { menu = false }) {
+            NanoMenuItem(stringResource(R.string.photo_take), { Icons.Camera(color, size = 20.dp) }) { menu = false; onTakePhoto() }
+            NanoMenuItem(stringResource(R.string.photo_pick), { Icons.Gallery(color, size = 20.dp) }) { menu = false; onPickPhoto() }
+            NanoMenuItem(stringResource(R.string.photo_scan_barcode), { Icons.Barcode(color, size = 20.dp) }) { menu = false; onScanBarcode() }
+        }
+    }
+}
+
+@Composable
+private fun AttachmentSend(onSend: () -> Unit) {
+    val colors = MaterialTheme.colorScheme
+    val label = stringResource(R.string.send)
+    Box(
+        modifier = Modifier
+            .size(44.dp)
+            .background(colors.primary, CircleShape)
+            .semantics { contentDescription = label }
+            .clickable(onClick = onSend),
+        contentAlignment = Alignment.Center,
+    ) { Icons.Send(colors.onPrimary) }
+}
+
+/** The scanned barcode waiting to go with the next message. */
+@Composable
+private fun AttachedBarcode(code: String, onRemove: () -> Unit, onSend: (() -> Unit)?) {
+    val colors = MaterialTheme.colorScheme
+    val removeLabel = stringResource(R.string.barcode_remove)
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Box(Modifier.size(56.dp).background(colors.surfaceContainerHigh, RoundedCornerShape(12.dp)), contentAlignment = Alignment.Center) {
+            Icons.Barcode(colors.onSurface, size = 28.dp)
+        }
+        Text(stringResource(R.string.barcode_attached, code), style = MaterialTheme.typography.bodyMedium, color = colors.onSurfaceVariant, modifier = Modifier.weight(1f))
+        Box(
+            modifier = Modifier
+                .size(40.dp)
+                .background(colors.surfaceContainerHigh, CircleShape)
+                .semantics { contentDescription = removeLabel }
+                .clickable(onClick = onRemove),
+            contentAlignment = Alignment.Center,
+        ) { Icons.Close(colors.onSurface) }
+        onSend?.let { AttachmentSend(it) }
+    }
+}
+
+/** The photo waiting to go with the next message. */
+@Composable
+private fun AttachedPhoto(preview: ImageBitmap, onRemove: () -> Unit, onSend: (() -> Unit)?) {
+    val colors = MaterialTheme.colorScheme
+    val removeLabel = stringResource(R.string.photo_remove)
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Image(preview, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.size(56.dp).clip(RoundedCornerShape(12.dp)))
+        Text(stringResource(R.string.photo_attached), style = MaterialTheme.typography.bodyMedium, color = colors.onSurfaceVariant, modifier = Modifier.weight(1f))
+        Box(
+            modifier = Modifier
+                .size(40.dp)
+                .background(colors.surfaceContainerHigh, CircleShape)
+                .semantics { contentDescription = removeLabel }
+                .clickable(onClick = onRemove),
+            contentAlignment = Alignment.Center,
+        ) { Icons.Close(colors.onSurface) }
+        onSend?.let { AttachmentSend(it) }
+    }
+}
+
+@Composable
+private fun Composer(
+    value: String,
+    busy: Boolean,
+    hasPhoto: Boolean,
+    focus: FocusRequester,
+    onChange: (String) -> Unit,
+    onSend: () -> Unit,
+    onStop: () -> Unit,
+) {
+    val colors = MaterialTheme.colorScheme
+    val stopLabel = stringResource(R.string.interrupt)
+    val sendLabel = stringResource(R.string.send)
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        TextField(
+            value = value,
+            onValueChange = onChange,
+            modifier = Modifier.weight(1f).focusRequester(focus),
+            placeholder = { Text(stringResource(if (hasPhoto) R.string.input_hint_photo else R.string.input_hint)) },
+            shape = RoundedCornerShape(28.dp),
+            colors = TextFieldDefaults.colors(
+                focusedContainerColor = colors.surfaceContainer,
+                unfocusedContainerColor = colors.surfaceContainer,
+                focusedIndicatorColor = androidx.compose.ui.graphics.Color.Transparent,
+                unfocusedIndicatorColor = androidx.compose.ui.graphics.Color.Transparent,
+            ),
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+            keyboardActions = KeyboardActions(onSend = { onSend() }),
+            maxLines = 4,
+        )
+        val enabled = value.isNotBlank() || hasPhoto
+        // While a request is being answered and nothing new is typed, the button interrupts it.
+        val stop = busy && !enabled
+        Box(
+            modifier = Modifier
+                .size(48.dp)
+                .background(if (enabled || stop) colors.primary else colors.surfaceContainerHigh, CircleShape)
+                .semantics { contentDescription = if (stop) stopLabel else sendLabel }
+                .clickable(enabled = enabled || stop, onClick = if (stop) onStop else onSend),
+            contentAlignment = Alignment.Center,
+        ) { if (stop) Icons.Stop(colors.onPrimary) else Icons.Send(if (enabled) colors.onPrimary else colors.outline) }
+    }
+}
+
+private fun sttErrorText(error: SttError): Int = when (error) {
+    SttError.NotAvailable -> R.string.voice_error_unavailable
+    SttError.PermissionDenied -> R.string.voice_error_permission
+    SttError.NoSpeech -> R.string.voice_error_nospeech
+    SttError.Busy -> R.string.voice_error_busy
+    SttError.Other -> R.string.voice_error_other
+}
+
+private const val TYPING_DELAY_MS = 500L
+
+/** Orb and text field swap in about the time the keyboard takes to slide. */
+private const val TRANSITION_MS = 250

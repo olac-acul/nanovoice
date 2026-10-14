@@ -1,0 +1,33 @@
+NanoVoice
+Copyright 2026 the NanoVoice authors
+Licensed under the Apache License, Version 2.0 (see LICENSE).
+
+Third-party components. They keep their own licences; this list is for attribution and is not a substitute
+for the licence texts distributed with each component.
+
+Included in the app (libraries)
+  Kotlin, kotlinx.coroutines, kotlinx.serialization    Apache-2.0
+  AndroidX (Compose, Activity, Lifecycle, Media3, CameraX)  Apache-2.0
+  OkHttp                                               Apache-2.0
+  ZXing core                                           Apache-2.0
+  Vosk Android (com.alphacephei:vosk-android)          Apache-2.0
+  JNA (a dependency of Vosk)                           LGPL-2.1-or-later or Apache-2.0, at your choice
+  sherpa-onnx (AAR, downloaded and hash-checked at build time) and the ONNX Runtime it links  Apache-2.0 and MIT
+  UnifiedPush connector                                Apache-2.0
+  CommonMark Java and its GFM extensions               BSD-2-Clause
+
+Included in the repository
+  Comfortaa (app/src/main/res/font/comfortaa.ttf)      SIL Open Font License 1.1, see docs/licenses/Comfortaa-OFL.txt
+  The launcher icon: its source image (docs/branding/icon-source.png) was made with an AI image tool and
+  carries the content credentials (C2PA) that record this.
+
+Downloaded by the app on the phone, after the person agrees (the files are checked against fixed SHA-256 hashes)
+  Vosk model vosk-model-small-it-0.22                  Apache-2.0
+  Piper voice it_IT-serena-high (rhasspy/piper-voices) Dataset committa/serena-synthetic-it-27h, CC BY 4.0
+  NVIDIA Parakeet TDT 0.6B v3, int8 conversion for sherpa-onnx (optional)  CC BY 4.0
+
+Online services the app can call, only when the person turns them on and asks
+  Open Food Facts (data under the ODbL), Pl@ntNet (needs the person's own API key), TinEye, Navidrome/Subsonic servers
+  and ntfy or another UnifiedPush distributor that the person chooses.
+
+No code is copied from Dicio (GPL-3.0); it was used only as an architectural reference.

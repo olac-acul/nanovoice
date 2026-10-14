@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The "n" arch of the launcher icon, as a stroke (same proportions as docs/branding/icon-source.png). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="3.3"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000"
+        android:pathData="M7.96,17.14V11.7A4.04,4.04 0 0 1 16.04,11.7V17.14" />
+</vector>

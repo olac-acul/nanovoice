@@ -1,0 +1,11 @@
+<resources>
+    <!-- The assistant sheet: a transparent window over whatever the user was doing, dimmed behind. -->
+    <style name="Theme.NanoVoice.Assistant" parent="@android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowContentOverlay">@null</item>
+        <item name="android:backgroundDimEnabled">true</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+    </style>
+</resources>

@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <!-- The barcode scanner's live camera; asked only when it is opened (and for taking a photo). -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.camera.any" android:required="false" />
+    <uses-permission android:name="android.permission.VIBRATE" />
+
+    <application
+        android:name=".NanoVoiceApp"
+        android:usesCleartextTraffic="true"
+        android:label="@string/app_name"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:theme="@android:style/Theme.Material.Light.NoActionBar">
+        <!-- Receives UnifiedPush events (not exported: only the distributor's connector may bind it). -->
+        <service android:name=".push.PushServiceImpl" android:exported="false">
+            <intent-filter>
+                <action android:name="org.unifiedpush.android.connector.PUSH_EVENT" />
+            </intent-filter>
+        </service>
+
+        <!-- Listens for the wake word while the app is not on screen (off unless enabled in the settings). -->
+        <service android:name=".wake.WakeWordService"
+            android:exported="false"
+            android:foregroundServiceType="microphone" />
+
+        <activity android:name=".assistant.AssistantActivity"
+            android:exported="false"
+            android:theme="@style/Theme.NanoVoice.Assistant"
+            android:launchMode="singleTask"
+            android:taskAffinity=""
+            android:excludeFromRecents="true"
+            android:windowSoftInputMode="stateAlwaysHidden" />
+
+        <service android:name=".assistant.NanoVoiceInteractionService"
+            android:exported="true"
+            android:label="@string/app_name"
+            android:permission="android.permission.BIND_VOICE_INTERACTION">
+            <meta-data android:name="android.voice_interaction" android:resource="@xml/voice_interaction_service" />
+            <intent-filter>
+                <action android:name="android.service.voice.VoiceInteractionService" />
+            </intent-filter>
+        </service>
+
+        <service android:name=".assistant.NanoVoiceSessionService"
+            android:exported="true"
+            android:permission="android.permission.BIND_VOICE_INTERACTION" />
+
+        <!-- Also lets other apps use NanoVoice's offline Italian recognizer through SpeechRecognizer. -->
+        <service android:name=".assistant.NanoVoiceRecognitionService"
+            android:exported="true"
+            android:label="@string/app_name">
+            <intent-filter>
+                <action android:name="android.speech.RecognitionService" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </service>
+
+        <activity android:name=".MainActivity" android:exported="true" android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- "Condividi": passes a shared photo to the chat already open, without a second chat. -->
+        <activity android:name=".ShareActivity" android:exported="true" android:theme="@android:style/Theme.NoDisplay"
+            android:excludeFromRecents="true" android:noHistory="true">
+            <intent-filter android:label="@string/share_label">
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="image/*" />
+            </intent-filter>
+        </activity>
+
+        <!-- Live barcode scanner for food products (Open Food Facts gets only the number). -->
+        <activity android:name=".BarcodeScanActivity" android:exported="false" android:screenOrientation="portrait" />
+
+        <!-- Reverse image search (TinEye, Google Lens) for one photo, in a page inside the app. -->
+        <activity android:name=".ImageSearchActivity" android:exported="false"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden" />
+
+        <!-- Where the camera app saves a photo taken from the chat (read once, then deleted). -->
+        <provider android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.photos"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/photo_paths" />
+        </provider>
+    </application>
+</manifest>
