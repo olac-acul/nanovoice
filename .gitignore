@@ -13,3 +13,4 @@ __pycache__/
 keystore.properties
 *.p12
 .env
+.dev-env

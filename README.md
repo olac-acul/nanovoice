@@ -35,7 +35,9 @@ export JAVA_HOME=/percorso/jdk-21
 ./gradlew build
 ```
 
-Per usare l'app sul telefono servono la build release e la compilazione anticipata (vedi **Voce → Velocità**).
+Per usare l'app sul telefono servono la build release e la compilazione anticipata (vedi **Voce → Velocità**):
+`tools/install-phone.sh` fa entrambe le cose, installando sopra l'app già presente (i dati restano se la chiave di firma è la stessa).
+Le impostazioni personali (JDK, SDK, telefono) stanno in un file non tracciato, `.dev-env`.
 
 ## Collegamento a NanoClaw
 
