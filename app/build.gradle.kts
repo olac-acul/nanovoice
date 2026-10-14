@@ -17,11 +17,27 @@ android {
         // Phones only: the sherpa-onnx native libraries are large, so ship just arm64.
         ndk { abiFilters += "arm64-v8a" }
     }
+    // A release is signed with the owner's key, handed over through the environment so that no password is ever
+    // stored: NANOVOICE_KEYSTORE (a PKCS12 file), NANOVOICE_STORE_PASSWORD and, if it is not "nanovoice",
+    // NANOVOICE_KEY_ALIAS. Without them (a contributor, the CI) the release build is signed with the local debug key:
+    // good for trying it, never for publishing (tools/release.sh refuses it).
+    val releaseKeystore = System.getenv("NANOVOICE_KEYSTORE")?.takeIf { File(it).isFile }
+    val releasePassword = System.getenv("NANOVOICE_STORE_PASSWORD")?.takeIf { it.isNotEmpty() }
+    signingConfigs {
+        if (releaseKeystore != null && releasePassword != null) {
+            create("release") {
+                storeFile = File(releaseKeystore)
+                storeType = "PKCS12"
+                storePassword = releasePassword
+                keyAlias = System.getenv("NANOVOICE_KEY_ALIAS") ?: "nanovoice"
+                keyPassword = releasePassword
+            }
+        }
+    }
     buildTypes {
         release {
-            // Personal app, no store release: sign with the debug key so the release build can be installed.
             // A release build is not debuggable, so ART can compile it ahead of time (debug builds stay slow).
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.findByName("release") ?: signingConfigs.getByName("debug")
             isMinifyEnabled = false
         }
     }
