@@ -91,6 +91,8 @@ fun SettingsScreen(
     onOpenNotificationAccess: () -> Unit = {},
     /** Tries the Navidrome account: null when it works, otherwise the error. */
     onTestMusic: suspend (dev.nanovoice.actions.music.MusicAccount) -> String? = { null },
+    /** Trades the pairing code of a scanned QR for the token. */
+    onPair: suspend (dev.nanovoice.agent.PairingLinkResult.Valid) -> dev.nanovoice.agent.PairingResult = { dev.nanovoice.agent.PairingResult.Unreachable },
     onBack: () -> Unit,
 ) {
     var url by remember { mutableStateOf(initial.serverUrl) }
@@ -127,6 +129,27 @@ fun SettingsScreen(
 
     val urlCheck = if (url.isBlank()) null else ServerUrl.check(url)
     val urlError = (urlCheck as? ServerUrlCheck.Invalid)?.reason
+
+    // Pairing with the panel's QR code: scan, say which server, trade the one-time code for the token.
+    val settingsContext = androidx.compose.ui.platform.LocalContext.current
+    var pendingPair by remember { mutableStateOf<dev.nanovoice.agent.PairingLinkResult.Valid?>(null) }
+    var pairMessage by remember { mutableStateOf<Int?>(null) }
+    var pairBusy by remember { mutableStateOf(false) }
+    val pairScanner = androidx.activity.compose.rememberLauncherForActivityResult(BarcodeScanActivity.ScanQr()) { text ->
+        if (text != null) when (val link = dev.nanovoice.agent.PairingLink.parse(text)) {
+            is dev.nanovoice.agent.PairingLinkResult.Valid -> { pairMessage = null; pendingPair = link }
+            is dev.nanovoice.agent.PairingLinkResult.NotPairing -> pairMessage = R.string.pair_not_qr
+            is dev.nanovoice.agent.PairingLinkResult.UnsupportedVersion -> pairMessage = R.string.pair_unsupported
+            is dev.nanovoice.agent.PairingLinkResult.BadServer -> pairMessage = R.string.pair_bad_server
+        }
+    }
+    val cameraPermission = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) pairScanner.launch(Unit) else pairMessage = R.string.camera_denied
+    }
+    fun startPairScan() {
+        if (settingsContext.checkSelfPermission(android.Manifest.permission.CAMERA) == android.content.pm.PackageManager.PERMISSION_GRANTED) pairScanner.launch(Unit)
+        else cameraPermission.launch(android.Manifest.permission.CAMERA)
+    }
 
     fun commit() {
         // An invalid address is not saved: the previous one stays until it is fixed. Only what was changed here is
@@ -308,6 +331,38 @@ fun SettingsScreen(
                         }
                     }
                     SettingsPage.Server -> {
+                        Card {
+                            OutlinedButton(onClick = ::startPairScan, enabled = !pairBusy, modifier = Modifier.fillMaxWidth()) {
+                                Text(stringResource(if (pairBusy) R.string.pair_working else R.string.pair_scan))
+                            }
+                            pairMessage?.let { Text(stringResource(it), color = MaterialTheme.colorScheme.onSurfaceVariant) } ?: Hint(R.string.pair_hint)
+                        }
+                        // Which server the code belongs to is shown before anything is replaced: a QR alone does not confirm.
+                        pendingPair?.let { link ->
+                            androidx.compose.material3.AlertDialog(
+                                onDismissRequest = { pendingPair = null },
+                                title = { Text(stringResource(R.string.pair_confirm_title)) },
+                                text = { Text(stringResource(R.string.pair_confirm_body, link.server)) },
+                                confirmButton = {
+                                    androidx.compose.material3.TextButton(onClick = {
+                                        pendingPair = null
+                                        pairBusy = true
+                                        pairMessage = null
+                                        scope.launch {
+                                            val result = onPair(link)
+                                            pairBusy = false
+                                            when (result) {
+                                                is dev.nanovoice.agent.PairingResult.Paired -> { url = link.server; token = result.token; commit(); pairMessage = R.string.pair_done }
+                                                is dev.nanovoice.agent.PairingResult.InvalidCode -> pairMessage = R.string.pair_invalid_code
+                                                is dev.nanovoice.agent.PairingResult.TooManyAttempts -> pairMessage = R.string.pair_too_many
+                                                is dev.nanovoice.agent.PairingResult.Unreachable -> pairMessage = R.string.pair_unreachable
+                                            }
+                                        }
+                                    }) { Text(stringResource(R.string.pair_confirm_yes)) }
+                                },
+                                dismissButton = { androidx.compose.material3.TextButton(onClick = { pendingPair = null }) { Text(stringResource(R.string.pair_confirm_no)) } },
+                            )
+                        }
                         Card {
                             Text(statusLabel(status), color = MaterialTheme.colorScheme.onSurfaceVariant)
                             OutlinedTextField(

@@ -43,6 +43,18 @@ object Barcodes {
         return decode(PlanarYUVLuminanceSource(turned, height, width, 0, 0, height, width, false))
     }
 
+    private val qrHints = mapOf(
+        DecodeHintType.POSSIBLE_FORMATS to listOf(BarcodeFormat.QR_CODE),
+        DecodeHintType.TRY_HARDER to true,
+    )
+
+    /** The text of a QR code in a camera frame (a QR code reads at any angle, so there is no sideways attempt). */
+    fun readQr(luma: ByteArray, rowStride: Int, width: Int, height: Int): String? = try {
+        MultiFormatReader().decode(BinaryBitmap(HybridBinarizer(PlanarYUVLuminanceSource(luma, rowStride, height, 0, 0, width, height, false))), qrHints).text
+    } catch (_: ReaderException) {
+        null
+    }
+
     /** UPC-A is EAN-13 with a leading 0: Open Food Facts files products under the 13 digits. */
     internal fun normalised(code: String): String = if (code.length == 12) "0$code" else code
 

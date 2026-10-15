@@ -41,7 +41,9 @@ Le impostazioni personali (JDK, SDK, telefono) stanno in un file non tracciato, 
 
 ## Collegamento a NanoClaw
 
-Impostazioni → Server NanoClaw: indirizzo (`ws://host:8767` in rete locale/VPN, `wss://` su internet) e token.
+**Abbinamento con un QR:** nel pannello di NanoClaw, pagina *Phone*, "Pair the app with a QR code"; nell'app, Impostazioni → Server NanoClaw → "Scansiona il QR del pannello". Il QR contiene un codice che vale una volta sola e per cinque minuti, non il token: l'app lo scambia con il token dopo aver mostrato il server e chiesto conferma (formato e regole in `docs/PROTOCOL.md`).
+
+A mano: Impostazioni → Server NanoClaw: indirizzo (`ws://host:8767` in rete locale/VPN, `wss://` su internet) e token.
 Il token è cifrato con una chiave dell'Android Keystore. `ws://` è accettato solo per host privati
 (loopback, reti private, Tailscale/`.ts.net`, nomi senza punto) e con una VPN attiva; altrimenti l'app chiede la VPN o `wss://`.
 Lato server serve la skill `add-voice` di [skills-for-nanoclaw](https://github.com/olac-acul/skills-for-nanoclaw) (canale WebSocket per NanoClaw, con uno script che lo attiva e mostra indirizzo e token da inserire nell'app). Protocollo: `docs/PROTOCOL.md`.

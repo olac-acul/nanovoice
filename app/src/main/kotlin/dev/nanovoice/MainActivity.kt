@@ -149,6 +149,7 @@ class MainActivity : ComponentActivity() {
                         onRequestMic = { micLauncher.launch(Manifest.permission.RECORD_AUDIO) },
                         onRequestPermissions = { permissionsLauncher.launch(it) },
                         onTestMusic = container::testMusic,
+                        onPair = container::pair,
                         onOpenNotificationAccess = {
                             runCatching { startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)) }
                         },

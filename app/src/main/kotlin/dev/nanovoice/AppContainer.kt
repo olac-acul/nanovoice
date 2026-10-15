@@ -128,6 +128,12 @@ class AppContainer(context: Context) {
     suspend fun testMusic(account: dev.nanovoice.actions.music.MusicAccount): String? =
         dev.nanovoice.actions.music.NavidromeClient(account).ping().exceptionOrNull()?.let { it.message ?: it.javaClass.simpleName }
 
+    /** Trades the pairing code of a scanned QR for the server's token (off the main thread). The code is not kept. */
+    suspend fun pair(link: dev.nanovoice.agent.PairingLinkResult.Valid): dev.nanovoice.agent.PairingResult =
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            dev.nanovoice.agent.PairingClient().exchange(link.server, link.code, android.os.Build.MODEL.orEmpty().ifBlank { "Android" })
+        }
+
     fun previewVoice(id: String) {
         val name = voices.spec(id)?.displayName ?: return
         sherpa.preview(id, "Ciao, sono $name. Posso leggerti le risposte.")

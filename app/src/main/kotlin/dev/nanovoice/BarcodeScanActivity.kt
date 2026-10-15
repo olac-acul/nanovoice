@@ -66,6 +66,8 @@ class BarcodeScanActivity : ComponentActivity() {
     private val frames = AtomicInteger(0)
     private var camera: Camera? = null
     private val torch = mutableStateOf(false)
+    /** Reads a QR code (the pairing code of the panel) instead of a product barcode. */
+    private val qr by lazy { intent.getBooleanExtra(EXTRA_QR, false) }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -77,12 +79,11 @@ class BarcodeScanActivity : ComponentActivity() {
                 Surface(modifier = Modifier.fillMaxSize(), color = Color.Black) {
                     Box(modifier = Modifier.fillMaxSize()) {
                         AndroidView(factory = { context -> PreviewView(context).also { start(it) } }, modifier = Modifier.fillMaxSize())
-                        // Where to hold the code: a wide frame, like the code itself.
+                        // Where to hold the code: a wide frame for a barcode, a square one for a QR code.
                         Box(
                             modifier = Modifier
                                 .align(Alignment.Center)
-                                .fillMaxWidth(0.8f)
-                                .height(150.dp)
+                                .then(if (qr) Modifier.size(260.dp) else Modifier.fillMaxWidth(0.8f).height(150.dp))
                                 .border(BorderStroke(3.dp, Color.White.copy(alpha = 0.85f)), RoundedCornerShape(20.dp)),
                         )
                         Column(modifier = Modifier.fillMaxSize().safeDrawingPadding().padding(16.dp)) {
@@ -92,7 +93,7 @@ class BarcodeScanActivity : ComponentActivity() {
                                     contentAlignment = Alignment.Center,
                                 ) { Icons.Close(Color.White) }
                                 Text(
-                                    stringResource(R.string.scan_title),
+                                    stringResource(if (qr) R.string.scan_qr_title else R.string.scan_title),
                                     style = MaterialTheme.typography.titleMedium,
                                     color = Color.White,
                                     modifier = Modifier.weight(1f),
@@ -110,7 +111,7 @@ class BarcodeScanActivity : ComponentActivity() {
                                 modifier = Modifier.fillMaxWidth(),
                             ) {
                                 Text(
-                                    stringResource(R.string.scan_hint),
+                                    stringResource(if (qr) R.string.scan_qr_hint else R.string.scan_hint),
                                     style = MaterialTheme.typography.bodyMedium,
                                     textAlign = TextAlign.Center,
                                     modifier = Modifier.padding(16.dp),
@@ -142,7 +143,8 @@ class BarcodeScanActivity : ComponentActivity() {
                     val plane = it.planes[0]
                     val luma = ByteArray(plane.buffer.remaining()).also { bytes -> plane.buffer.get(bytes) }
                     // Every other frame turned: the code may be held level or upright.
-                    val code = Barcodes.read(luma, plane.rowStride, it.width, it.height, sideways = frames.incrementAndGet() % 2 == 0)
+                    val code = if (qr) Barcodes.readQr(luma, plane.rowStride, it.width, it.height)
+                    else Barcodes.read(luma, plane.rowStride, it.width, it.height, sideways = frames.incrementAndGet() % 2 == 0)
                     if (code != null && found.compareAndSet(false, true)) runOnUiThread { deliver(code) }
                 }
             }
@@ -181,7 +183,16 @@ class BarcodeScanActivity : ComponentActivity() {
             intent?.getStringExtra(EXTRA_CODE)?.takeIf { resultCode == Activity.RESULT_OK }
     }
 
+    /** Opens the scanner for a QR code; the result is its text, or null when it was closed. */
+    class ScanQr : ActivityResultContract<Unit, String?>() {
+        override fun createIntent(context: Context, input: Unit) =
+            Intent(context, BarcodeScanActivity::class.java).putExtra(EXTRA_QR, true)
+        override fun parseResult(resultCode: Int, intent: Intent?): String? =
+            intent?.getStringExtra(EXTRA_CODE)?.takeIf { resultCode == Activity.RESULT_OK }
+    }
+
     private companion object {
         const val EXTRA_CODE = "code"
+        const val EXTRA_QR = "qr"
     }
 }
