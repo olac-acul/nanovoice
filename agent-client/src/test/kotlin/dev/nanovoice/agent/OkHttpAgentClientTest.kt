@@ -421,4 +421,26 @@ class OkHttpAgentClientTest {
         Thread.sleep(200)
         assertEquals(0, server.requestCount) // nothing sent, not even the token
     }
+
+    @Test fun aRefusedProtocolVersionIsExplainedUntilTheNextAttempt() {
+        val c = client()
+        val ws = serverSocket()
+        next() // hello
+        waitConnected(c)
+        val open = scope.async { c.ask("prima").toList() }
+        next() // that message
+        ws.send("""{"type":"error","message":"unsupported protocol; expected 2"}""")
+        ws.close(1002, "unsupported protocol")
+        val newer = protocolRefusalText("unsupported protocol; expected 2")
+        assertEquals(listOf<AgentEvent>(AgentEvent.Error(newer)), runBlocking { open.await() })
+        runBlocking { withTimeout(5_000) { c.state.first { it != ConnectionState.Connected } } }
+        // The server closed the session; the reconnections fail here. Asking again says why, not "unreachable".
+        assertEquals(listOf<AgentEvent>(AgentEvent.Error(newer)), runBlocking { c.ask("ancora").toList() })
+    }
+
+    @Test fun theRefusalSaysWhichSideToUpdate() {
+        assertTrue(protocolRefusalText("unsupported protocol; expected ${Protocol.VERSION + 1}").contains("aggiorna NanoVoice"))
+        assertTrue(protocolRefusalText("unsupported protocol; expected 0").contains("add-voice"))
+        assertTrue(protocolRefusalText("unsupported protocol").contains("versioni diverse"))
+    }
 }

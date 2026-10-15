@@ -80,6 +80,9 @@ class OkHttpAgentClient(
     @Volatile private var socket: WebSocket? = null
     @Volatile private var pushEndpoint: String? = null
     @Volatile private var pendingReset: CompletableDeferred<Boolean>? = null
+
+    /** Why the server refused the last session because of the protocol version, in words for the person; null if not. */
+    @Volatile private var protocolRefusal: String? = null
     private var loop: Job? = null
 
     override suspend fun newConversation(): Boolean {
@@ -116,7 +119,7 @@ class OkHttpAgentClient(
     override fun ask(text: String, image: AgentImage?): Flow<AgentEvent> = flow {
         val ws = socket.takeIf { _state.value == ConnectionState.Connected }
         if (ws == null) {
-            emit(AgentEvent.Error("Server non raggiungibile."))
+            emit(AgentEvent.Error(protocolRefusal ?: "Server non raggiungibile."))
             return@flow
         }
         val id = "m${counter.incrementAndGet()}"
@@ -175,6 +178,7 @@ class OkHttpAgentClient(
             val ws = http.newWebSocket(request, object : WebSocketListener() {
                 override fun onOpen(webSocket: WebSocket, response: Response) {
                     opened = true
+                    protocolRefusal = null
                     webSocket.send(Protocol.hello(config.capabilities, config.locale))
                     // Always, even when none: a push turned off while offline must reach the server too.
                     webSocket.send(Protocol.pushEndpoint(pushEndpoint))
@@ -224,6 +228,12 @@ class OkHttpAgentClient(
                     target != null -> target.trySend(AgentEvent.Error(msg.message))
                     // Only a refused session ends every reply; a complaint about another frame (a push endpoint, an
                     // action result) or about an unknown reply concerns none of them.
+                    msg.replyTo == null && msg.message.startsWith(UNSUPPORTED_PROTOCOL) -> {
+                        // The server closes the session right after: remember why, until the next attempt.
+                        val refusal = protocolRefusalText(msg.message)
+                        protocolRefusal = refusal
+                        failPending(refusal)
+                    }
                     msg.replyTo == null && FATAL_ERROR_PREFIXES.any { msg.message.startsWith(it) } -> failPending(msg.message)
                 }
             }
@@ -263,6 +273,7 @@ class OkHttpAgentClient(
         const val RESET_TIMEOUT_MS = 10_000L
         const val MAX_ABANDONED = 50
         const val BLOCKED_RECHECK_MS = 3_000L
-        val FATAL_ERROR_PREFIXES = arrayOf("hello required", "unsupported protocol")
+        const val UNSUPPORTED_PROTOCOL = "unsupported protocol"
+        val FATAL_ERROR_PREFIXES = arrayOf("hello required", UNSUPPORTED_PROTOCOL)
     }
 }

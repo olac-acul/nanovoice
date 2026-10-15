@@ -94,3 +94,18 @@ internal object Protocol {
         }
     }
 }
+
+/**
+ * The words for a session the server refused because of the protocol version ("unsupported protocol; expected 2"):
+ * which of the two is older and has to be updated. Without a readable version, it says only that they do not match.
+ */
+internal fun protocolRefusalText(serverMessage: String): String {
+    val expected = Regex("expected (\\d+)").find(serverMessage)?.groupValues?.get(1)?.toIntOrNull()
+    return when {
+        expected != null && expected > Protocol.VERSION ->
+            "Il server NanoClaw è più nuovo di questa app: aggiorna NanoVoice per continuare a usarlo."
+        expected != null && expected < Protocol.VERSION ->
+            "Il server NanoClaw è più vecchio di questa app: va aggiornato (la skill add-voice) per collegarsi."
+        else -> "L'app e il server NanoClaw usano versioni diverse del collegamento: aggiorna l'app o il server."
+    }
+}

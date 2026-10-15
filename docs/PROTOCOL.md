@@ -48,6 +48,9 @@ Autenticazione: header `Authorization: Bearer <token>` nell'upgrade WebSocket (4
 - Le foto usate dagli strumenti appartengono al messaggio di `reply_to`: una richiesta senza foto non può utilizzare
   quelle delle richieste precedenti. L'interruttore dei servizi foto esterni rimuove le relative capacità.
 - Le aggiunte di capacità restano nella versione 1. Modifiche incompatibili incrementano `protocol`.
+- Una versione che il server non conosce viene rifiutata con `error` "unsupported protocol; expected N" e la chiusura
+  della connessione. L'app lo spiega alla persona dicendo quale dei due aggiornare (N maggiore della sua: l'app; minore:
+  il server), e lo ripete a ogni richiesta finché un nuovo tentativo di connessione non riesce.
 
 ## Semantica dei frame
 

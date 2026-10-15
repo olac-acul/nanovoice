@@ -4,12 +4,28 @@
 
 Assistente vocale Android per [NanoClaw](https://github.com/nanocoai/nanoclaw). Le richieste semplici (ora, data, timer, sveglia, aprire un'app,
 preparare una chiamata) sono gestite sul telefono, anche offline; le altre vanno a un'istanza NanoClaw self-hosted.
-Piano completo: `PIANO_SVILUPPO.md`.
 
 Stato: **Fasi 1-5 complete** (chat, router locale, NanoClaw via WebSocket, voce offline, assistente di sistema, azioni
 locali, risveglio push). Sono presenti anche parola di attivazione, classificatore sul telefono, Parakeet opzionale,
 musica, foto e scanner di codici a barre. Il modello linguistico locale resta da valutare.
 Modifica e cancellazione di singoli eventi del calendario sono implementate; manca la prova su un dispositivo.
+
+## Installare l'app
+
+Serve un telefono Android 8 o successivo (arm64) e un server NanoClaw con la skill `add-voice` di
+[skills-for-nanoclaw](https://github.com/olac-acul/skills-for-nanoclaw), raggiungibile dal telefono (rete di casa o VPN).
+
+1. Scarica l'APK dalla pagina [Releases](https://github.com/olac-acul/nanovoice/releases) e, se puoi, controllane lo
+   SHA-256 (è nelle note della release e nel file `.sha256` accanto). Il certificato di firma deve avere lo SHA-256
+   scritto in [`tools/release-cert.sha256`](tools/release-cert.sha256): `apksigner verify --print-certs nanovoice-<versione>.apk`.
+2. Aprilo sul telefono e consenti l'installazione da questa fonte quando Android lo chiede.
+3. Al primo avvio l'app chiede i permessi e scarica i modelli per la voce (riconoscimento e sintesi, circa 165 MB;
+   il riconoscimento più preciso, Parakeet, è facoltativo e più grande).
+4. Abbina l'app al server: nel pannello di NanoClaw, pagina *Phone*, "Pair the app with a QR code"; nell'app,
+   Impostazioni → Server NanoClaw → "Scansiona il QR del pannello" (vedi **Collegamento a NanoClaw**).
+
+Le versioni successive si installano sopra quella presente, senza perdere impostazioni e abbinamento. Se un giorno il
+server e l'app non parlano più la stessa versione del collegamento, l'app dice quale dei due aggiornare.
 
 ## Moduli
 
