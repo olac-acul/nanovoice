@@ -10,6 +10,7 @@ import kotlin.time.Duration
 object ItalianRules : LocaleRules {
     override val matchers: List<LocalMatcher> = listOf(
         ItalianTimeMatcher, ItalianDateMatcher, ItalianTimerMatcher, ItalianAlarmMatcher, ItalianCallMatcher, ItalianOpenAppMatcher, ItalianPlayMusicMatcher, ItalianNoteMatcher,
+        ItalianClockControlMatcher,
     )
 
     override fun parseClockReply(text: String): ClockTime? {

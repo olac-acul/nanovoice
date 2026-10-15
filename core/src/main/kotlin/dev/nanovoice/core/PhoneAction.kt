@@ -15,6 +15,21 @@ sealed interface PhoneAction {
     data class SetAlarm(val hour: Int, val minute: Int, val tomorrow: Boolean = false) : PhoneAction
     data class SetTimer(val duration: Duration) : PhoneAction
 
+    /**
+     * Stops a timer. One that is ringing is silenced; one still counting down cannot be stopped by another app
+     * (Android has no way to), so the clock app's timers screen opens for the person to stop it with a tap.
+     */
+    data object StopTimer : PhoneAction
+
+    /**
+     * Stops an alarm. Without a time: the one ringing now. With a time: the clock app skips the next ring of that alarm
+     * (it can do so only within the next 24 hours; a repeating alarm stays on for the following days).
+     */
+    data class StopAlarm(val hour: Int? = null, val minute: Int? = null) : PhoneAction
+
+    /** Snoozes the alarm ringing now, for [minutes] or for the clock app's own snooze time. */
+    data class SnoozeAlarm(val minutes: Int? = null) : PhoneAction
+
     enum class MediaCommand { Play, Pause, Toggle, Next, Previous }
     data class Media(val command: MediaCommand) : PhoneAction
 

@@ -21,6 +21,8 @@ import dev.nanovoice.actions.music.TempoPlayer
 import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraManager
 import android.media.AudioManager
+import android.media.AudioAttributes
+import kotlinx.coroutines.delay
 import android.os.BatteryManager
 import android.view.KeyEvent
 import java.time.LocalDateTime
@@ -50,6 +52,9 @@ class AndroidActionExecutor(
         PhoneAction.TellDate -> ActionResult(true, phrases.date(LocalDate.now(clock)))
         is PhoneAction.SetTimer -> setTimer(action.duration)
         is PhoneAction.SetAlarm -> setAlarm(action)
+        is PhoneAction.StopTimer -> stopTimer()
+        is PhoneAction.StopAlarm -> stopAlarm(action)
+        is PhoneAction.SnoozeAlarm -> snoozeAlarm(action.minutes)
         is PhoneAction.OpenApp -> openApp(action.name)
         is PhoneAction.Call -> call(action.target)
         is PhoneAction.Media -> media(action.command)
@@ -441,7 +446,74 @@ class AndroidActionExecutor(
         }
     }
 
+    /**
+     * Something of the clock app is ringing: an alarm or a timer, which play as alarm sound. Which of the two cannot
+     * be told from the sound, so the timer is tried first wherever that matters (see [stopAlarm]).
+     */
+    private fun clockRinging(): Boolean = runCatching {
+        context.getSystemService(AudioManager::class.java).activePlaybackConfigurations
+            .any { it.audioAttributes.usage == AudioAttributes.USAGE_ALARM }
+    }.getOrDefault(false)
+
+    private fun startClock(intent: Intent): Boolean = try {
+        context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        true
+    } catch (_: ActivityNotFoundException) {
+        false
+    } catch (_: SecurityException) {
+        false
+    }
+
+    /** Silences a ringing timer (Android 9 and later); says whether something is still ringing afterwards. */
+    private suspend fun dismissRingingTimer(): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) return true
+        startClock(Intent(AlarmClock.ACTION_DISMISS_TIMER))
+        delay(RING_CHECK_MS)
+        return clockRinging()
+    }
+
+    private suspend fun stopTimer(): ActionResult {
+        if (clockRinging()) {
+            val stillRinging = dismissRingingTimer()
+            return if (stillRinging) ActionResult(false, phrases.ringingIsAlarm) else ActionResult(true, phrases.timerStopped)
+        }
+        // A running timer cannot be stopped from outside the clock app: its timers screen is the closest thing.
+        return if (startClock(Intent(AlarmClock.ACTION_SHOW_TIMERS))) ActionResult(true, phrases.timersOpened)
+        else ActionResult(false, phrases.timerNoApp)
+    }
+
+    private suspend fun stopAlarm(action: PhoneAction.StopAlarm): ActionResult {
+        val hour = action.hour
+        if (hour != null) {
+            if (hour !in 0..23 || (action.minute ?: 0) !in 0..59) return ActionResult(false, phrases.alarmNoApp)
+            val skip = Intent(AlarmClock.ACTION_DISMISS_ALARM)
+                .putExtra(AlarmClock.EXTRA_ALARM_SEARCH_MODE, AlarmClock.ALARM_SEARCH_MODE_TIME)
+                .putExtra(AlarmClock.EXTRA_HOUR, hour)
+                .putExtra(AlarmClock.EXTRA_MINUTES, action.minute ?: 0)
+            return if (startClock(skip)) ActionResult(true, phrases.alarmSkipped(hour, action.minute ?: 0))
+            else ActionResult(false, phrases.alarmNoApp)
+        }
+        if (!clockRinging()) return ActionResult(false, phrases.nothingRinging)
+        // What rings may be a timer: "dismiss the next alarm" would then skip a real alarm still to come. So the timer
+        // goes first, and only if something still rings is it an alarm.
+        if (!dismissRingingTimer()) return ActionResult(true, phrases.timerStopped)
+        val dismiss = Intent(AlarmClock.ACTION_DISMISS_ALARM)
+            .putExtra(AlarmClock.EXTRA_ALARM_SEARCH_MODE, AlarmClock.ALARM_SEARCH_MODE_NEXT)
+        return if (startClock(dismiss)) ActionResult(true, phrases.alarmStopped) else ActionResult(false, phrases.alarmNoApp)
+    }
+
+    private fun snoozeAlarm(minutes: Int?): ActionResult {
+        if (!clockRinging()) return ActionResult(false, phrases.nothingRinging)
+        val snooze = Intent(AlarmClock.ACTION_SNOOZE_ALARM).apply {
+            if (minutes != null) putExtra(AlarmClock.EXTRA_ALARM_SNOOZE_DURATION, minutes.coerceIn(1, 60))
+        }
+        return if (startClock(snooze)) ActionResult(true, phrases.alarmSnoozed(minutes?.coerceIn(1, 60)))
+        else ActionResult(false, phrases.alarmNoApp)
+    }
+
     private companion object {
+        /** How long the clock app takes to silence a timer before the sound is checked again. */
+        const val RING_CHECK_MS = 900L
         const val MAX_EVENTS = 15
         const val SIGNAL = "org.thoughtcrime.securesms"
         const val NOTES = "it.niedermann.owncloud.notes"

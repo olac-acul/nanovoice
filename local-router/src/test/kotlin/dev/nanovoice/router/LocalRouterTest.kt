@@ -64,7 +64,7 @@ class LocalRouterTest {
     // --- timer: negative
     @Test fun timerHowLong() = assertNull(intent("quanto dura un timer?"))
     @Test fun timerWhatIs() = assertNull(intent("cos'è un timer"))
-    @Test fun timerStop() = assertNull(intent("ferma il timer"))
+    @Test fun timerStop() = assertEquals(LocalIntent.StopTimer, intent("ferma il timer")) // ClockControlMatcherTest has the rest
     @Test fun timerCancel() = assertNull(intent("annulla il timer di dieci minuti"))
     @Test fun timerPause() = assertNull(intent("metti in pausa il timer"))
     @Test fun timerTwo() = assertNull(intent("metti un timer di dieci minuti e un timer di cinque"))
@@ -89,8 +89,8 @@ class LocalRouterTest {
     @Test fun alarmWithoutTimeHasLowerConfidence() = assertEquals(0.9f, router.route("metti una sveglia")?.confidence)
 
     // --- alarm: negative
-    @Test fun alarmCancel() = assertNull(intent("cancella la sveglia"))
-    @Test fun alarmDisable() = assertNull(intent("disattiva la sveglia delle sette"))
+    @Test fun alarmCancel() = assertEquals(LocalIntent.StopAlarm(null), intent("cancella la sveglia"))
+    @Test fun alarmDisable() = assertEquals(LocalIntent.StopAlarm(ClockTime(7, 0)), intent("disattiva la sveglia delle sette"))
     @Test fun alarmWhenDoesItRing() = assertNull(intent("a che ora suona la sveglia"))
     @Test fun alarmPrice() = assertNull(intent("quanto costa una sveglia"))
     @Test fun alarmDayAfterTomorrow() = assertNull(intent("svegliami dopodomani alle sette"))

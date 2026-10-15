@@ -40,6 +40,38 @@ class PhoneActionHandlerTest {
         assertEquals(emptyList(), executed)
     }
 
+    @Test fun stopsTimersAndAlarms() {
+        assertTrue(handle("stop_timer").ok)
+        assertTrue(handle("stop_alarm").ok)
+        assertTrue(handle("stop_alarm", "hour" to 7, "minute" to 30).ok)
+        assertTrue(handle("stop_alarm", "hour" to 6).ok)
+        assertTrue(handle("snooze_alarm").ok)
+        assertTrue(handle("snooze_alarm", "minutes" to 10).ok)
+        assertEquals(
+            listOf(
+                PhoneAction.StopTimer, PhoneAction.StopAlarm(), PhoneAction.StopAlarm(7, 30), PhoneAction.StopAlarm(6, null),
+                PhoneAction.SnoozeAlarm(), PhoneAction.SnoozeAlarm(10),
+            ),
+            executed,
+        )
+    }
+
+    @Test fun refusesOddClockArguments() {
+        assertFalse(handle("stop_alarm", "hour" to 24).ok)
+        assertFalse(handle("stop_alarm", "minute" to 30).ok)
+        assertFalse(handle("snooze_alarm", "minutes" to 0).ok)
+        assertFalse(handle("snooze_alarm", "minutes" to 120).ok)
+        assertEquals(emptyList(), executed)
+    }
+
+    @Test fun clockControlsRunWithThePhoneLockedAndAreAlwaysDeclared() {
+        val lockedHandler = PhoneActionHandler(recorder, locked = { true })
+        for (name in listOf("stop_timer", "stop_alarm", "snooze_alarm")) {
+            assertTrue(runBlocking { lockedHandler.handle(name, JsonObject(emptyMap()), REQ) }.ok, name)
+            assertTrue(name in PhoneActionHandler.BASIC, name)
+        }
+    }
+
     @Test fun tellTime() {
         assertTrue(handle("tell_time").ok)
         assertEquals(listOf<PhoneAction>(PhoneAction.TellTime), executed)
@@ -83,7 +115,7 @@ class PhoneActionHandlerTest {
         )
         assertEquals(PhoneActionHandler.ALL, PhoneActionHandler.capabilities(AppSettings(readCalendar = true, editCalendar = true, readLocation = true, readNotifications = true)))
         val off = AppSettings(phoneControls = false, phoneLinks = false, phoneDrafts = false, phoneStatus = false)
-        assertEquals(setOf("set_timer", "tell_time", "tell_date", "set_alarm", "open_app", "call", "confirm") + PhotoActions.NAMES, PhoneActionHandler.capabilities(off))
+        assertEquals(setOf("set_timer", "tell_time", "tell_date", "set_alarm", "open_app", "call", "stop_timer", "stop_alarm", "snooze_alarm", "confirm") + PhotoActions.NAMES, PhoneActionHandler.capabilities(off))
         assertEquals(PhoneActionHandler.ALL - "battery" - PhoneActionHandler.CALENDAR - PhoneActionHandler.CALENDAR_EDITS - PhoneActionHandler.LOCATION - PhoneActionHandler.NOTIFICATIONS, PhoneActionHandler.capabilities(AppSettings(phoneStatus = false)))
     }
 

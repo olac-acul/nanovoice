@@ -109,6 +109,10 @@ class ChatEngine(
                     emit(ReplySnapshot(executor.execute(PhoneAction.SetTimer(duration)).message))
                 }
             }
+            // Allowed with the phone locked too: an alarm ringing on a locked phone is exactly when this is wanted.
+            LocalIntent.StopTimer -> emit(ReplySnapshot(executor.execute(PhoneAction.StopTimer).message))
+            is LocalIntent.StopAlarm -> emit(ReplySnapshot(executor.execute(PhoneAction.StopAlarm(intent.time?.hour, intent.time?.minute)).message))
+            is LocalIntent.SnoozeAlarm -> emit(ReplySnapshot(executor.execute(PhoneAction.SnoozeAlarm(intent.minutes)).message))
             null -> if (localOnly) emit(ReplySnapshot(phrases.unlockNeeded)) else askAgent(text)
         }
     }

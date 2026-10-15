@@ -19,6 +19,15 @@ sealed interface LocalIntent {
 
     /** [duration] == null means the user did not say how long: the assistant must ask. */
     data class SetTimer(val duration: Duration?) : LocalIntent
+
+    /** "ferma il timer": silences a ringing one, or opens the clock's timers (a running one cannot be stopped from outside). */
+    data object StopTimer : LocalIntent
+
+    /** "spegni la sveglia" ([time] == null: the one ringing) or "disattiva la sveglia delle 7" (skip its next ring). */
+    data class StopAlarm(val time: ClockTime?) : LocalIntent
+
+    /** "posticipa la sveglia [di dieci minuti]"; [minutes] == null: the clock app's own snooze time. */
+    data class SnoozeAlarm(val minutes: Int?) : LocalIntent
 }
 
 data class MatchResult(val intent: LocalIntent, val confidence: Float)

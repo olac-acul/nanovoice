@@ -97,6 +97,17 @@ object ItalianPhrases : SpokenPhrases {
     override val timerTooLong = "Posso impostare timer lunghi al massimo ventiquattro ore."
     override val timerNoApp = "Non ho trovato nessuna app che possa impostare il timer."
     override val timerDenied = "Non ho il permesso di impostare il timer."
+    override val timerStopped = "Timer fermato."
+    override val timersOpened =
+        "Non sta suonando nessun timer, e un timer in corso si ferma solo dall'Orologio: ho aperto i timer, tocca quello da fermare."
+    override val ringingIsAlarm = "Sta suonando una sveglia, non un timer. Per spegnerla dimmi «spegni la sveglia»."
+    override val alarmStopped = "Sveglia spenta."
+    override val nothingRinging =
+        "Non sta suonando nessuna sveglia. Per saltarne una dimmi l'orario, per esempio «disattiva la sveglia delle 7»."
+    override fun alarmSkipped(hour: Int, minute: Int) =
+        "Ho chiesto all'Orologio di saltare la prossima sveglia ${alarmTimeWords(hour, minute)}. Lo fa solo se suona entro ventiquattro ore."
+    override fun alarmSnoozed(minutes: Int?) =
+        if (minutes == null) "Sveglia posticipata." else "Sveglia posticipata di $minutes ${if (minutes == 1) "minuto" else "minuti"}."
     override val askTimerDuration = "Per quanto tempo?"
     override val notUnderstood = "Non so ancora rispondere a questo."
     override fun media(command: dev.nanovoice.core.PhoneAction.MediaCommand) = when (command) {

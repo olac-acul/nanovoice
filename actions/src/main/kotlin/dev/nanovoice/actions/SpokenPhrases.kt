@@ -26,6 +26,21 @@ interface SpokenPhrases {
     val timerTooLong: String
     val timerNoApp: String
     val timerDenied: String
+
+    /** A ringing timer was silenced. */
+    val timerStopped: String
+    /** Nothing was ringing: the clock app's timers screen was opened for the person to stop a running one. */
+    val timersOpened: String
+    /** "Stop the timer", but what rings is an alarm. */
+    val ringingIsAlarm: String
+    /** A ringing alarm was silenced. */
+    val alarmStopped: String
+    /** "Stop the alarm" or "snooze", with nothing ringing. */
+    val nothingRinging: String
+    /** The clock app was asked to skip the next ring of the alarm at this time. */
+    fun alarmSkipped(hour: Int, minute: Int): String
+    /** The ringing alarm was snoozed; [minutes] null means the clock app's own snooze time. */
+    fun alarmSnoozed(minutes: Int?): String
     val askTimerDuration: String
     fun media(command: dev.nanovoice.core.PhoneAction.MediaCommand): String
     fun volumeSet(percent: Int): String

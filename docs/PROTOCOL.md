@@ -95,6 +95,18 @@ la durata effettiva. Per tutto il giorno si usa mezzanotte UTC e la fine è una 
 rimuove il luogo. Titolo massimo 200 caratteri, luogo massimo 500. I campi assenti restano invariati; `null` non è accettato.
 Eventi ricorrenti, calendari non modificabili e orari inesistenti o ambigui al cambio d'ora sono rifiutati.
 
+## Timer e sveglie
+
+| Azione | Argomenti | Comportamento |
+|---|---|---|
+| `set_timer` | `seconds` | Nuovo timer nell'app Orologio. |
+| `set_alarm` | `hour`, `minute`, `tomorrow` | Nuova sveglia nell'app Orologio. |
+| `stop_timer` | nessuno | Ferma un timer che suona. Un timer ancora in corso non si può fermare da un'altra app (Android non lo permette): si apre la schermata dei timer dell'Orologio. |
+| `stop_alarm` | eventuali `hour`, `minute` | Senza orario spegne la sveglia che suona. Con l'orario chiede all'Orologio di saltare il prossimo squillo di quella sveglia, che lo fa solo entro ventiquattro ore. |
+| `snooze_alarm` | eventuale `minutes` (1-60) | Posticipa la sveglia che suona. |
+
+Sono ammesse anche a telefono bloccato. Il suono di una sveglia e quello di un timer non si distinguono dall'esterno: per spegnere una sveglia il telefono prova prima a fermare un timer che suona, così non salta per errore una sveglia ancora da venire.
+
 Le altre capacità sono dichiarate da `PhoneActionHandler.capabilities`: azioni base, controlli, link, bozze, stato,
 letture private e strumenti foto. La chiamata apre il tastierino; SMS e Signal aprono una bozza.
 

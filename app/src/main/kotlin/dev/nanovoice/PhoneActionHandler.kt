@@ -44,6 +44,19 @@ class PhoneActionHandler(
                 val tomorrow = (args["tomorrow"] as? JsonPrimitive)?.booleanOrNull ?: false
                 PhoneAction.SetAlarm(hour, minute, tomorrow)
             }
+            "stop_timer" -> PhoneAction.StopTimer
+            "stop_alarm" -> {
+                val hour = (args["hour"] as? JsonPrimitive)?.longOrNull?.toInt()
+                val minute = (args["minute"] as? JsonPrimitive)?.longOrNull?.toInt()
+                if (hour == null && minute != null) return ActionOutcome(false, "minute senza hour")
+                if ((hour != null && hour !in 0..23) || (minute != null && minute !in 0..59)) return ActionOutcome(false, "ora non valida")
+                PhoneAction.StopAlarm(hour, minute)
+            }
+            "snooze_alarm" -> {
+                val minutes = (args["minutes"] as? JsonPrimitive)?.longOrNull?.toInt()
+                if (minutes != null && minutes !in 1..60) return ActionOutcome(false, "minutes va da 1 a 60")
+                PhoneAction.SnoozeAlarm(minutes)
+            }
             "open_app" -> PhoneAction.OpenApp(args.text("name") ?: return ActionOutcome(false, "manca il parametro name"))
             // Only prepares the call: the executor opens the dialer and never dials by itself.
             "call" -> PhoneAction.Call(args.text("target") ?: return ActionOutcome(false, "manca il parametro target"))
@@ -140,7 +153,7 @@ class PhoneActionHandler(
         val CONFIRM = setOf("confirm")
 
         /** Always available: the actions the local router can do as well. */
-        val BASIC = setOf("set_timer", "tell_time", "tell_date", "set_alarm", "open_app", "call")
+        val BASIC = setOf("set_timer", "tell_time", "tell_date", "set_alarm", "open_app", "call", "stop_timer", "stop_alarm", "snooze_alarm")
         val CONTROLS = setOf("media", "volume", "flashlight", "play_music")
         val LINKS = setOf("navigate", "open_url")
         val DRAFTS = setOf("sms_draft", "signal_draft", "calendar_draft", "note")
@@ -157,7 +170,7 @@ class PhoneActionHandler(
         private val CONTACT_LOOKUPS = setOf("call", "sms_draft")
 
         /** What runs with the phone locked: the same as a locked phone answers by itself. */
-        val WHEN_LOCKED = setOf("set_timer", "set_alarm", "tell_time", "tell_date")
+        val WHEN_LOCKED = setOf("set_timer", "set_alarm", "tell_time", "tell_date", "stop_timer", "stop_alarm", "snooze_alarm")
 
         /** Every action the `when` above handles, and the photo tools. */
         val ALL = BASIC + CONFIRM + CONTROLS + LINKS + DRAFTS + STATUS + CALENDAR + CALENDAR_EDITS + LOCATION + NOTIFICATIONS + PHOTOS

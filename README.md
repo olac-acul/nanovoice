@@ -68,7 +68,7 @@ Lato server serve la skill `add-voice` di [skills-for-nanoclaw](https://github.c
 
 Ora, data, timer, sveglia, apertura di un'app e chiamata, sia dal router locale sia richieste dall'agente con gli
 strumenti MCP `phone_*`. La chiamata apre solo il tastierino con il numero: non telefona mai da sola.
-Le sveglie e i timer sono nuovi; quelli esistenti non vengono toccati.
+Le sveglie e i timer impostati sono nuovi. Si possono fermare ("ferma il timer", "spegni la sveglia"), saltare ("disattiva la sveglia delle 7") e posticipare ("posticipa la sveglia di dieci minuti"); un timer ancora in corso non si può fermare da un'altra app, quindi si apre la schermata dei timer dell'Orologio.
 
 Sono disponibili anche musica (Navidrome e Tempo), volume, torcia, navigazione, link, note Nextcloud,
 bozze SMS/Signal ed eventi, batteria e letture facoltative di calendario, posizione e notifiche.
