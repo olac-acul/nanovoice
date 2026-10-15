@@ -8,6 +8,7 @@ import android.os.Bundle
 import android.os.Build
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
+import androidx.activity.viewModels
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
@@ -18,11 +19,14 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
 import dev.nanovoice.ChatViewModel
 import dev.nanovoice.MainActivity
 import dev.nanovoice.NanoVoiceApp
 import dev.nanovoice.chatViewModelFactory
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
 
 /** The compact assistant sheet: opens listening, shows what was understood and the reply, reads the reply aloud. */
 class AssistantActivity : ComponentActivity() {
@@ -37,6 +41,12 @@ class AssistantActivity : ComponentActivity() {
     /** The fingerprint or PIN prompt is up: the sheet must not close while it is in front. */
     private var dismissing = false
 
+    /** The conversation of this sheet; it lives as long as the sheet does, also while the sheet is off screen. */
+    private val sheetConversation: ChatViewModel by viewModels { chatViewModelFactory((application as NanoVoiceApp).container) }
+
+    /** Closes the sheet once the reply that was still under way has been answered and read aloud. */
+    private var closeWhenQuiet: Job? = null
+
     private fun hasMic() = checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -49,7 +59,7 @@ class AssistantActivity : ComponentActivity() {
         setContent {
             val settings by container.settingsStore.settings.collectAsState()
             NanoTheme(settings.themeMode, settings.dynamicColors) {
-                val vm: ChatViewModel = viewModel(factory = chatViewModelFactory(container))
+                val vm = sheetConversation
                 vm.isLocked = { keyguard.isKeyguardLocked }
                 var micGranted by remember { mutableStateOf(hasMic()) }
                 val micLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { micGranted = it }
@@ -86,10 +96,27 @@ class AssistantActivity : ComponentActivity() {
     /**
      * Gone from the screen (screen off, phone locked, another app opened): the sheet closes and its conversation goes
      * with it. Otherwise a sheet left open would come back over the lock screen with what was said while unlocked.
+     *
+     * A reply still under way is not cut short: the Clock app opening to set a timer, or the screen going off right
+     * after a question, would otherwise silence the answer. The sheet waits, off screen, until the reply has arrived and
+     * been read aloud, then closes. Nothing of it shows over the lock screen meanwhile: only the voice goes on. If the
+     * sheet comes back first (the Clock app closes again), it simply stays open.
      */
     override fun onStop() {
         super.onStop()
-        if (!isChangingConfigurations && !dismissing) finish()
+        if (isChangingConfigurations || dismissing) return
+        if (!sheetConversation.busy.value && !sheetConversation.speaking.value) return finish()
+        closeWhenQuiet?.cancel()
+        closeWhenQuiet = lifecycleScope.launch {
+            awaitQuiet(sheetConversation.busy, sheetConversation.speaking)
+            if (!lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) finish()
+        }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        closeWhenQuiet?.cancel()
+        closeWhenQuiet = null
     }
 
     /**
