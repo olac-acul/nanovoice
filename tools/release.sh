@@ -3,7 +3,10 @@
 #
 #   tools/release.sh
 #
-# What it needs, in `.dev-env` (untracked): JAVA_HOME, ANDROID_HOME, and NANOVOICE_KEYSTORE, the path of the
+# It signs with the RELEASE key only (made once with tools/new-release-key.sh), never with the development key the
+# owner's own phone uses (tools/install-phone.sh): every APK given to someone else is signed by the release key.
+#
+# What it needs, in `.dev-env` (untracked): JAVA_HOME, ANDROID_HOME, and NANOVOICE_RELEASE_KEYSTORE, the path of the
 # release keystore. The keystore password is asked here and handed to Gradle through the environment: it is
 # never written to a file or put on a command line.
 #
@@ -16,7 +19,8 @@ die() { echo "release: $*" >&2; exit 1; }
 
 command -v gh > /dev/null || die "gh is not installed"
 command -v apksigner > /dev/null || die "apksigner not found: set ANDROID_HOME in .dev-env"
-[ -n "${NANOVOICE_KEYSTORE:-}" ] && [ -f "$NANOVOICE_KEYSTORE" ] || die "set NANOVOICE_KEYSTORE in .dev-env to the release keystore"
+[ -f tools/release-cert.sha256 ] || die "there is no release key yet: make it with tools/new-release-key.sh"
+[ -n "${NANOVOICE_RELEASE_KEYSTORE:-}" ] && [ -f "$NANOVOICE_RELEASE_KEYSTORE" ] || die "set NANOVOICE_RELEASE_KEYSTORE in .dev-env to the release keystore"
 [ -z "$(git status --porcelain)" ] || die "there are uncommitted changes"
 git fetch -q origin
 [ -z "$(git log origin/main..HEAD --oneline)" ] || die "there are commits that are not pushed"
@@ -33,7 +37,8 @@ esac
 read -r -s -p "Release keystore password: " NANOVOICE_STORE_PASSWORD
 echo
 export NANOVOICE_STORE_PASSWORD
-export NANOVOICE_KEYSTORE
+export NANOVOICE_KEYSTORE="$NANOVOICE_RELEASE_KEYSTORE"
+unset NANOVOICE_VERSION_SUFFIX
 
 ./gradlew --no-daemon :app:assembleRelease
 unset NANOVOICE_STORE_PASSWORD
@@ -54,9 +59,7 @@ notes="build/release/notes-$version.md"
 cat > "$notes" <<NOTES
 **Beta $version.** Prova pubblica anticipata: funziona, ma può cambiare senza preavviso.
 
-**Importante:** la chiave con cui è firmata questa versione sarà sostituita prima della versione stabile. Quando succederà
-Android non permetterà di aggiornare sopra questa app: bisognerà disinstallarla (le impostazioni e i modelli scaricati
-andranno rifatti). Per questo è una beta.
+Firmata con la chiave di rilascio definitiva: le versioni successive si installano sopra questa senza perdere i dati.
 
 Controlli prima di installare:
 - SHA-256 dell'APK: \`$sum\`

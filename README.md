@@ -39,6 +39,15 @@ Per usare l'app sul telefono servono la build release e la compilazione anticipa
 `tools/install-phone.sh` fa entrambe le cose, installando sopra l'app già presente (i dati restano se la chiave di firma è la stessa).
 Le impostazioni personali (JDK, SDK, telefono) stanno in un file non tracciato, `.dev-env`.
 
+Due chiavi di firma, entrambe fuori dal repository:
+- **chiave di sviluppo**: firma le build che lo sviluppatore installa sul proprio telefono con `tools/install-phone.sh`
+  (la versione mostra `-dev`, per esempio `0.1.0-dev`);
+- **chiave di rilascio**: firma ogni APK dato ad altri, solo con `tools/release.sh`, che controlla il certificato in
+  `tools/release-cert.sha256`. Si crea una volta con `tools/new-release-key.sh`; va conservata con la sua password,
+  perché senza la stessa chiave Android non accetta gli aggiornamenti.
+
+Le due versioni hanno lo stesso identificativo ma firme diverse: sullo stesso telefono non si aggiornano a vicenda.
+
 ## Collegamento a NanoClaw
 
 **Abbinamento con un QR:** nel pannello di NanoClaw, pagina *Phone*, "Pair the app with a QR code"; nell'app, Impostazioni → Server NanoClaw → "Scansiona il QR del pannello". Il QR contiene un codice che vale una volta sola e per cinque minuti, non il token: l'app lo scambia con il token dopo aver mostrato il server e chiesto conferma (formato e regole in `docs/PROTOCOL.md`).

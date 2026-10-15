@@ -13,13 +13,16 @@ android {
         targetSdk = 37
         versionCode = 1
         versionName = "0.1.0"
+        // The owner's development builds say so in the version ("0.1.0-dev"): tools/install-phone.sh sets it,
+        // tools/release.sh never does.
+        System.getenv("NANOVOICE_VERSION_SUFFIX")?.takeIf { it.matches(Regex("-[a-z0-9.]{1,16}")) }?.let { versionNameSuffix = it }
         testInstrumentationRunner = "dev.nanovoice.CalendarDeviceRunner"
         // Phones only: the sherpa-onnx native libraries are large, so ship just arm64.
         ndk { abiFilters += "arm64-v8a" }
     }
-    // A release is signed with the owner's key, handed over through the environment so that no password is ever
-    // stored: NANOVOICE_KEYSTORE (a PKCS12 file), NANOVOICE_STORE_PASSWORD and, if it is not "nanovoice",
-    // NANOVOICE_KEY_ALIAS. Without them (a contributor, the CI) the release build is signed with the local debug key:
+    // A release is signed with a key handed over through the environment so that no password is ever stored:
+    // NANOVOICE_KEYSTORE (a PKCS12 file), NANOVOICE_STORE_PASSWORD and, if it is not "nanovoice", NANOVOICE_KEY_ALIAS.
+    // tools/release.sh passes the release key, tools/install-phone.sh the owner's development key. Without them (a contributor, the CI) the release build is signed with the local debug key:
     // good for trying it, never for publishing (tools/release.sh refuses it).
     val releaseKeystore = System.getenv("NANOVOICE_KEYSTORE")?.takeIf { File(it).isFile }
     val releasePassword = System.getenv("NANOVOICE_STORE_PASSWORD")?.takeIf { it.isNotEmpty() }

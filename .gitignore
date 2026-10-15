@@ -10,6 +10,8 @@ __pycache__/
 # Signing material never goes in the repository
 *.jks
 *.keystore
+*.p12
+*.jks
 keystore.properties
 *.p12
 .env

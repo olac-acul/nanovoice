@@ -1,12 +1,14 @@
 #!/usr/bin/env bash
-# Build the release and install it on the phone over the app that is already there (its data is kept), then let
-# Android compile it ahead of time (the first start is much faster). Settings live in `.dev-env` (untracked):
-# JAVA_HOME, ANDROID_HOME, ANDROID_SERIAL and, to sign with the release key, NANOVOICE_KEYSTORE.
+# The owner's development builds: build the app and install it on the owner's phone over the app that is already
+# there (its data is kept), then let Android compile it ahead of time (the first start is much faster). These builds
+# are signed with the DEVELOPMENT key and show "-dev" after the version; what other people get is made by
+# tools/release.sh with the release key. Settings live in `.dev-env` (untracked): JAVA_HOME, ANDROID_HOME,
+# ANDROID_SERIAL and NANOVOICE_KEYSTORE (the development key).
 #
 #   tools/install-phone.sh            build, check the signature, install
 #   tools/install-phone.sh --check    only say whether the phone is reachable and what is installed
 #
-# Before it installs anything it checks that the APK is signed by the key in tools/release-cert.sha256: with another
+# Before it installs anything it checks that the APK is signed by the key in tools/dev-cert.sha256: with another
 # key Android would refuse to update, and the only way forward would be to uninstall (which erases the app's data).
 # This script never uninstalls.
 set -euo pipefail
@@ -28,16 +30,16 @@ if [ -n "${NANOVOICE_KEYSTORE:-}" ]; then
     echo
   fi
   export NANOVOICE_KEYSTORE NANOVOICE_STORE_PASSWORD
-  echo "signing with the release keystore"
+  echo "signing with the development key"
 else
   echo "no NANOVOICE_KEYSTORE: signing with the local debug key"
 fi
 
-./gradlew --no-daemon :app:assembleRelease
+NANOVOICE_VERSION_SUFFIX=-dev ./gradlew --no-daemon :app:assembleRelease
 unset NANOVOICE_STORE_PASSWORD
 apk=app/build/outputs/apk/release/app-release.apk
 cert=$(apksigner verify --print-certs "$apk" 2> /dev/null | sed -n 's/.*certificate SHA-256 digest: //p' | head -1 | tr 'A-F' 'a-f')
-expected=$(tr -d ' :\n' < tools/release-cert.sha256 | tr 'A-F' 'a-f')
+expected=$(tr -d ' :\n' < tools/dev-cert.sha256 | tr 'A-F' 'a-f')
 [ "$cert" = "$expected" ] || die "the APK is signed by $cert, not by the key on the phone ($expected): NOT installing"
 echo "signature matches the key of the installed app"
 
