@@ -238,27 +238,21 @@ class ChatViewModel(
             active.update { it + 1 }
             _thinking.value = true
             var replyId: Long? = null
-            var ack = ""
+            val presenter = ReplyPresenter()
             try {
                 engine.respond(forAgent, localOnly = isLocked(), image = sent).collect { snap ->
                     _thinking.value = false
                     _working.value = snap.working
-                    if (snap.working) {
-                        if (replyId == null) {
-                            // What was said before the agent started working is a status line, not part of the answer.
-                            ack = snap.text
-                            _workingText.value = ack.trim()
-                        } else {
-                            // The answer has begun: it stays on screen, and the work that follows shows as dots.
-                            _workingText.value = ""
-                        }
-                    } else {
-                        _workingText.value = ""
-                        val shown = visibleReply(snap.text, ack)
-                        if (shown.isNotEmpty()) {
-                            val id = replyId
-                            if (id == null) replyId = add(shown, fromUser = false) else replace(id, shown)
-                        }
+                    val step = presenter.next(snap, hasBubble = replyId != null)
+                    // The line said before the work is a status, not a message: if it was shown as one, it goes.
+                    if (step.removeBubble) {
+                        replyId?.let(::remove)
+                        replyId = null
+                    }
+                    _workingText.value = step.status
+                    step.bubbleText?.let { text ->
+                        val id = replyId
+                        if (id == null) replyId = add(text, fromUser = false) else replace(id, text)
                     }
                     speaker?.onSnapshot(snap.text)
                     if (snap.working) speaker?.pause()
