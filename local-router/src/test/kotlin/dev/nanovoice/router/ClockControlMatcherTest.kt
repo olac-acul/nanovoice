@@ -11,13 +11,16 @@ class ClockControlMatcherTest {
 
     @Test fun stopsTheTimer() {
         for (s in listOf("ferma il timer", "Spegni il timer!", "stop timer", "annulla il timer", "cancella il timer per favore",
-            "togli il timer", "ehi, ferma il timer", "puoi fermare il timer", "disattiva il timer", "zittisci il timer")) {
+            "togli il timer", "ehi, ferma il timer", "puoi fermare il timer", "disattiva il timer", "zittisci il timer",
+            "Ferma il timer di dieci secondi che avevi impostato.", "ferma il timer che suona", "spegni il timer che sta suonando",
+            "ferma il timer da 5 minuti", "Stop time.", "ferma il timer che ho messo prima per favore")) {
             assertEquals(LocalIntent.StopTimer, intent(s), s)
         }
     }
 
     @Test fun stopsTheAlarmRingingNow() {
-        for (s in listOf("spegni la sveglia", "ferma la sveglia", "stop sveglia", "spegni la sveglia per favore", "puoi spegnere la sveglia")) {
+        for (s in listOf("spegni la sveglia", "ferma la sveglia", "stop sveglia", "spegni la sveglia per favore", "puoi spegnere la sveglia",
+            "spegni la sveglia che sta suonando")) {
             assertEquals(LocalIntent.StopAlarm(null), intent(s), s)
         }
     }
@@ -40,7 +43,8 @@ class ClockControlMatcherTest {
         for (s in listOf("quando suona la sveglia?", "non fermare il timer", "ferma il timer?", "quanto manca al timer",
             "come si ferma il timer", "ferma il timer e metti la musica", "salta la sveglia", "ferma", "stop",
             "spegni la luce", "posticipa la riunione", "rimanda il timer", "posticipa la sveglia di tre ore",
-            "spegni il timer e la sveglia", "ferma il timer che suona")) {
+            "spegni il timer e la sveglia", "ferma il timer che suona tra poco e metti la musica", "ferma il timer che dura troppo",
+            "ferma il timer di cinque minuti e mettine uno da dieci", "ferma il timer che")) {
             assertNull(intent(s), s)
         }
     }

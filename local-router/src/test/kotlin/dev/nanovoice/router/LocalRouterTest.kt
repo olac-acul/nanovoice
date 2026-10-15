@@ -65,7 +65,7 @@ class LocalRouterTest {
     @Test fun timerHowLong() = assertNull(intent("quanto dura un timer?"))
     @Test fun timerWhatIs() = assertNull(intent("cos'è un timer"))
     @Test fun timerStop() = assertEquals(LocalIntent.StopTimer, intent("ferma il timer")) // ClockControlMatcherTest has the rest
-    @Test fun timerCancel() = assertNull(intent("annulla il timer di dieci minuti"))
+    @Test fun timerCancel() = assertEquals(LocalIntent.StopTimer, intent("annulla il timer di dieci minuti"))
     @Test fun timerPause() = assertNull(intent("metti in pausa il timer"))
     @Test fun timerTwo() = assertNull(intent("metti un timer di dieci minuti e un timer di cinque"))
     @Test fun timerNoUnit() = assertNull(intent("metti un timer di dieci"))

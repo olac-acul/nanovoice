@@ -6,9 +6,11 @@ import dev.nanovoice.router.MatchResult
 
 /**
  * Stopping what the clock app runs: "ferma il timer", "spegni la sveglia", "disattiva la sveglia delle sette",
- * "posticipa la sveglia di dieci minuti", "rimanda la sveglia". The sentence must be [polite words] <verb> [article]
- * <timer|sveglia> [time or duration] [polite words]. A question, a negation or anything else ("quando suona la sveglia",
- * "non fermare il timer", "ferma il timer e metti la musica") is not recognized and goes to the agent.
+ * "posticipa la sveglia di dieci minuti", "rimanda la sveglia", "ferma il timer di dieci secondi che avevi impostato".
+ * The sentence must be [polite words] <verb> [article] <timer|sveglia> [time or duration] [che <clause about it>]
+ * [polite words], where the clause only says which one ("che sta suonando", "che avevi impostato"). A question, a
+ * negation or anything else ("quando suona la sveglia", "non fermare il timer", "ferma il timer e metti la musica") is
+ * not recognized and goes to the agent.
  */
 object ItalianClockControlMatcher : LocalMatcher {
     private val prefixWords = setOf(
@@ -23,10 +25,18 @@ object ItalianClockControlMatcher : LocalMatcher {
     private val suffixWords = setOf("per", "favore", "piacere", "grazie", "ok", "adesso", "subito", "ora", "domani", "stamattina", "domattina")
     /** Asks something, or says not to: not a request to stop. */
     private val refusals = setOf("non", "quando", "quanto", "come", "perche", "se", "manca", "mancano", "rimane", "rimasto", "cosa", "che")
+    /** "che sta suonando", "che avevi impostato prima": words that only point at the timer or alarm meant. */
+    private val clauseWords = setOf(
+        "sta", "stanno", "suona", "suonando", "squilla", "squillando", "avevi", "hai", "ho", "avevo", "abbiamo", "avevamo",
+        "impostato", "impostata", "messo", "messa", "puntato", "puntata", "programmato", "programmata", "appena", "prima",
+        "poco", "fa", "mi", "ti", "gia", "partito", "finito", "scaduto",
+    )
+    /** How the speech recognizer may write "timer". */
+    private val timerSpellings = setOf("time", "timers", "taimer", "tymer")
 
     override fun match(text: String): MatchResult? {
         if (text.trim().endsWith("?")) return null
-        val tokens = ItalianDurationParser.tokenize(text)
+        val tokens = withoutClause(ItalianDurationParser.tokenize(text).map { if (it in timerSpellings) "timer" else it }) ?: return null
         if (tokens.isEmpty() || tokens.any { it in refusals }) return null
         val timerAt = tokens.indexOf("timer")
         val alarmAt = tokens.indexOf("sveglia")
@@ -47,10 +57,28 @@ object ItalianClockControlMatcher : LocalMatcher {
         }
     }
 
-    /** <verb> [article] timer [polite words] */
+    /**
+     * Drops a "che ..." clause after the timer or alarm when it only says which one is meant; null when the clause says
+     * anything else, so the sentence goes to the agent.
+     */
+    private fun withoutClause(tokens: List<String>): List<String>? {
+        val nounAt = tokens.indexOfFirst { it == "timer" || it == "sveglia" }
+        if (nounAt < 0) return tokens
+        val clauseAt = tokens.subList(nounAt + 1, tokens.size).indexOf("che").takeIf { it >= 0 }?.let { it + nounAt + 1 } ?: return tokens
+        val clause = tokens.drop(clauseAt + 1)
+        if (clause.none { it in clauseWords } || !clause.all { it in clauseWords || it in suffixWords || it in articles }) return null
+        return tokens.take(clauseAt) + clause.filter { it in suffixWords }
+    }
+
+    /** <verb> [article] timer [di|da <duration>] [polite words] */
     private fun stopTimer(tokens: List<String>, verbAt: Int, timerAt: Int): MatchResult? {
         if (timerAt < verbAt || !tokens.subList(verbAt + 1, timerAt).all { it in articles }) return null
-        if (!tokens.drop(timerAt + 1).all { it in suffixWords }) return null
+        var rest = tokens.drop(timerAt + 1)
+        if (rest.firstOrNull() in setOf("di", "da", "de")) {
+            val length = ItalianDurationParser.find(rest)?.takeIf { it.startIndex == 1 } ?: return null
+            rest = rest.drop(length.endIndex)
+        }
+        if (!rest.all { it in suffixWords }) return null
         return MatchResult(LocalIntent.StopTimer, 1f)
     }
 
