@@ -98,6 +98,57 @@ Eventi ricorrenti, calendari non modificabili e orari inesistenti o ambigui al c
 Le altre capacità sono dichiarate da `PhoneActionHandler.capabilities`: azioni base, controlli, link, bozze, stato,
 letture private e strumenti foto. La chiamata apre il tastierino; SMS e Signal aprono una bozza.
 
+## Abbinamento con un QR (versione 1)
+
+Per non digitare indirizzo e token, il pannello del server mostra un QR e l'app lo legge. Il QR non contiene il token:
+contiene un **codice di abbinamento** che vale una volta sola e per pochi minuti, e che l'app scambia con il token.
+
+**Contenuto del QR** (un solo testo):
+
+```
+nanovoice://pair?v=1&server=<indirizzo ws:// o wss:// del canale, codificato>&code=<codice>
+```
+
+- `v=1`: versione del formato. L'app rifiuta una versione che non conosce e dice di aggiornare.
+- `server`: lo stesso indirizzo che si digiterebbe nelle impostazioni, con le stesse regole: `ws://` solo per host privati
+  (rete locale, VPN), `wss://` per il resto. L'app lo controlla con lo stesso controllo delle impostazioni e rifiuta il QR
+  se non passa.
+- `code`: 16 caratteri dell'alfabeto Crockford base32 (cifre e lettere maiuscole senza I, L, O, U), cioè 80 bit casuali. Il
+  server li accetta anche in minuscolo e con trattini o spazi.
+
+**Scambio.** L'app manda `POST <server con http:// o https://>/pair`, `Content-Type: application/json`:
+
+```json
+{"code": "7H2KQ9M4XB5TD3WE", "device": "Pixel 8"}
+```
+
+`device` è facoltativo (fino a 40 caratteri stampabili) e serve solo a mostrare nel pannello quale telefono si è abbinato.
+
+Risposte:
+
+| Stato | Corpo | Significato |
+|---|---|---|
+| 200 | `{"token": "<token>"}` | Abbinato. Il codice non vale più. |
+| 401 | `{"error": "invalid_code"}` | Codice sbagliato, scaduto, già usato o mai creato: la stessa risposta per tutti, perché chi prova non impari quale. |
+| 429 | `{"error": "too_many_attempts"}` | Troppi tentativi da questo indirizzo. |
+| 400, 413 | `{"error": "bad_request"}` | Corpo non valido o più grande di 1 KiB. |
+
+**Regole del server**
+
+- Il codice vale **5 minuti** e **una volta sola**. Ne esiste uno solo alla volta: crearne un altro annulla il precedente.
+- Dopo **5 tentativi sbagliati** il codice viene annullato. Gli errori contano anche per il blocco per indirizzo già usato per
+  gli accessi con token.
+- Il server tiene solo l'impronta (SHA-256) del codice, in un file privato (`data/voice-pairing.json`, permessi 600).
+- Il token restituito è quello in uso. Non lo mostra nessuna pagina del pannello: arriva solo a chi ha il codice.
+- Il pannello chiede di riscrivere la password prima di mostrare il QR, e il QR sparisce da solo allo scadere o appena
+  l'app si è abbinata.
+
+**Regole dell'app**
+
+- Il codice non viene salvato né scritto nei registri; dopo lo scambio si salvano solo indirizzo e token, cifrato come sempre.
+- Prima di salvare, l'app mostra a quale server si sta abbinando e chiede conferma. Un QR non conferma da solo.
+- Se lo scambio fallisce non cambia nulla delle impostazioni.
+
 ## Risveglio con UnifiedPush
 
 - L'app manda `push_endpoint` dopo `hello`, anche con `url: null` quando il push è spento, e ogni volta che cambia.
