@@ -8,6 +8,9 @@
 #   tools/install-phone.sh            build, check the signature, install
 #   tools/install-phone.sh --check    only say whether the phone is reachable and what is installed
 #
+# When the phone does not answer on ANDROID_SERIAL it looks for it on USB or wireless debugging and opens port 5555
+# again; if it finds no phone it says how to connect one.
+#
 # Before it installs anything it checks that the APK is signed by the key in tools/dev-cert.sha256: with another
 # key Android would refuse to update, and the only way forward would be to uninstall (which erases the app's data).
 # This script never uninstalls.
@@ -17,7 +20,59 @@ cd "$(dirname "$0")/.."
 die() { echo "install: $*" >&2; exit 1; }
 
 command -v adb > /dev/null || die "adb not found: set ANDROID_HOME in .dev-env"
-adb get-state > /dev/null 2>&1 || die "no phone reachable through adb (ANDROID_SERIAL=${ANDROID_SERIAL:-unset})"
+
+how_to_connect() {
+  cat >&2 << 'HOW'
+install: the phone is not connected. Connect it, then run this again:
+  - same Wi-Fi as this computer: on the phone, Developer options -> Wireless debugging -> on
+    (the first time only, pair this computer: "Pair device with pairing code", then: adb pair <ip>:<pairing port>);
+  - or plug in the USB cable and allow debugging on the phone.
+HOW
+  exit 1
+}
+
+# The phone answers on ANDROID_SERIAL (host:5555, through the VPN): fine. Otherwise the fixed port was closed (a
+# reboot of the phone does that): find the phone another way (USB, or wireless debugging on this network, whose port
+# changes every time), open port 5555 again through it, and connect as usual.
+ensure_phone() {
+  local serial="${ANDROID_SERIAL:-}"
+  [ -n "$serial" ] || { adb get-state > /dev/null 2>&1 && return 0; how_to_connect; }
+  adb get-state > /dev/null 2>&1 && return 0
+  if [[ "$serial" == *:* ]]; then
+    adb connect "$serial" > /dev/null 2>&1 || true
+    adb get-state > /dev/null 2>&1 && return 0
+  fi
+  echo "install: no answer on $serial; looking for the phone on USB or wireless debugging..."
+  # Wireless debugging announces itself on the local network; connecting works when this computer was paired once.
+  local found
+  found=$(timeout 8 adb mdns services 2> /dev/null | awk '$2 ~ /_adb-tls-connect/ {print $3}' | sort -u || true)
+  for address in $found; do adb connect "$address" > /dev/null 2>&1 || true; done
+  local candidates
+  candidates=$(adb devices | awk 'NR > 1 && $2 == "device" {print $1}' | grep -v -x -F "$serial" || true)
+  case "$(printf '%s' "$candidates" | grep -c .)" in
+    0)
+      [ -n "$found" ] && echo "install: wireless debugging found, but this computer is not paired with the phone yet." >&2
+      how_to_connect
+      ;;
+    1) ;;
+    *) die "several phones are connected ($(echo $candidates)): set ANDROID_SERIAL to the one to use" ;;
+  esac
+  if [[ "$serial" != *:5555 ]]; then
+    ANDROID_SERIAL="$candidates"
+    export ANDROID_SERIAL
+    return 0
+  fi
+  echo "install: phone found at $candidates; opening port 5555 again (until the phone restarts)"
+  ANDROID_SERIAL="$candidates" adb tcpip 5555 > /dev/null
+  for _ in 1 2 3 4 5 6 7 8 9 10; do
+    sleep 1
+    adb connect "$serial" > /dev/null 2>&1 || true
+    adb get-state > /dev/null 2>&1 && return 0
+  done
+  die "port 5555 did not open on the phone; run this again, or set ANDROID_SERIAL=$candidates for this time"
+}
+
+ensure_phone
 echo "phone: $(adb shell getprop ro.product.model | tr -d '\r')"
 info() { adb shell dumpsys package dev.nanovoice 2> /dev/null | tr -d '\r' | sed -n "s/^ *$1=//p" | head -1; }
 echo "installed: version $(info versionName), first installed $(info firstInstallTime), updated $(info lastUpdateTime)"
