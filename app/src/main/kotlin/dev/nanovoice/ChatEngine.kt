@@ -15,7 +15,12 @@ import kotlinx.coroutines.flow.flow
  * The reply so far: [text] is everything said, [working] true while the agent said it is busy (a web search, a call to
  * an outside service) and the answer is still to come.
  */
-data class ReplySnapshot(val text: String, val working: Boolean = false)
+/**
+ * The reply so far. [working]: the agent announced a long task. [messageEnd]: the text ends with a whole message of the
+ * agent (the server delivers whole messages, never half of one), so what is still unsaid can be said now instead of
+ * when the reply is over, about 1.5 s later.
+ */
+data class ReplySnapshot(val text: String, val working: Boolean = false, val messageEnd: Boolean = false)
 
 /**
  * Turns a user utterance into a reply: local router -> action executor, otherwise NanoClaw.
@@ -128,7 +133,7 @@ class ChatEngine(
             when (event) {
                 is AgentEvent.Delta -> {
                     reply.append(event.text)
-                    emit(ReplySnapshot(reply.toString()))
+                    emit(ReplySnapshot(reply.toString(), messageEnd = true))
                 }
                 // Same text again, now marked working: what was said so far can be read out while the work goes on.
                 AgentEvent.Working -> emit(ReplySnapshot(reply.toString(), working = true))

@@ -56,6 +56,7 @@ class AssistantActivity : ComponentActivity() {
         locked = keyguard.isKeyguardLocked
         configureLockScreen()
         val container = (application as NanoVoiceApp).container
+        container.vosk.preload() // the sheet listens right away: start loading the speech model now
         setContent {
             val settings by container.settingsStore.settings.collectAsState()
             NanoTheme(settings.themeMode, settings.dynamicColors) {

@@ -62,6 +62,19 @@ class ReplySpeakerTest {
         assertEquals(listOf("Prima.", "Seconda."), out.said)
     }
 
+    @Test fun aWholeMessageIsSpokenAtOnceNotWhenTheReplyIsOver() {
+        // A one-message reply has no space after its last full stop: without the flush it would wait for finish(),
+        // which comes with the server's "done", about 1.5 s later.
+        speaker.onSnapshot("Domani alle 10 hai il dentista.")
+        assertEquals(emptyList(), out.said)
+        speaker.pause()
+        assertEquals(listOf("Domani alle 10 hai il dentista."), out.said)
+        speaker.onSnapshot("Domani alle 10 hai il dentista. Vuoi un promemoria?")
+        speaker.pause()
+        speaker.finish()
+        assertEquals(listOf("Domani alle 10 hai il dentista.", "Vuoi un promemoria?"), out.said)
+    }
+
     @Test fun errorTextAppendedToAPartialReplyIsSpokenToo() {
         speaker.onSnapshot("Oggi hai")
         speaker.onSnapshot("Oggi hai\nconnessione persa")

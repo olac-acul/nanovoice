@@ -128,13 +128,16 @@ class VoskSpeechToText(
                 val quick = VoskJson.join(finished, VoskJson.text(recognizer.finalResult))
                 reading.set(false)
                 runCatching { record.stop() } // free the microphone while the utterance is transcribed again
+                SpeechLatency.endOfSpeech()
                 trySend(SttEvent.Ended)
-                val text = if (audio != null && (quick.isNotEmpty() || heardSomething)) {
+                val secondPass = audio != null && (quick.isNotEmpty() || heardSomething)
+                val text = if (secondPass) {
                     // Interruptible: a cancelled request does not wait for Parakeet to finish.
                     runInterruptible { refiner?.transcribe(pcmToFloats(audio.toByteArray())) }?.takeIf { it.isNotBlank() } ?: quick
                 } else {
                     quick
                 }
+                if (text.isNotEmpty()) SpeechLatency.textReady(secondPass)
                 if (isActive) trySend(if (text.isEmpty()) SttEvent.Error(SttError.NoSpeech) else SttEvent.Final(text))
             }
         } catch (e: Exception) {
@@ -222,6 +225,15 @@ class VoskSpeechToText(
     }.flowOn(Dispatchers.IO)
 
     /** Frees the loaded model (about 100 MB of RAM for the small Italian one). */
+    /**
+     * Loads the model in the background, so the first listening after the app starts does not wait for it (about
+     * 100 MB). Cheap when it is already loaded; a no-op without a model.
+     */
+    fun preload() {
+        val dir = models.modelDir() ?: return
+        Thread({ runCatching { model(dir) } }, "vosk-preload").apply { priority = Thread.MIN_PRIORITY; isDaemon = true }.start()
+    }
+
     fun unload() {
         loaded?.second?.close()
         loaded = null

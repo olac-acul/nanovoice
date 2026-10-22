@@ -22,7 +22,10 @@ class ReplySpeaker(private val spoken: SpokenOutput) {
         if (text.any { it.isLetterOrDigit() }) spoken.speak(text)
     }
 
-    /** The agent paused to work: say what is waiting now instead of at the end. */
+    /**
+     * Say what is waiting now instead of at the end: the agent paused to work, or a whole message of it has arrived
+     * (its last sentence may have no space after the full stop, which the sentence buffer waits for).
+     */
     fun pause() {
         buffer.flush()?.let(::say)
     }

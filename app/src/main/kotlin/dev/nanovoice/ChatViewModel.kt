@@ -255,7 +255,7 @@ class ChatViewModel(
                         if (id == null) replyId = add(text, fromUser = false) else replace(id, text)
                     }
                     speaker?.onSnapshot(snap.text)
-                    if (snap.working) speaker?.pause()
+                    if (snap.working || snap.messageEnd) speaker?.pause()
                 }
                 speaker?.finish()
             } catch (e: CancellationException) {

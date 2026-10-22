@@ -73,7 +73,16 @@ class SherpaSpokenOutput(
     private val texts = Channel<Item>(Channel.UNLIMITED)
     private val clips = Channel<Clip>(1)
 
+    /**
+     * The output track. One is kept for all the sentences of a reply (same sample rate, no stop in between), so the
+     * next sentence starts without building and starting a new track; it is released when nothing is left to say.
+     * Used by the playing coroutine only, except [stop], which pauses and flushes it.
+     */
     @Volatile private var track: AudioTrack? = null
+    private var trackRate = 0
+    private var trackEpoch = -1
+    /** Frames written to [track] since it was made: where the playback head is when everything written was heard. */
+    private var trackFrames = 0L
 
     init {
         scope.launch(Dispatchers.Default) {
@@ -235,6 +244,30 @@ class SherpaSpokenOutput(
 
     private suspend fun play(clip: Clip) {
         if (clip.epoch != epoch.get()) return done()
+        val audioTrack = outputTrack(clip)
+        try {
+            var offset = 0
+            val chunk = clip.sampleRate / 5
+            while (offset < clip.samples.size && clip.epoch == epoch.get()) {
+                val n = audioTrack.write(clip.samples, offset, minOf(chunk, clip.samples.size - offset), AudioTrack.WRITE_BLOCKING)
+                if (n <= 0) break
+                if (offset == 0) SpeechLatency.firstAudio()
+                offset += n
+            }
+            trackFrames += offset
+            val heard = trackFrames
+            while (clip.epoch == epoch.get() && audioTrack.playbackHeadPosition.toLong() < heard) delay(15)
+        } finally {
+            done()
+            // Kept for the next sentence of this reply; released when the reply is over or was stopped.
+            if (pending.get() == 0 || clip.epoch != epoch.get()) releaseTrack()
+        }
+    }
+
+    /** The track for [clip]: the one already playing if it fits (same rate, nothing stopped since), otherwise a new one. */
+    private fun outputTrack(clip: Clip): AudioTrack {
+        track?.takeIf { trackRate == clip.sampleRate && trackEpoch == clip.epoch }?.let { return it }
+        releaseTrack()
         val format = AudioFormat.Builder()
             .setEncoding(AudioFormat.ENCODING_PCM_FLOAT)
             .setSampleRate(clip.sampleRate)
@@ -247,23 +280,19 @@ class SherpaSpokenOutput(
             .setBufferSizeInBytes(maxOf(minBuffer, clip.sampleRate * 2))
             .setTransferMode(AudioTrack.MODE_STREAM)
             .build()
+        trackRate = clip.sampleRate
+        trackEpoch = clip.epoch
+        trackFrames = 0L
         track = audioTrack
-        try {
-            audioTrack.play()
-            var offset = 0
-            val chunk = clip.sampleRate / 5
-            while (offset < clip.samples.size && clip.epoch == epoch.get()) {
-                val n = audioTrack.write(clip.samples, offset, minOf(chunk, clip.samples.size - offset), AudioTrack.WRITE_BLOCKING)
-                if (n <= 0) break
-                offset += n
-            }
-            while (clip.epoch == epoch.get() && audioTrack.playbackHeadPosition < clip.samples.size) delay(15)
-        } finally {
-            runCatching { audioTrack.stop() }
-            audioTrack.release()
-            if (track === audioTrack) track = null
-            done()
-        }
+        audioTrack.play()
+        return audioTrack
+    }
+
+    private fun releaseTrack() {
+        val audioTrack = track ?: return
+        track = null
+        runCatching { audioTrack.stop() }
+        audioTrack.release()
     }
 
     private fun done() {

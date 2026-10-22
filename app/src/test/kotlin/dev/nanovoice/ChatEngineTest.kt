@@ -14,6 +14,7 @@ import kotlinx.coroutines.runBlocking
 import java.util.Locale
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.minutes
 
 class ChatEngineTest {
@@ -113,12 +114,19 @@ class ChatEngineTest {
         // the ack, the same text again once the agent says it is working, then the full answer
         assertEquals(
             listOf(
-                ReplySnapshot("Cerco sul Web..."),
+                ReplySnapshot("Cerco sul Web...", messageEnd = true),
                 ReplySnapshot("Cerco sul Web...", working = true),
-                ReplySnapshot("Cerco sul Web... Ecco il sito."),
+                ReplySnapshot("Cerco sul Web... Ecco il sito.", messageEnd = true),
             ),
             seen,
         )
+    }
+
+    @Test fun eachMessageOfTheAgentIsMarkedWholeAndALocalReplyIsNot() {
+        agentReply = flowOf(AgentEvent.Delta("Domani alle 10 hai il dentista."), AgentEvent.Done)
+        assertEquals(listOf(ReplySnapshot("Domani alle 10 hai il dentista.", messageEnd = true)),
+            runBlocking { engine.respond("che impegni ho domani").toList() })
+        assertTrue(runBlocking { engine.respond("che ore sono").toList() }.none { it.messageEnd })
     }
 
     @Test fun anErrorAfterWorkingEndsTheWorkAndShows() {

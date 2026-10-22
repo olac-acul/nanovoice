@@ -56,6 +56,7 @@ class MainActivity : ComponentActivity() {
         // Visible now, so Android allows starting the microphone service if the system had stopped it.
         val container = (application as NanoVoiceApp).container
         if (container.settingsStore.settings.value.wakeWord) WakeWordService.apply(this, true)
+        container.vosk.preload() // the first listening does not wait for the speech model
         // Opened from the assistant sheet: what was said there goes on in this chat.
         container.takeHandOver()?.let { chatViewModel().adopt(it) }
     }
