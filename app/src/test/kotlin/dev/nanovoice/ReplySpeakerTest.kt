@@ -6,6 +6,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 class FakeSpokenOutput : SpokenOutput {
     val said = mutableListOf<String>()
@@ -80,5 +81,26 @@ class ReplySpeakerTest {
         speaker.onSnapshot("Oggi hai\nconnessione persa")
         speaker.finish()
         assertEquals(listOf("Oggi hai", "connessione persa"), out.said)
+    }
+
+    @Test fun aLongSentenceIsSpokenInGrowingPieces() {
+        val long = "Domani hai tre appuntamenti, il dentista alle dieci, la riunione con il gruppo di lavoro alle quattordici, " +
+            "e la cena da tua sorella alle venti, ricordati il regalo."
+        val pieces = spokenChunks(long)
+        assertEquals(long, pieces.joinToString(" "))
+        assertTrue(pieces.size > 1 && pieces.first().length <= 60, pieces.toString())
+        assertTrue(pieces.zipWithNext().all { (a, b) -> a.length <= 160 && b.length <= 160 }, pieces.toString())
+    }
+
+    @Test fun shortSentencesNumbersAndUnbrokenClausesStayWhole() {
+        assertEquals(listOf("Sono le dieci, e un quarto."), spokenChunks("Sono le dieci, e un quarto."))
+        val decimals = "La temperatura media di domani sarà di 21,5 gradi con umidità al 60,5 per cento e vento debole da nord."
+        assertEquals(listOf(decimals), spokenChunks(decimals))
+    }
+
+    @Test fun theSpeakerSaysTheLongSentenceInPieces() {
+        speaker.onSnapshot("Ho trovato tre ristoranti aperti stasera vicino a te, il primo è in centro e costa poco, gli altri due sono più lontani.")
+        speaker.pause()
+        assertTrue(out.said.size > 1, out.said.toString())
     }
 }

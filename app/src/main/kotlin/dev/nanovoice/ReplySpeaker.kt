@@ -19,7 +19,7 @@ class ReplySpeaker(private val spoken: SpokenOutput) {
 
     private fun say(sentence: String) {
         val text = spokenNumbers(withoutMarkdown(withoutUrls(sentence)))
-        if (text.any { it.isLetterOrDigit() }) spoken.speak(text)
+        if (text.any { it.isLetterOrDigit() }) spokenChunks(text).forEach(spoken::speak)
     }
 
     /**
@@ -96,3 +96,34 @@ internal fun withoutMarkdown(sentence: String): String {
         .replace(Regex("\\s+"), " ")
         .trim()
 }
+
+private val clauseBreak = Regex("""(?<=[,;:])\s+""")
+
+/**
+ * A long sentence in pieces that can be synthesized one by one. The voice takes about 37 ms of synthesis per character
+ * before any of it is heard (a 170-character sentence: over 6 s of silence), and synthesizes faster than it speaks.
+ * So the first piece is short, to start soon, and the next ones grow, each made while the one before is playing.
+ * Cuts only after a comma, semicolon or colon followed by a space ("1,5" stays whole), never inside a clause; a
+ * sentence up to [limits]'s first value stays whole.
+ */
+internal fun spokenChunks(sentence: String, limits: List<Int> = CHUNK_LIMITS): List<String> {
+    if (sentence.length <= limits.first()) return listOf(sentence)
+    val clauses = sentence.split(clauseBreak).filter { it.isNotBlank() }
+    if (clauses.size < 2) return listOf(sentence)
+    val chunks = mutableListOf<String>()
+    var current = ""
+    for (clause in clauses) {
+        val limit = limits[minOf(chunks.size, limits.lastIndex)]
+        val joined = if (current.isEmpty()) clause else "$current $clause"
+        if (current.isNotEmpty() && joined.length > limit) {
+            chunks += current
+            current = clause
+        } else {
+            current = joined
+        }
+    }
+    if (current.isNotEmpty()) chunks += current
+    return chunks
+}
+
+private val CHUNK_LIMITS = listOf(60, 100, 160)
