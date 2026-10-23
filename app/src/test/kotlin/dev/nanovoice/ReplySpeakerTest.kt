@@ -31,6 +31,16 @@ class ReplySpeakerTest {
         assertEquals(listOf("Oggi hai tre email.", "Una è importante."), out.said)
     }
 
+    @Test fun theSourceLineIsShownButNotRead() {
+        speaker.onSnapshot("Domani a Ostuni sarà sereno, 14°/19°.\n\nFonte: https://www.3bmeteo.com/meteo/ostuni")
+        speaker.finish()
+        assertEquals(1, out.said.size) // the forecast, and nothing for the source line
+        assertTrue(out.said.none { it.contains("Fonte", ignoreCase = true) })
+        for (label in listOf("Fonte:", "fonti", "Fonte.", "Sources:")) assertTrue(isSourceLabel(label), label)
+        // a sentence that only starts like a source is still read
+        assertTrue(!isSourceLabel("Fonte di energia rinnovabile"))
+    }
+
     @Test fun pauseReadsTheAcknowledgementAtOnceAndTheAnswerLater() {
         speaker.onSnapshot("Cerco sul Web...")
         assertEquals(emptyList(), out.said)

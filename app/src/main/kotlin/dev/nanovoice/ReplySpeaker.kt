@@ -19,7 +19,7 @@ class ReplySpeaker(private val spoken: SpokenOutput) {
 
     private fun say(sentence: String) {
         val text = spokenNumbers(withoutMarkdown(withoutUrls(sentence)))
-        if (text.any { it.isLetterOrDigit() }) spokenChunks(text).forEach(spoken::speak)
+        if (text.any { it.isLetterOrDigit() } && !isSourceLabel(text)) spokenChunks(text).forEach(spoken::speak)
     }
 
     /**
@@ -39,6 +39,11 @@ class ReplySpeaker(private val spoken: SpokenOutput) {
 
 private val markdownLink = Regex("""\[([^\]]*)]\((?:https?://|www\.)[^)\s]*\)""")
 private val bareUrl = Regex("""(?:https?://|www\.)\S+""")
+
+private val sourceLabel = Regex("""^(?:fonte|fonti|source|sources)\s*[:.]?$""", RegexOption.IGNORE_CASE)
+
+/** What is left of "Fonte: https://…" once the address is gone: a label for the link in the chat, not for the voice. */
+internal fun isSourceLabel(text: String): Boolean = sourceLabel.matches(text.trim())
 
 /** Links are for the eyes: a markdown link is read as its text and a bare address is not read at all. */
 internal fun withoutUrls(text: String): String =
