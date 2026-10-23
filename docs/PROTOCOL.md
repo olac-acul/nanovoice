@@ -82,6 +82,7 @@ Autenticazione: header `Authorization: Bearer <token>` nell'upgrade WebSocket (4
 | `calendar_update` | `event_id`, almeno uno tra `title`, `start`, `end`, `location` | Legge l'evento reale, chiede approvazione e scrive la modifica. |
 | `calendar_delete` | `event_id` | Legge l'evento reale, chiede approvazione e lo cancella. |
 | `confirm` | `question`, massimo 200 caratteri | Domanda generica dell'agente; non autorizza successive scritture del calendario. |
+| `choose` | `question`, massimo 200 caratteri; `options`, da 2 a 5 testi diversi di al massimo 60 caratteri | Domanda dell'agente con opzioni: la scheda mostra un pulsante per opzione e «Nessuna». Esito `ok` con l'opzione scelta, parola per parola, come `detail`; altrimenti `failed` (nessuna opzione, nessuna risposta in 90 secondi, richiesta interrotta). |
 
 `calendar_update` e `calendar_delete` richiedono entrambi gli interruttori di lettura e modifica, i permessi
 `READ_CALENDAR`/`WRITE_CALENDAR` e il telefono sbloccato. Il permesso di modifica è spento per impostazione predefinita.
@@ -92,6 +93,8 @@ Si risponde con pulsanti, voce o testo. Rifiuto, 90 secondi senza risposta o ric
 Il telefono verifica di nuovo permessi, blocco, interruttori e contenuto dell'evento. Una scrittura condizionata ai valori
 originali evita di sovrascrivere modifiche concorrenti della sincronizzazione. Un evento cambiato richiede una nuova approvazione.
 Non serve chiamare `confirm` prima dei due strumenti.
+
+Per `choose` si risponde anche a voce o per iscritto: con le parole di un'opzione («Gallipoli»), con un ordinale da solo o dopo un articolo («la seconda», «l'ultima», «opzione due») o con «nessuna». Qualsiasi altra frase è una nuova richiesta, che chiude la domanda senza scelta. Il server usa `choose` per `ask_user_question` di NanoClaw e restituisce l'esito come risposta alla domanda.
 
 Gli orari sono locali nel fuso del telefono, nel formato `yyyy-MM-ddTHH:mm`. Un nuovo inizio senza nuova fine conserva
 la durata effettiva. Per tutto il giorno si usa mezzanotte UTC e la fine è una data esclusa. Una stringa vuota in `location`

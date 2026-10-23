@@ -6,6 +6,7 @@ import dev.nanovoice.core.ActionExecutor
 import dev.nanovoice.core.ActionResult
 import dev.nanovoice.core.PhoneAction
 import kotlinx.coroutines.runBlocking
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlin.test.Test
@@ -115,12 +116,17 @@ class PhoneActionHandlerTest {
         )
         assertEquals(PhoneActionHandler.ALL, PhoneActionHandler.capabilities(AppSettings(readCalendar = true, editCalendar = true, readLocation = true, readNotifications = true)))
         val off = AppSettings(phoneControls = false, phoneLinks = false, phoneDrafts = false, phoneStatus = false)
-        assertEquals(setOf("set_timer", "tell_time", "tell_date", "set_alarm", "open_app", "call", "stop_timer", "stop_alarm", "snooze_alarm", "confirm") + PhotoActions.NAMES, PhoneActionHandler.capabilities(off))
+        assertEquals(setOf("set_timer", "tell_time", "tell_date", "set_alarm", "open_app", "call", "stop_timer", "stop_alarm", "snooze_alarm", "confirm", "choose") + PhotoActions.NAMES, PhoneActionHandler.capabilities(off))
         assertEquals(PhoneActionHandler.ALL - "battery" - PhoneActionHandler.CALENDAR - PhoneActionHandler.CALENDAR_EDITS - PhoneActionHandler.LOCATION - PhoneActionHandler.NOTIFICATIONS, PhoneActionHandler.capabilities(AppSettings(phoneStatus = false)))
     }
 
     private fun json(vararg pairs: Pair<String, Any>) = JsonObject(pairs.associate { (k, v) ->
-        k to when (v) { is Boolean -> JsonPrimitive(v); is Number -> JsonPrimitive(v); else -> JsonPrimitive(v.toString()) }
+        k to when (v) {
+            is Boolean -> JsonPrimitive(v)
+            is Number -> JsonPrimitive(v)
+            is List<*> -> JsonArray(v.map { JsonPrimitive(it.toString()) })
+            else -> JsonPrimitive(v.toString())
+        }
     })
 
     @Test fun newActionsAreParsed() {
@@ -222,6 +228,31 @@ class PhoneActionHandlerTest {
         var open = true
         val interrupted = PhoneActionHandler(recorder, consent = { open = false; Consent.Yes })
         assertFalse(runBlocking { interrupted.handle("confirm", json("question" to "Sposto?"), ActionRequest("m1") { open }) }.ok)
+    }
+
+    @Test fun chooseGivesBackTheOptionChosenWordForWord() {
+        var asked: Pair<String, List<String>>? = null
+        val choosing = PhoneActionHandler(recorder, choose = { q, o -> asked = q to o; 1 })
+        val outcome = runBlocking { choosing.handle("choose", json("question" to "Quale?", "options" to listOf("Otranto", "Gallipoli")), REQ) }
+        assertEquals(ActionOutcome(true, "Gallipoli"), outcome)
+        assertEquals("Quale?" to listOf("Otranto", "Gallipoli"), asked)
+    }
+
+    @Test fun noChoiceOrBadOptionsAreNotAChoice() {
+        val refused = PhoneActionHandler(recorder, choose = { _, _ -> ActionConsent.REFUSED })
+        val silent = PhoneActionHandler(recorder) // no way to ask
+        val two = listOf("A", "B")
+        runBlocking {
+            assertFalse(refused.handle("choose", json("question" to "Quale?", "options" to two), REQ).ok)
+            assertFalse(silent.handle("choose", json("question" to "Quale?", "options" to two), REQ).ok)
+            assertFalse(handler.handle("choose", json("question" to "Quale?", "options" to listOf("A")), REQ).ok)
+            assertFalse(handler.handle("choose", json("question" to "Quale?", "options" to listOf("A", "A")), REQ).ok)
+            assertFalse(handler.handle("choose", json("question" to "Quale?", "options" to List(6) { "o$it" }), REQ).ok)
+            assertFalse(handler.handle("choose", json("options" to two), REQ).ok)
+        }
+        var open = true
+        val interrupted = PhoneActionHandler(recorder, choose = { _, _ -> open = false; 0 })
+        assertFalse(runBlocking { interrupted.handle("choose", json("question" to "Quale?", "options" to two), ActionRequest("m1") { open }) }.ok)
     }
 
     @Test fun linksMustBeHttpsWithoutAUserName() {

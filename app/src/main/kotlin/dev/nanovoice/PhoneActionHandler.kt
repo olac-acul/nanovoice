@@ -6,6 +6,7 @@ import dev.nanovoice.agent.ActionRequest
 import dev.nanovoice.agent.AgentImage
 import dev.nanovoice.core.ActionExecutor
 import dev.nanovoice.core.PhoneAction
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
@@ -26,6 +27,8 @@ class PhoneActionHandler(
     private val locked: () -> Boolean = { false },
     /** Asks the person a question of the agent ("Sposto il dentista a mercoledì?") for `confirm`; no answer is a no. */
     private val consent: suspend (String) -> Consent = { Consent.NoAnswer },
+    /** Asks the person to choose one of a few options for `choose`: the index, ActionConsent.REFUSED, or null. */
+    private val choose: suspend (String, List<String>) -> Int? = { _, _ -> null },
     private val calendar: CalendarActions? = null,
 ) : ActionHandler {
     override suspend fun handle(name: String, args: JsonObject, request: ActionRequest): ActionOutcome {
@@ -34,6 +37,7 @@ class PhoneActionHandler(
         if (name in CALENDAR_EDITS) return calendar?.handle(name, args, request) ?: ActionOutcome(false, "modifiche al calendario non disponibili")
         if (name in PHOTOS) return photos?.invoke(name, args, request.image) ?: ActionOutcome(false, "strumenti per le foto non disponibili")
         if (name == "confirm") return confirm(args.text("question") ?: return ActionOutcome(false, "manca il parametro question"), request)
+        if (name == "choose") return choose(args, request)
         val action = when (name) {
             "tell_time" -> PhoneAction.TellTime
             "tell_date" -> PhoneAction.TellDate
@@ -138,8 +142,25 @@ class PhoneActionHandler(
         }
     }
 
+    /** The option chosen is the outcome's detail, word for word: the server gives it back to the agent's question. */
+    private suspend fun choose(args: JsonObject, request: ActionRequest): ActionOutcome {
+        val question = args.text("question") ?: return ActionOutcome(false, "manca il parametro question")
+        if (question.length > MAX_QUESTION) return ActionOutcome(false, "la domanda deve stare in $MAX_QUESTION caratteri")
+        val options = (args["options"] as? JsonArray).orEmpty().mapNotNull { (it as? JsonPrimitive)?.contentOrNull?.trim()?.takeIf { o -> o.isNotEmpty() } }
+        if (options.size !in 2..MAX_OPTIONS || options.any { it.length > MAX_OPTION } || options.toSet().size != options.size) {
+            return ActionOutcome(false, "servono da 2 a $MAX_OPTIONS opzioni diverse, ognuna di al massimo $MAX_OPTION caratteri")
+        }
+        return when (val index = choose(question, options)) {
+            null -> ActionOutcome(false, "nessuna risposta dalla persona")
+            ActionConsent.REFUSED -> ActionOutcome(false, "la persona non ha scelto nessuna opzione")
+            else -> if (request.isOpen()) ActionOutcome(true, options[index]) else ActionOutcome(false, "richiesta interrotta")
+        }
+    }
+
     companion object {
         private const val MAX_QUESTION = 200
+        private const val MAX_OPTIONS = 5
+        private const val MAX_OPTION = 60
 
         /**
          * An https link with a host and no user name ("https://bank.example.com@other.test" opens other.test), or null.
@@ -149,8 +170,8 @@ class PhoneActionHandler(
             it.scheme.equals("https", ignoreCase = true) && !it.host.isNullOrBlank() && it.rawUserInfo == null
         }
 
-        /** Always available: the agent asks the person to approve a change (see [ActionConsent]). */
-        val CONFIRM = setOf("confirm")
+        /** Always available: the agent asks the person to approve a change, or to choose (see [ActionConsent]). */
+        val CONFIRM = setOf("confirm", "choose")
 
         /** Always available: the actions the local router can do as well. */
         val BASIC = setOf("set_timer", "tell_time", "tell_date", "set_alarm", "open_app", "call", "stop_timer", "stop_alarm", "snooze_alarm")

@@ -120,10 +120,15 @@ class ChatViewModel(
     /** Tap to talk: what is heard becomes a normal message, answered aloud, or the answer to a question of [consent]. */
     val voice = VoiceController(viewModelScope, { stt }, spokenOutput, ::heard)
 
-    /** The agent's question before a change (a calendar event moved or deleted): shown with Approva and Non approvare. */
+    /**
+     * The agent's question before a change (a calendar event moved or deleted), shown with Approva and Non approvare, or
+     * its question with options to choose from, one button each.
+     */
     val consentRequest: StateFlow<ConsentRequest?> = consent.pending
 
     fun answerConsent(id: Long, yes: Boolean) = consent.answer(id, yes)
+
+    fun pickChoice(id: Long, index: Int) = consent.pick(id, index)
 
     /** The request being answered was spoken: a question about it is asked aloud too, and answered by voice. */
     private var spokenRequest = false
@@ -139,7 +144,7 @@ class ChatViewModel(
     /** Says the question and then listens for the answer, once the voice has finished. */
     private suspend fun askAloud(question: ConsentRequest) {
         askedAloud = question.id
-        spokenOutput.speak(question.headline)
+        spokenOutput.speak(question.spoken)
         withTimeoutOrNull(SPEECH_START_MS) { spokenOutput.speaking.first { it } }
         spokenOutput.speaking.first { !it }
         if (consent.pending.value?.id == question.id && !voice.state.value.listening) voice.listen()
@@ -220,11 +225,15 @@ class ChatViewModel(
         // Scanned, it says its kind; found in a photo, the agent tells the kind from what the photo shows.
         val barcode = _barcode.value?.lineForAgent() ?: photo?.barcode?.let { "[codice a barre nella foto: $it]" }
         if (trimmed.isEmpty() && photo == null && barcode == null) return
-        // While the agent waits for an approval, a short "sì" or "no", said or typed, is the answer. Anything else is a
-        // new request, which replaces the one waiting (and so does not approve).
-        consent.pending.value?.let { question ->
-            val answer = if (photo == null && barcode == null) consentAnswer(trimmed) else null
-            if (answer != null) return consent.answer(question.id, answer)
+        // While the agent waits for an approval, a short "sì" or "no", said or typed, is the answer; while it waits for a
+        // choice, an option ("la seconda", "Otranto"). Anything else is a new request, which replaces the one waiting
+        // (and so does not approve, nor choose).
+        consent.pending.value?.takeIf { photo == null && barcode == null }?.let { question ->
+            if (question.isChoice) {
+                choiceAnswer(trimmed, question.options)?.let { return consent.pick(question.id, it) }
+            } else {
+                consentAnswer(trimmed)?.let { return consent.answer(question.id, it) }
+            }
         }
         // A question about the writing needs the larger copy; otherwise the lighter one.
         val sent = photo?.let { if (PhotoDetail.asksAboutText(trimmed)) it.detail else it.image }

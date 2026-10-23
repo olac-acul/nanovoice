@@ -148,7 +148,9 @@ fun AssistantScreen(
                     if (lastUser != null) Text(lastUser.text, style = MaterialTheme.typography.titleMedium, textAlign = TextAlign.Center)
                     val appSettings by viewModel.appSettings.collectAsState()
                     val consentRequest by viewModel.consentRequest.collectAsState()
-                    consentRequest?.let { request -> ConsentCard(request, onAnswer = { viewModel.answerConsent(request.id, it) }) }
+                    consentRequest?.let { request ->
+                        ConsentCard(request, onAnswer = { viewModel.answerConsent(request.id, it) }, onPick = { viewModel.pickChoice(request.id, it) })
+                    }
                     if (reply != null) {
                         MessageText(reply.text, markdown = true, align = TextAlign.Center)
                     }

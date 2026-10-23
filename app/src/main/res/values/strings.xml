@@ -220,6 +220,9 @@
     <string name="consent_title">Serve la tua approvazione</string>
     <string name="consent_yes">Approva</string>
     <string name="consent_no">Non approvare</string>
+    <string name="choice_title">Scegli</string>
+    <string name="choice_none">Nessuna</string>
+    <string name="choice_hint">Puoi anche dire o scrivere l’opzione, o «la prima», «la seconda»… Senza risposta l’agente va avanti senza una scelta.</string>
     <string name="consent_hint">Puoi anche dire o scrivere «sì» o «no». Senza risposta non cambia niente.</string>
     <string name="interrupt">Interrompi la richiesta</string>
     <string name="wake_test_title">Prova la parola di attivazione</string>

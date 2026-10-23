@@ -313,7 +313,12 @@ fun ChatScreen(
             val sendAttachment = if (typing) null else ::submit
             replyingTo?.let { ReplyBar(it, onCancel = { viewModel.replyTo(null) }) }
             consentRequest?.let { request ->
-                ConsentCard(request, onAnswer = { viewModel.answerConsent(request.id, it) }, modifier = Modifier.padding(top = 8.dp))
+                ConsentCard(
+                    request,
+                    onAnswer = { viewModel.answerConsent(request.id, it) },
+                    modifier = Modifier.padding(top = 8.dp),
+                    onPick = { viewModel.pickChoice(request.id, it) },
+                )
             }
             photo?.let { AttachedPhoto(it.preview, onRemove = { viewModel.attachPhoto(null) }, onSend = sendAttachment.takeIf { barcode == null }) }
             barcode?.let { AttachedBarcode(it, onRemove = { viewModel.attachBarcode(null) }, onSend = sendAttachment) }

@@ -72,6 +72,7 @@ class AppContainer(context: Context) {
                     photoActions::handle,
                     locked = { keyguard?.isKeyguardLocked == true },
                     consent = consent::ask,
+                    choose = consent::choose,
                     calendar = calendarActions,
                 ),
                 log = { android.util.Log.i("AgentActions", it) },
