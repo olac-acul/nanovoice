@@ -3,6 +3,8 @@ package dev.nanovoice
 import android.content.Context
 import dev.nanovoice.actions.photo.OpenFoodFacts
 import dev.nanovoice.actions.photo.PlantNet
+import dev.nanovoice.actions.photo.ProductFacts
+import dev.nanovoice.actions.photo.ProductKind
 import dev.nanovoice.agent.ActionOutcome
 import dev.nanovoice.agent.AgentImage
 import kotlinx.coroutines.Dispatchers
@@ -33,6 +35,15 @@ class PhotoActions(private val context: Context, private val plantNetKey: () -> 
             if (code == null || !OpenFoodFacts.isBarcode(code)) ActionOutcome(false, "il codice a barre deve avere da 8 a 14 cifre")
             else OpenFoodFacts.product(code).outcome("Open Food Facts")
         }
+        "product" -> {
+            val code = args.text("barcode")
+            val kind = ProductKind.byId(args.text("kind"))
+            when {
+                code == null || !OpenFoodFacts.isBarcode(code) -> ActionOutcome(false, "il codice a barre deve avere da 8 a 14 cifre")
+                kind == null -> ActionOutcome(false, "kind deve essere uno di ${ProductKind.entries.joinToString { it.id }}")
+                else -> ProductFacts.lookup(code, kind).outcome(ProductKind.resolve(code, kind).service)
+            }
+        }
         "image_search" -> {
             val engine = ImageSearchActivity.Engine.byId(args.text("engine"))
             when {
@@ -55,7 +66,8 @@ class PhotoActions(private val context: Context, private val plantNetKey: () -> 
     private fun JsonObject.text(key: String): String? = (this[key] as? JsonPrimitive)?.contentOrNull?.trim()?.takeIf { it.isNotEmpty() }
 
     companion object {
-        val NAMES = setOf("identify_plant", "food_product", "image_search")
+        // food_product: the older lookup, food only, still answered for a server that has not got `product`.
+        val NAMES = setOf("identify_plant", "product", "food_product", "image_search")
         private const val NO_PHOTO = "questa richiesta non ha una foto: la persona deve mandarla insieme alla domanda"
     }
 }

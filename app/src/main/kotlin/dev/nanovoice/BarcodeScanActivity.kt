@@ -38,6 +38,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -49,6 +50,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
+import dev.nanovoice.actions.photo.ProductKind
 import dev.nanovoice.ui.Icons
 import dev.nanovoice.ui.NanoTheme
 import java.util.concurrent.ExecutorService
@@ -57,7 +59,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
- * Live barcode scanner for food products: the camera preview, read frame by frame on the phone (ZXing), closes on the
+ * Live barcode scanner for products: the camera preview, read frame by frame on the phone (ZXing), closes on the
  * first product code and returns its digits. No picture is kept or sent. Needs the camera permission, asked before.
  */
 class BarcodeScanActivity : ComponentActivity() {
@@ -68,6 +70,8 @@ class BarcodeScanActivity : ComponentActivity() {
     private val torch = mutableStateOf(false)
     /** Reads a QR code (the pairing code of the panel) instead of a product barcode. */
     private val qr by lazy { intent.getBooleanExtra(EXTRA_QR, false) }
+    /** The kind of product the person chose: the title and the database named in the hint. */
+    private val kind by lazy { ProductKind.byId(intent.getStringExtra(EXTRA_KIND)) ?: ProductKind.Food }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -93,7 +97,7 @@ class BarcodeScanActivity : ComponentActivity() {
                                     contentAlignment = Alignment.Center,
                                 ) { Icons.Close(Color.White) }
                                 Text(
-                                    stringResource(if (qr) R.string.scan_qr_title else R.string.scan_title),
+                                    if (qr) stringResource(R.string.scan_qr_title) else stringResource(R.string.scan_title_kind, stringResource(kind.label)),
                                     style = MaterialTheme.typography.titleMedium,
                                     color = Color.White,
                                     modifier = Modifier.weight(1f),
@@ -111,7 +115,7 @@ class BarcodeScanActivity : ComponentActivity() {
                                 modifier = Modifier.fillMaxWidth(),
                             ) {
                                 Text(
-                                    stringResource(if (qr) R.string.scan_qr_hint else R.string.scan_hint),
+                                    if (qr) stringResource(R.string.scan_qr_hint) else scanHint(),
                                     style = MaterialTheme.typography.bodyMedium,
                                     textAlign = TextAlign.Center,
                                     modifier = Modifier.padding(16.dp),
@@ -122,6 +126,14 @@ class BarcodeScanActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    /** Where the number goes, and for the smaller databases that some products are missing. */
+    @Composable
+    private fun scanHint(): String {
+        val hint = stringResource(R.string.scan_hint, kind.service)
+        val small = kind != ProductKind.Food && kind != ProductKind.Book
+        return if (small) hint + " " + stringResource(R.string.scan_hint_small, kind.service) else hint
     }
 
     private fun start(view: PreviewView) {
@@ -176,9 +188,10 @@ class BarcodeScanActivity : ComponentActivity() {
         super.onDestroy()
     }
 
-    /** Opens the scanner; the result is the code's digits, or null when it was closed. */
-    class Scan : ActivityResultContract<Unit, String?>() {
-        override fun createIntent(context: Context, input: Unit) = Intent(context, BarcodeScanActivity::class.java)
+    /** Opens the scanner for a kind of product; the result is the code's digits, or null when it was closed. */
+    class Scan : ActivityResultContract<ProductKind, String?>() {
+        override fun createIntent(context: Context, input: ProductKind) =
+            Intent(context, BarcodeScanActivity::class.java).putExtra(EXTRA_KIND, input.id)
         override fun parseResult(resultCode: Int, intent: Intent?): String? =
             intent?.getStringExtra(EXTRA_CODE)?.takeIf { resultCode == Activity.RESULT_OK }
     }
@@ -194,5 +207,6 @@ class BarcodeScanActivity : ComponentActivity() {
     private companion object {
         const val EXTRA_CODE = "code"
         const val EXTRA_QR = "qr"
+        const val EXTRA_KIND = "kind"
     }
 }

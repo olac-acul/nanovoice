@@ -27,6 +27,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.ImageBitmap
+import dev.nanovoice.actions.photo.ProductKind
 import dev.nanovoice.agent.AgentImage
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -141,7 +142,7 @@ fun ChatScreen(
 
     val photo by viewModel.photo.collectAsState()
     val barcode by viewModel.barcode.collectAsState()
-    val productQuestion = stringResource(R.string.barcode_question)
+    val productQuestion = stringResource(if (barcode?.kind == ProductKind.Book) R.string.barcode_question_book else R.string.barcode_question)
 
     fun submit() {
         // A scanned code alone still needs a question for the agent, and a bubble that says what was asked.
@@ -177,7 +178,8 @@ fun ChatScreen(
             cameraPermission.launch(Manifest.permission.CAMERA)
         }
     }
-    val scanner = rememberLauncherForActivityResult(BarcodeScanActivity.Scan()) { code -> code?.let(viewModel::attachBarcode) }
+    var scanKind by remember { mutableStateOf(ProductKind.Food) }
+    val scanner = rememberLauncherForActivityResult(BarcodeScanActivity.Scan()) { code -> code?.let { viewModel.attachBarcode(it, scanKind) } }
     val onTakePhoto = {
         withCamera {
             try {
@@ -188,7 +190,11 @@ fun ChatScreen(
         }
     }
     val onPickPhoto = { picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }
-    val onScanBarcode = { withCamera { scanner.launch(Unit) } }
+    val onScanBarcode = { kind: ProductKind ->
+        scanKind = kind
+        viewModel.chooseProductKind(kind)
+        withCamera { scanner.launch(kind) }
+    }
 
     // The text field shows only after a tap on the keyboard button, and goes away with the keyboard when nothing was typed.
     var typing by rememberSaveable { mutableStateOf(false) }
@@ -329,7 +335,7 @@ fun ChatScreen(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.SpaceEvenly,
                         ) {
-                            AttachButton(onTakePhoto, onPickPhoto, onScanBarcode)
+                            AttachButton(onTakePhoto, onPickPhoto, viewModel::productKinds, onScanBarcode)
                             Orb(
                                 state = orbState,
                                 action = orbAction,
@@ -483,17 +489,39 @@ private fun RoundButton(label: String, onClick: () -> Unit, icon: @Composable ()
     ) { icon() }
 }
 
-/** Left of the orb: take a photo, pick one or scan a product barcode, for the next message. */
+/**
+ * Left of the orb: take a photo, pick one or scan a product barcode, for the next message. Scanning first asks what
+ * kind of product it is, so the phone asks the one database for that kind (the kind chosen last comes first).
+ */
 @Composable
-private fun AttachButton(onTakePhoto: () -> Unit, onPickPhoto: () -> Unit, onScanBarcode: () -> Unit) {
+private fun AttachButton(
+    onTakePhoto: () -> Unit,
+    onPickPhoto: () -> Unit,
+    productKinds: () -> List<ProductKind>,
+    onScanBarcode: (ProductKind) -> Unit,
+) {
     var menu by remember { mutableStateOf(false) }
+    var choosingKind by remember { mutableStateOf(false) }
     val color = MaterialTheme.colorScheme.onSurface
+    val close = { menu = false; choosingKind = false }
     Box {
         RoundButton(stringResource(R.string.photo_attach), onClick = { menu = true }) { Icons.Camera(color) }
-        NanoMenu(expanded = menu, onDismiss = { menu = false }) {
-            NanoMenuItem(stringResource(R.string.photo_take), { Icons.Camera(color, size = 20.dp) }) { menu = false; onTakePhoto() }
-            NanoMenuItem(stringResource(R.string.photo_pick), { Icons.Gallery(color, size = 20.dp) }) { menu = false; onPickPhoto() }
-            NanoMenuItem(stringResource(R.string.photo_scan_barcode), { Icons.Barcode(color, size = 20.dp) }) { menu = false; onScanBarcode() }
+        NanoMenu(expanded = menu, onDismiss = close) {
+            if (choosingKind) {
+                Text(
+                    stringResource(R.string.product_kind_title),
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 18.dp, vertical = 8.dp),
+                )
+                for (kind in productKinds()) {
+                    NanoMenuItem(stringResource(kind.label), { Icons.Barcode(color, size = 20.dp) }) { close(); onScanBarcode(kind) }
+                }
+            } else {
+                NanoMenuItem(stringResource(R.string.photo_take), { Icons.Camera(color, size = 20.dp) }) { close(); onTakePhoto() }
+                NanoMenuItem(stringResource(R.string.photo_pick), { Icons.Gallery(color, size = 20.dp) }) { close(); onPickPhoto() }
+                NanoMenuItem(stringResource(R.string.photo_scan_barcode), { Icons.Barcode(color, size = 20.dp) }) { choosingKind = true }
+            }
         }
     }
 }
@@ -512,9 +540,9 @@ private fun AttachmentSend(onSend: () -> Unit) {
     ) { Icons.Send(colors.onPrimary) }
 }
 
-/** The scanned barcode waiting to go with the next message. */
+/** The scanned barcode waiting to go with the next message, with the kind of product it will be looked up as. */
 @Composable
-private fun AttachedBarcode(code: String, onRemove: () -> Unit, onSend: (() -> Unit)?) {
+private fun AttachedBarcode(scanned: ScannedProduct, onRemove: () -> Unit, onSend: (() -> Unit)?) {
     val colors = MaterialTheme.colorScheme
     val removeLabel = stringResource(R.string.barcode_remove)
     Row(
@@ -525,7 +553,12 @@ private fun AttachedBarcode(code: String, onRemove: () -> Unit, onSend: (() -> U
         Box(Modifier.size(56.dp).background(colors.surfaceContainerHigh, RoundedCornerShape(12.dp)), contentAlignment = Alignment.Center) {
             Icons.Barcode(colors.onSurface, size = 28.dp)
         }
-        Text(stringResource(R.string.barcode_attached, code), style = MaterialTheme.typography.bodyMedium, color = colors.onSurfaceVariant, modifier = Modifier.weight(1f))
+        val text = when {
+            scanned.notIsbn -> stringResource(R.string.barcode_attached_not_isbn, scanned.code)
+            scanned.kind == ProductKind.Book -> stringResource(R.string.barcode_attached_book, scanned.code)
+            else -> stringResource(R.string.barcode_attached, scanned.code, stringResource(scanned.kind.label))
+        }
+        Text(text, style = MaterialTheme.typography.bodyMedium, color = colors.onSurfaceVariant, modifier = Modifier.weight(1f))
         Box(
             modifier = Modifier
                 .size(40.dp)

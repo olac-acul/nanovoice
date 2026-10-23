@@ -60,6 +60,8 @@ data class AppSettings(
     val photoServices: Boolean = true,
     /** Pl@ntNet API key (free account at my.plantnet.org) for "che pianta è?"; stored encrypted like the token. */
     val plantNetKey: String = "",
+    /** The kind of product scanned last (a ProductKind id): offered first next time. */
+    val lastProductKind: String = "food",
 ) {
     fun musicAccount(): dev.nanovoice.actions.music.MusicAccount? =
         if (navidromeUrl.startsWith("https://") && navidromeUser.isNotBlank() && navidromePassword.isNotEmpty()) {
@@ -100,6 +102,7 @@ fun AppSettings.withChanges(baseline: AppSettings, edited: AppSettings): AppSett
     navidromePassword = if (edited.navidromePassword != baseline.navidromePassword) edited.navidromePassword else navidromePassword,
     photoServices = if (edited.photoServices != baseline.photoServices) edited.photoServices else photoServices,
     plantNetKey = if (edited.plantNetKey != baseline.plantNetKey) edited.plantNetKey else plantNetKey,
+    lastProductKind = if (edited.lastProductKind != baseline.lastProductKind) edited.lastProductKind else lastProductKind,
 )
 
 interface SettingsStore {
@@ -140,6 +143,7 @@ class SecureSettingsStore(context: Context) : SettingsStore {
             .putString(KEY_NAVIDROME_PASSWORD, if (settings.navidromePassword.isEmpty()) "" else encrypt(settings.navidromePassword))
             .putBoolean(KEY_PHOTO_SERVICES, settings.photoServices)
             .putString(KEY_PLANTNET, if (settings.plantNetKey.isEmpty()) "" else encrypt(settings.plantNetKey))
+            .putString(KEY_PRODUCT_KIND, settings.lastProductKind)
             .apply()
         _settings.value = settings
     }
@@ -171,6 +175,7 @@ class SecureSettingsStore(context: Context) : SettingsStore {
         pushEndpoint = prefs.getString(KEY_PUSH, "")?.takeIf { it.isNotEmpty() }?.let(::decrypt).orEmpty(),
         photoServices = prefs.getBoolean(KEY_PHOTO_SERVICES, true),
         plantNetKey = prefs.getString(KEY_PLANTNET, "")?.takeIf { it.isNotEmpty() }?.let(::decrypt).orEmpty(),
+        lastProductKind = prefs.getString(KEY_PRODUCT_KIND, null) ?: "food",
     )
 
     private fun key(): SecretKey {
@@ -229,6 +234,7 @@ class SecureSettingsStore(context: Context) : SettingsStore {
         const val KEY_THEME = "theme_mode"
         const val KEY_PUSH = "push_endpoint_encrypted"
         const val KEY_PLANTNET = "plantnet_key_encrypted"
+        const val KEY_PRODUCT_KIND = "last_product_kind"
         const val KEY_PHOTO_SERVICES = "photo_services"
     }
 }

@@ -5,6 +5,7 @@ import dev.nanovoice.agent.AgentImage
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dev.nanovoice.actions.SpokenPhrases
+import dev.nanovoice.actions.photo.ProductKind
 import dev.nanovoice.voice.SpeechToText
 import dev.nanovoice.voice.SpokenOutput
 import dev.nanovoice.voice.TtsStatus
@@ -45,6 +46,8 @@ class ChatViewModel(
     stt: SpeechToText,
     val linkPreviews: LinkPreviews,
     private val consent: ActionConsent,
+    /** Saves a change of the settings this screen makes itself (the kind of product scanned last). */
+    private val saveSettings: (AppSettings) -> Unit = {},
 ) : ViewModel() {
     /** The settings, for the screens that depend on them (link previews). */
     val appSettings: StateFlow<AppSettings> get() = settings
@@ -86,13 +89,21 @@ class ChatViewModel(
         _photo.value = photo
     }
 
-    private val _barcode = MutableStateFlow<String?>(null)
+    private val _barcode = MutableStateFlow<ScannedProduct?>(null)
 
-    /** A product barcode from the scanner, for the next message (Open Food Facts gets only the number). */
-    val barcode: StateFlow<String?> = _barcode
+    /** A product barcode from the scanner and its kind, for the next message (the database gets only the number). */
+    val barcode: StateFlow<ScannedProduct?> = _barcode
 
-    fun attachBarcode(code: String?) {
-        _barcode.value = code
+    fun attachBarcode(code: String?, chosen: ProductKind = ProductKind.Food) {
+        _barcode.value = code?.let { ScannedProduct.of(it, chosen) }
+    }
+
+    /** The kinds of product for the scan menu, the one chosen last first. */
+    fun productKinds(): List<ProductKind> = productKindsFor(settings.value.lastProductKind)
+
+    /** The person chose this kind before scanning: offered first next time. */
+    fun chooseProductKind(kind: ProductKind) {
+        if (settings.value.lastProductKind != kind.id) saveSettings(settings.value.copy(lastProductKind = kind.id))
     }
 
     /** Listens for a request, and lets the server start the agent meanwhile (the local router may not need it). */
@@ -206,7 +217,8 @@ class ChatViewModel(
     fun send(text: String, spoken: Boolean = false) {
         val trimmed = text.trim()
         val photo = _photo.value
-        val barcode = _barcode.value ?: photo?.barcode
+        // Scanned, it says its kind; found in a photo, the agent tells the kind from what the photo shows.
+        val barcode = _barcode.value?.lineForAgent() ?: photo?.barcode?.let { "[codice a barre nella foto: $it]" }
         if (trimmed.isEmpty() && photo == null && barcode == null) return
         // While the agent waits for an approval, a short "sì" or "no", said or typed, is the answer. Anything else is a
         // new request, which replaces the one waiting (and so does not approve).
@@ -228,11 +240,11 @@ class ChatViewModel(
         if (busy.value) stopReplies()
         spokenRequest = spoken
         add(trimmed, fromUser = true, image = preview, photo = sent, quote = quote)
-        // The barcode read on the phone goes to the agent (for Open Food Facts), not into the bubble. Scanned or found
+        // The barcode read on the phone goes to the agent (for the product databases), not into the bubble. Scanned or found
         // in a photo, it takes the line the agent's instructions know. A reply carries the start of the message it
         // answers, so the agent knows what "questo" refers to.
         val withQuote = quote?.let { "[in risposta a: «$it»]\n$trimmed" } ?: trimmed
-        val forAgent = barcode?.let { "$withQuote\n[codice a barre nella foto: $it]".trim() } ?: withQuote
+        val forAgent = barcode?.let { "$withQuote\n$it".trim() } ?: withQuote
         viewModelScope.launch(conversation) {
             val speaker = if (spoken && settings.value.speakReplies) ReplySpeaker(spokenOutput) else null
             active.update { it + 1 }

@@ -15,5 +15,6 @@ fun chatViewModelFactory(container: AppContainer) = object : ViewModelProvider.F
         stt = container.stt,
         linkPreviews = container.linkPreviews,
         consent = container.consent,
+        saveSettings = container.settingsStore::save,
     ) as T
 }
