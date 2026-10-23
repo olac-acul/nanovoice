@@ -379,8 +379,17 @@ private fun HelpDialog(onDismiss: () -> Unit) {
         R.string.help_date to R.string.help_date_ex,
         R.string.help_timer to R.string.help_timer_ex,
         R.string.help_alarm to R.string.help_alarm_ex,
+        R.string.help_clock to R.string.help_clock_ex,
         R.string.help_apps to R.string.help_apps_ex,
         R.string.help_call to R.string.help_call_ex,
+        R.string.help_note to R.string.help_note_ex,
+        R.string.help_music to R.string.help_music_ex,
+    )
+    // Sent to the agent, but started from the app's own buttons.
+    val withAgent = listOf(
+        R.string.help_photo to R.string.help_photo_ex,
+        R.string.help_product to R.string.help_product_ex,
+        R.string.help_new_chat to R.string.help_new_chat_ex,
     )
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -396,8 +405,12 @@ private fun HelpDialog(onDismiss: () -> Unit) {
                 }
                 Text(stringResource(R.string.help_agent_title), style = MaterialTheme.typography.titleMedium)
                 Text(stringResource(R.string.help_agent_body), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text(stringResource(R.string.help_photo), style = MaterialTheme.typography.titleMedium)
-                Text(stringResource(R.string.help_photo_ex), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                for ((title, body) in withAgent) {
+                    Column {
+                        Text(stringResource(title), style = MaterialTheme.typography.titleMedium)
+                        Text(stringResource(body), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
             }
         },
         confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.assistant_close)) } },
