@@ -10,8 +10,6 @@ import dev.nanovoice.agent.AgentImage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.contentOrNull
 import java.io.IOException
 
 /**
@@ -62,8 +60,6 @@ class PhotoActions(private val context: Context, private val plantNetKey: () -> 
         { ActionOutcome(true, it) },
         { e -> ActionOutcome(false, if (e is IOException) "$service non è raggiungibile (${e.javaClass.simpleName})" else e.message ?: e.javaClass.simpleName) },
     )
-
-    private fun JsonObject.text(key: String): String? = (this[key] as? JsonPrimitive)?.contentOrNull?.trim()?.takeIf { it.isNotEmpty() }
 
     companion object {
         // food_product: the older lookup, food only, still answered for a server that has not got `product`.

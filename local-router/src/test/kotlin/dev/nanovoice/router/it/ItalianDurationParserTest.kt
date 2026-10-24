@@ -9,7 +9,11 @@ import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 
 class ItalianDurationParserTest {
-    private fun d(s: String): Duration? = ItalianDurationParser.parseWhole(s)
+    /** The duration [s] says, only if it is all a duration. */
+    private fun d(s: String): Duration? {
+        val tokens = ItalianDurationParser.tokenize(s)
+        return ItalianDurationParser.parse(tokens, 0)?.takeIf { it.endIndex == tokens.size }?.duration
+    }
 
     @Test fun digitsMinutes() = assertEquals(10.minutes, d("10 minuti"))
     @Test fun wordsMinutes() = assertEquals(10.minutes, d("dieci minuti"))

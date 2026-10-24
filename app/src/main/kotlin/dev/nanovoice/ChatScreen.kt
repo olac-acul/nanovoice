@@ -99,7 +99,6 @@ import dev.nanovoice.ui.firstUrl
 import dev.nanovoice.ui.OrbState
 import dev.nanovoice.ui.VoiceOrb
 import dev.nanovoice.ui.extra
-import dev.nanovoice.voice.SttError
 import dev.nanovoice.voice.TtsStatus
 
 @Composable
@@ -667,14 +666,6 @@ private fun Composer(
             contentAlignment = Alignment.Center,
         ) { if (stop) Icons.Stop(colors.onPrimary) else Icons.Send(if (enabled) colors.onPrimary else colors.outline) }
     }
-}
-
-private fun sttErrorText(error: SttError): Int = when (error) {
-    SttError.NotAvailable -> R.string.voice_error_unavailable
-    SttError.PermissionDenied -> R.string.voice_error_permission
-    SttError.NoSpeech -> R.string.voice_error_nospeech
-    SttError.Busy -> R.string.voice_error_busy
-    SttError.Other -> R.string.voice_error_other
 }
 
 private const val TYPING_DELAY_MS = 500L

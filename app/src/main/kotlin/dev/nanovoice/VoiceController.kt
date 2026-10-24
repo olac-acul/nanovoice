@@ -22,6 +22,15 @@ data class VoiceUiState(
     val error: SttError? = null,
 )
 
+/** The message shown for a failed listening attempt. */
+internal fun sttErrorText(error: SttError): Int = when (error) {
+    SttError.NotAvailable -> R.string.voice_error_unavailable
+    SttError.PermissionDenied -> R.string.voice_error_permission
+    SttError.NoSpeech -> R.string.voice_error_nospeech
+    SttError.Busy -> R.string.voice_error_busy
+    SttError.Other -> R.string.voice_error_other
+}
+
 /** Tap to talk: [listen] opens the microphone, a pause or [finish] ends the utterance and hands the text to [onUtterance]. */
 class VoiceController(
     private val scope: CoroutineScope,

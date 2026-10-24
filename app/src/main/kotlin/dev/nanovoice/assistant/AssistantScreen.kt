@@ -38,6 +38,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import dev.nanovoice.ChatViewModel
 import dev.nanovoice.R
+import dev.nanovoice.sttErrorText
 import dev.nanovoice.ui.ConsentCard
 import dev.nanovoice.ui.LinkPreviewCard
 import dev.nanovoice.ui.MessageText
@@ -46,7 +47,6 @@ import dev.nanovoice.ui.Wordmark
 import androidx.compose.ui.unit.sp
 import dev.nanovoice.ui.firstUrl
 import dev.nanovoice.ui.VoiceOrb
-import dev.nanovoice.voice.SttError
 import androidx.compose.ui.text.style.TextAlign
 
 @Composable
@@ -143,7 +143,7 @@ fun AssistantScreen(
                     }
                     if (working && workingText.isNotEmpty() && !voice.listening && voice.error == null) WorkingStatus(workingText) else if ((showTyping || working) && !voice.listening && voice.error == null) TypingDots() else Text(
                         text = when {
-                            voice.error != null -> stringResource(errorText(voice.error!!))
+                            voice.error != null -> stringResource(sttErrorText(voice.error!!))
                             voice.listening -> voice.partial.ifEmpty { stringResource(R.string.voice_listening) }
                             speaking -> stringResource(R.string.voice_speaking)
                             else -> stringResource(R.string.assistant_tap_to_speak)
@@ -167,12 +167,4 @@ fun AssistantScreen(
             }
         }
     }
-}
-
-private fun errorText(error: SttError): Int = when (error) {
-    SttError.NotAvailable -> R.string.voice_error_unavailable
-    SttError.PermissionDenied -> R.string.voice_error_permission
-    SttError.NoSpeech -> R.string.voice_error_nospeech
-    SttError.Busy -> R.string.voice_error_busy
-    SttError.Other -> R.string.voice_error_other
 }

@@ -44,7 +44,7 @@ class ActionConsent(private val timeoutMs: Long = 90_000) {
     private var nextId = 0L
 
     suspend fun ask(question: String): Consent = when (waitFor(question, emptyList())) {
-        YES -> Consent.Yes
+        YES_INDEX -> Consent.Yes
         null -> Consent.NoAnswer
         else -> Consent.No
     }
@@ -72,11 +72,11 @@ class ActionConsent(private val timeoutMs: Long = 90_000) {
 
     /**
      * The person's answer to the question [id]; one about a question no longer shown is ignored. A choice is not
-     * answered by a yes (that would pick whichever option YES happens to number): only [pick] chooses, or a no.
+     * answered by a yes (that would pick whichever option YES_INDEX happens to number): only [pick] chooses, or a no.
      */
     fun answer(id: Long, yes: Boolean) = synchronized(this) {
         val pending = _pending.value ?: return@synchronized
-        if (pending.id == id && !(yes && pending.isChoice)) answer?.complete(if (yes) YES else REFUSED)
+        if (pending.id == id && !(yes && pending.isChoice)) answer?.complete(if (yes) YES_INDEX else REFUSED)
     }
 
     /** The option the person chose for the question [id]; [REFUSED] for none of them. */
@@ -92,7 +92,7 @@ class ActionConsent(private val timeoutMs: Long = 90_000) {
 
     companion object {
         const val REFUSED = -1
-        private const val YES = 1
+        private const val YES_INDEX = 1
     }
 }
 

@@ -126,8 +126,6 @@ class PhoneActionHandler(
         return ActionOutcome(result.ok, result.message)
     }
 
-    private fun JsonObject.text(key: String): String? = (this[key] as? JsonPrimitive)?.contentOrNull?.trim()?.takeIf { it.isNotEmpty() }
-
     /**
      * The agent asks the person to approve a change (a calendar event moved or deleted) before making it. The answer
      * comes from a tap, the voice or the keyboard; it counts only if the request is still open when it arrives.
@@ -219,3 +217,6 @@ class PhoneActionHandler(
         }
     }
 }
+
+/** The argument [key] as text, or null when it is missing, not a string or blank. */
+internal fun JsonObject.text(key: String): String? = (this[key] as? JsonPrimitive)?.contentOrNull?.trim()?.takeIf { it.isNotEmpty() }

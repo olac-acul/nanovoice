@@ -7,7 +7,11 @@ import kotlin.test.assertNull
 
 class ItalianNumberParserTest {
     private fun tokens(s: String) = TextNormalizer.normalize(s).split(" ").filter { it.isNotEmpty() }
-    private fun whole(s: String) = ItalianNumberParser.parseWhole(tokens(s))
+    /** The number [s] says, only if it is all a number. */
+    private fun whole(s: String): Int? {
+        val t = tokens(s)
+        return ItalianNumberParser.parse(t, 0)?.takeIf { it.endIndex == t.size }?.value
+    }
 
     @Test fun digits() = assertEquals(10, whole("10"))
     @Test fun units() { assertEquals(1, whole("un")); assertEquals(1, whole("una")); assertEquals(9, whole("nove")) }

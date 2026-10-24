@@ -43,11 +43,6 @@ object ItalianDurationParser {
         return null
     }
 
-    fun parseWhole(text: String): Duration? {
-        val tokens = tokenize(text)
-        return parse(tokens, 0)?.takeIf { it.endIndex == tokens.size }?.duration
-    }
-
     fun tokenize(text: String): List<String> = TextNormalizer.normalize(text).split(" ").filter { it.isNotEmpty() }
 
     private fun firstComponent(t: List<String>, i: Int): Component? {

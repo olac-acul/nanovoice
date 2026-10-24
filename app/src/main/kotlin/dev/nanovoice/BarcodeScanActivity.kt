@@ -201,8 +201,8 @@ class BarcodeScanActivity : ComponentActivity() {
         override fun createIntent(context: Context, input: ProductKind) =
             Intent(context, BarcodeScanActivity::class.java).putExtra(EXTRA_KIND, input.id)
         override fun parseResult(resultCode: Int, intent: Intent?): Scanned? {
-            val code = intent?.getStringExtra(EXTRA_CODE)?.takeIf { resultCode == Activity.RESULT_OK } ?: return null
-            return Scanned(code, ProductKind.byId(intent.getStringExtra(EXTRA_KIND)) ?: ProductKind.Food)
+            val code = scannedCode(resultCode, intent) ?: return null
+            return Scanned(code, ProductKind.byId(intent?.getStringExtra(EXTRA_KIND)) ?: ProductKind.Food)
         }
     }
 
@@ -210,13 +210,16 @@ class BarcodeScanActivity : ComponentActivity() {
     class ScanQr : ActivityResultContract<Unit, String?>() {
         override fun createIntent(context: Context, input: Unit) =
             Intent(context, BarcodeScanActivity::class.java).putExtra(EXTRA_QR, true)
-        override fun parseResult(resultCode: Int, intent: Intent?): String? =
-            intent?.getStringExtra(EXTRA_CODE)?.takeIf { resultCode == Activity.RESULT_OK }
+        override fun parseResult(resultCode: Int, intent: Intent?): String? = scannedCode(resultCode, intent)
     }
 
     private companion object {
         const val EXTRA_CODE = "code"
         const val EXTRA_QR = "qr"
         const val EXTRA_KIND = "kind"
+
+        /** The code the scanner sent back, or null when it was closed without one. */
+        fun scannedCode(resultCode: Int, intent: Intent?): String? =
+            intent?.getStringExtra(EXTRA_CODE)?.takeIf { resultCode == Activity.RESULT_OK }
     }
 }

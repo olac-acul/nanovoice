@@ -50,10 +50,6 @@ object ItalianNumberParser {
         return best
     }
 
-    /** Parses [text] only if it is entirely a number. */
-    fun parseWhole(tokens: List<String>): Int? =
-        parse(tokens, 0)?.takeIf { it.endIndex == tokens.size }?.value
-
     private fun decompose(word: String): List<Int>? {
         if (word.isEmpty()) return emptyList()
         for (atom in atomsLongestFirst) {
