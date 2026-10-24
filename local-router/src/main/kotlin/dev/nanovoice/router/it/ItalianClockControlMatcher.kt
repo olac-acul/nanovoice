@@ -20,8 +20,10 @@ object ItalianClockControlMatcher : LocalMatcher {
     /** Only for an alarm: "salta la sveglia delle sette". */
     private val skipStems = listOf("salt")
     private val snoozeStems = listOf("posticip", "rimand", "rinvi")
+    private val bareSnoozeVerbs = setOf("rimanda", "posticipa", "rinvia", "rimandala", "posticipala", "rinviala")
     private val articles = setOf("il", "lo", "la", "l", "quel", "quella", "questo", "questa", "mio", "mia")
-    private val timeConnectors = setOf("delle", "alle", "all", "dell", "di", "della", "de", "per", "le", "domani", "domattina", "stamattina", "stasera", "oggi")
+    private val timeConnectors = setOf("delle", "alle", "all", "dell", "di", "della", "de", "per", "le", "domani", "oggi") +
+        ItalianClockTimeParser.dayPartWords
     private val suffixWords = setOf("per", "favore", "piacere", "grazie", "ok", "adesso", "subito", "ora", "domani", "stamattina", "domattina")
     /** Asks something, or says not to: not a request to stop. */
     private val refusals = setOf("non", "quando", "quanto", "come", "perche", "se", "manca", "mancano", "rimane", "rimasto", "cosa", "che")
@@ -92,10 +94,10 @@ object ItalianClockControlMatcher : LocalMatcher {
         if (!tokens.drop(rest).all { it in suffixWords || it in timeConnectors }) return null
         // "salta la sveglia" needs to know which one: without a time it is left to the agent.
         if (found == null && skipStems.any { tokens[verbAt].startsWith(it) }) return null
-        return MatchResult(LocalIntent.StopAlarm(found?.time), 1f)
+        return MatchResult(LocalIntent.StopAlarm(found?.time?.let { ItalianClockTimeParser.withDayPart(tokens, it) }), 1f)
     }
 
-    /** <verb> [article sveglia] [di <minutes>] [polite words] */
+    /** <verb> article sveglia [di <minutes>] [polite words], or <verb> di <minutes>: the alarm or a length says what. */
     private fun snooze(tokens: List<String>, verbAt: Int, alarmAt: Int, timerAt: Int): MatchResult? {
         if (timerAt >= 0) return null
         var i = verbAt + 1
@@ -104,7 +106,11 @@ object ItalianClockControlMatcher : LocalMatcher {
             i = alarmAt + 1
         }
         val rest = tokens.drop(i)
-        if (rest.all { it in suffixWords }) return MatchResult(LocalIntent.SnoozeAlarm(null), 1f)
+        // "rimanda la sveglia" says what, and so does the bare "rimanda!" said to a ringing alarm; with a pronoun on the
+        // verb ("rimandalo", "rimandamelo": send it again, "rinvialo") it is about something else
+        if (rest.all { it in suffixWords }) {
+            return if (alarmAt >= 0 || tokens[verbAt] in bareSnoozeVerbs) MatchResult(LocalIntent.SnoozeAlarm(null), 1f) else null
+        }
         val found = ItalianDurationParser.find(rest) ?: return null
         if (!rest.take(found.startIndex).all { it in setOf("di", "per", "ancora", "altri", "un", "una") }) return null
         if (!rest.drop(found.endIndex).all { it in suffixWords }) return null

@@ -17,13 +17,15 @@ object ItalianAlarmMatcher : LocalMatcher {
     )
     private val commandStems = listOf("mett", "impost", "avvi", "fai", "far", "part", "sett", "cre", "attiv", "programm")
     private val alarmWords = setOf("sveglia", "svegliami", "svegliarmi")
-    private val connectors = setOf("per", "a", "alle", "alla", "all", "le", "il", "domani", "oggi", "stamattina", "stasera", "domattina", "di")
+    private val connectors = setOf("per", "a", "alle", "alla", "all", "le", "il", "domani", "oggi", "di", "del", "della") +
+        ItalianClockTimeParser.dayPartWords
     private val tomorrowWords = setOf("domani", "domattina")
     private val unsupportedDays = setOf(
         "dopodomani", "lunedi", "martedi", "mercoledi", "giovedi", "venerdi", "sabato", "domenica", "prossimo", "prossima",
         "settimana", "tutti", "ogni", "giorni", "feriali",
     )
-    private val suffixWords = setOf("per", "favore", "piacere", "grazie", "ok", "adesso", "subito", "domani", "oggi")
+    private val suffixWords = setOf("per", "favore", "piacere", "grazie", "ok", "adesso", "subito", "domani", "oggi", "di", "del", "della") +
+        ItalianClockTimeParser.dayPartWords
 
     override fun match(text: String): MatchResult? {
         val tokens = ItalianDurationParser.tokenize(text)
@@ -44,7 +46,7 @@ object ItalianAlarmMatcher : LocalMatcher {
         if (!tokens.drop(rest).all { it in suffixWords }) return null
 
         val tomorrow = tokens.any { it in tomorrowWords }
-        return if (found != null) MatchResult(LocalIntent.SetAlarm(found.time, tomorrow), 1f)
+        return if (found != null) MatchResult(LocalIntent.SetAlarm(ItalianClockTimeParser.withDayPart(tokens, found.time), tomorrow), 1f)
         else MatchResult(LocalIntent.SetAlarm(null, tomorrow), 0.9f)
     }
 }

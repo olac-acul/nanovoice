@@ -59,6 +59,23 @@ object ItalianClockTimeParser {
         return Found(ClockTime(h, minute), end)
     }
 
+    /** Words for a part of the day said anywhere in a sentence, not only right after the time. */
+    val dayPartWords = setOf("stasera", "sera", "pomeriggio", "stanotte", "notte", "stamattina", "mattina", "mattino", "domattina")
+    private val eveningWords = setOf("stasera", "sera", "pomeriggio")
+    private val nightOnlyWords = setOf("stanotte", "notte")
+
+    /**
+     * [time] with a part of the day said elsewhere in the sentence: "stasera alle nove", "alle otto stasera", "alle
+     * sette di domani sera", "domani pomeriggio alle tre". Like "di sera" right after the time, it moves a morning
+     * hour (1 to 11) to the evening; "stanotte" and "notte" read the hour as at night. A time already in the evening,
+     * or a sentence without such a word, is left as it is.
+     */
+    fun withDayPart(tokens: List<String>, time: ClockTime): ClockTime = when {
+        tokens.any { it in eveningWords } && time.hour in 1..11 -> ClockTime(time.hour + 12, time.minute)
+        tokens.any { it in nightOnlyWords } && time.hour in 1..11 -> ClockTime(nightHour(time.hour), time.minute)
+        else -> time
+    }
+
     /** First time found anywhere in [tokens]. */
     fun find(tokens: List<String>): Found? {
         for (i in tokens.indices) parse(tokens, i)?.let { return it }

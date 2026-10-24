@@ -18,13 +18,24 @@ object ItalianOpenAppMatcher : LocalMatcher {
         "cartella", "conto", "ticket", "segnalazione",
     )
     private val closing = setOf("per", "favore", "piacere", "grazie", "ora", "adesso", "subito")
+    /** "lancia una moneta", "un dado": a thing, not an app (unless "un'app" says so). */
+    private val indefinite = setOf("un", "una", "uno")
+    private val appWords = setOf("app", "applicazione", "programma")
+    /** Inside a name a preposition means a request ("la mappa di torino", "la navigazione verso casa"), not an app. */
+    private val prepositions = setOf(
+        "di", "del", "della", "dei", "degli", "delle", "dello", "verso", "per", "a", "da", "con", "su", "in", "sul",
+        "sulla", "al", "alla", "nel", "nella", "fino",
+    )
 
     override fun match(text: String): MatchResult? {
         val tokens = ItalianDurationParser.tokenize(text)
         val verbAt = tokens.indexOfFirst { it in verbs }
         if (verbAt < 0 || !tokens.take(verbAt).all { it in fillers }) return null
-        val name = tokens.drop(verbAt + 1).dropWhile { it in glue }.dropLastWhile { it in closing }
+        val after = tokens.drop(verbAt + 1)
+        if (after.firstOrNull() in indefinite && after.getOrNull(1) !in appWords) return null
+        val name = after.dropWhile { it in glue }.dropLastWhile { it in closing }
         if (name.isEmpty() || name.size > 4 || name.any { it in notApps || it in verbs }) return null
+        if (name.drop(1).any { it in prepositions }) return null
         return MatchResult(LocalIntent.OpenApp(name.joinToString(" ")), 0.9f)
     }
 }

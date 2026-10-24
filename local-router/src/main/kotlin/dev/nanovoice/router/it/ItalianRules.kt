@@ -15,7 +15,7 @@ object ItalianRules : LocaleRules {
 
     override fun parseClockReply(text: String): ClockTime? {
         val tokens = ItalianDurationParser.tokenize(text)
-        return ItalianClockTimeParser.find(tokens)?.time
+        return ItalianClockTimeParser.find(tokens)?.time?.let { ItalianClockTimeParser.withDayPart(tokens, it) }
     }
 
     private val tomorrowWords = setOf("domani", "domattina")
@@ -34,11 +34,19 @@ object ItalianRules : LocaleRules {
     /** Repeating alarms, which the clock intent cannot set. */
     private val repeatWords = setOf("tutti", "ogni", "feriali", "settimana", "weekend")
 
-    /** Not a request to set something: negated, cancelling, moving, or asking about an existing one. */
+    /**
+     * Not a request to set something: negated, cancelling, moving, or about one that exists ("hai messo la sveglia",
+     * "la sveglia suona alle sette", "ho impostato un timer"). Speech recognition writes no question mark, so a
+     * question has to be told by its words.
+     */
     private val notASetRequest = setOf(
         "non", "annulla", "cancella", "togli", "elimina", "rimuovi", "disattiva", "spegni", "sposta", "cambia", "ferma",
         "suonato", "suonata", "manca", "mancano", "quanto", "quando", "rimasto", "rimasti", "rimane",
+        "hai", "avevi", "avevo", "messo", "messa", "impostato", "impostata", "programmato", "programmata", "puntato",
+        "puntata", "attivato", "attivata", "suona", "suonano", "suonera", "squilla", "c",
     )
+    private val articles = setOf("un", "una", "uno", "il", "lo", "la", "l")
+    private val clockNouns = setOf("sveglia", "timer", "allarme")
 
     /** What introduces the alarm time: "alle sette", "per le 7", "verso le otto"; never the article in "una sveglia". */
     private val timeIntroducers = setOf("alle", "all", "le", "per", "verso", "entro", "a")
@@ -85,13 +93,22 @@ object ItalianRules : LocaleRules {
                 val found = start?.let { ItalianClockTimeParser.parse(tokens, it) }
                 if (found == null || tokens.any { it in otherDays || it in repeatWords }) null
                 else if (!asksSomething(tokens, start, found.endIndex)) null // "alle sette" alone
-                else LocalIntent.SetAlarm(found.time, tokens.any { it in tomorrowWords })
+                else LocalIntent.SetAlarm(ItalianClockTimeParser.withDayPart(tokens, found.time), tokens.any { it in tomorrowWords })
             }
             else -> null
         }
 
-    override fun refusesSetting(text: String): Boolean =
-        text.trim().endsWith("?") || ItalianDurationParser.tokenize(text).any { it in notASetRequest }
+    override fun refusesSetting(text: String): Boolean {
+        if (text.trim().endsWith("?")) return true
+        val tokens = ItalianDurationParser.tokenize(text)
+        if (tokens.any { it in notASetRequest }) return true
+        // "ho la sveglia alle sette", "ho un timer": having one, not asking for one ("ho bisogno di una sveglia" asks)
+        if (tokens.indices.any { i -> tokens[i] == "ho" && tokens.getOrNull(i + 1) in articles && tokens.getOrNull(i + 2) in clockNouns }) return true
+        // "la sveglia di domani è alle sette": "è" (written "e") before the time; "sette e mezza" has it after a number
+        if (tokens.indices.any { i -> tokens[i] == "e" && tokens.getOrNull(i + 1) in timeIntroducers && (i == 0 || ItalianNumberParser.parse(tokens, i - 1) == null) }) return true
+        // "il timer", "la sveglia": an article and the noun alone say nothing to do ("timer" or "sveglia" alone do)
+        return tokens.size == 2 && tokens[0] in articles && tokens[1] in clockNouns
+    }
 
     override fun parseDurationReply(text: String): Duration? =
         ItalianDurationParser.find(ItalianDurationParser.tokenize(text))?.duration?.takeIf { it > Duration.ZERO }

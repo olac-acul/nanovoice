@@ -21,6 +21,9 @@ object ItalianPlayMusicMatcher : LocalMatcher {
     private val closing = setOf("per", "favore", "piacere", "grazie", "ora", "adesso", "subito", "su", "con", "tempo")
     private val notMusic = setOf(
         "sveglia", "timer", "video", "film", "serie", "episodio", "podcast",
+        // things to hear that are not in the music library: the agent's, or another app's
+        "notizie", "notiziario", "telegiornale", "tg", "meteo", "messaggio", "messaggi", "vocale", "vocali", "audio",
+        "barzelletta", "barzellette", "storia", "favola", "radio",
         // "metti la musica in pausa", "più forte": a control of what plays, not a search
         "pausa", "ferma", "stop", "volume", "forte", "alta", "bassa", "avanti", "indietro", "prossima", "successiva", "precedente",
     )
@@ -32,6 +35,10 @@ object ItalianPlayMusicMatcher : LocalMatcher {
         val verb = verbs.firstOrNull { tokens.subList(at, minOf(tokens.size, at + it.size)) == it } ?: return null
         var rest = tokens.drop(at + verb.size)
         if (verb.first().startsWith("mett") && rest.take(3).none { it in musicWords }) return null
+        // "suona bene", "suona la campanella": "suona" plays music only when the sentence says so
+        if (verb.first().startsWith("suon") && rest.take(3).none { it in musicWords || it == "po" || it == "qualcosa" }) return null
+        // "una barzelletta": something said with "un", "una" and no music word after it is not a search of the library
+        if (rest.firstOrNull() in setOf("un", "una") && rest.getOrNull(1) !in musicWords && rest.getOrNull(1) != "po") return null
         if (rest.any { it in notMusic }) return null
         rest = rest.dropWhile { it in glue }.dropLastWhile { it in closing }
         val query = rest.filter { it !in links }
