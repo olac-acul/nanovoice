@@ -51,13 +51,20 @@ internal fun withoutUrls(text: String): String =
 
 private val MONTHS = listOf("gennaio", "febbraio", "marzo", "aprile", "maggio", "giugno", "luglio", "agosto", "settembre", "ottobre", "novembre", "dicembre")
 private val ORDINALS_M = listOf("primo", "secondo", "terzo", "quarto", "quinto", "sesto", "settimo", "ottavo", "nono", "decimo")
+/** Words after which a day/month without a year is a date. */
+private val DATE_WORDS = setOf(
+    "il", "l'", "dal", "al", "del", "entro", "fino", "giorno", "data", "lunedì", "martedì", "mercoledì", "giovedì",
+    "venerdì", "sabato", "domenica", "oggi", "domani",
+)
 private val slashDate = Regex("""\b(\d{1,2})/(\d{1,2})(?:/(\d{2}|\d{4}))?\b""")
 private val articleOrdinal = Regex("""(?i)\b(il|lo|la|l'|al|allo|alla|del|dello|della|nel|nello|nella|dal|dalla|sul|sulla|un|una)\s+(\d{1,2})([°ºª])""")
 
 /**
  * The voice reads most digits well (times, amounts, percentages). Two forms come out wrong, so they are rewritten
  * before speaking: dates with slashes ("21/10/2026" would be "ventuno barra dieci...") and ordinals with the degree
- * sign after an article ("il 1° piano" would be "uno gradi"). A plain "25°" stays: that one is a temperature.
+ * sign after an article ("il 1° piano" would be "uno gradi"). A plain "25°" stays: that one is a temperature. A
+ * day/month without a year is a date only after a word that introduces one ("il 21/10", "dal 3/4", "venerdì 5/6"):
+ * "1/2 cucchiaino", "24/7" and "voto 4/5" are not.
  */
 internal fun spokenNumbers(text: String): String {
     val dates = slashDate.replace(text) { m ->
@@ -65,6 +72,8 @@ internal fun spokenNumbers(text: String): String {
         val month = m.groupValues[2].toInt()
         if (day !in 1..31 || month !in 1..12) return@replace m.value
         val year = m.groupValues[3]
+        val wordBefore = text.substring(0, m.range.first).trimEnd().substringAfterLast(' ').lowercase()
+        if (year.isEmpty() && wordBefore !in DATE_WORDS) return@replace m.value
         buildString {
             append(day).append(' ').append(MONTHS[month - 1])
             if (year.isNotEmpty()) append(' ').append(if (year.length == 2) "20$year" else year)

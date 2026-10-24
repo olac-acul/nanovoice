@@ -1,5 +1,8 @@
 package dev.nanovoice.assistant
 
+import dev.nanovoice.OrbAction
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -114,16 +117,20 @@ fun AssistantScreen(
                         speaking -> OrbState.Speaking
                         else -> OrbState.Idle
                     }
-                    // Tapping the orb: stop talking, stop listening, or start listening.
-                    Box(
-                        modifier = Modifier.clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {
-                            when {
-                                busy -> viewModel.interrupt()
-                                speaking -> viewModel.stopSpeaking()
-                                voice.listening -> viewModel.voice.cancel()
-                                else -> viewModel.startListening()
-                            }
+                    // Tapping the orb does what it does in the chat: listen, finish what is being said (and send it),
+                    // or cancel the request and the voice. Finishing an answer to a spoken question no longer cancels it.
+                    val orbAction by viewModel.orbAction.collectAsState()
+                    val orbLabel = stringResource(
+                        when (orbAction) {
+                            OrbAction.Listen -> R.string.orb_listen
+                            OrbAction.Finish -> R.string.orb_finish
+                            OrbAction.Cancel -> R.string.interrupt
                         },
+                    )
+                    Box(
+                        modifier = Modifier
+                            .semantics { contentDescription = orbLabel }
+                            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { viewModel.orbTap() },
                     ) { VoiceOrb(orbState, size = 112.dp) }
                     var showTyping by remember { mutableStateOf(false) }
                     LaunchedEffect(thinking) {
@@ -148,7 +155,8 @@ fun AssistantScreen(
                     if (lastUser != null) Text(lastUser.text, style = MaterialTheme.typography.titleMedium, textAlign = TextAlign.Center)
                     val appSettings by viewModel.appSettings.collectAsState()
                     val consentRequest by viewModel.consentRequest.collectAsState()
-                    consentRequest?.let { request ->
+                    // Never over the lock screen: the question may show calendar details, and an answer approves a change.
+                    consentRequest?.takeIf { !locked }?.let { request ->
                         ConsentCard(request, onAnswer = { viewModel.answerConsent(request.id, it) }, onPick = { viewModel.pickChoice(request.id, it) })
                     }
                     if (reply != null) {

@@ -12,6 +12,11 @@ class SpokenNumbersTest {
 
     @Test fun thingsThatAreNotDatesStay() {
         assertEquals("Il rapporto è 45/60.", spokenNumbers("Il rapporto è 45/60."))
+        // fractions, scores and "24/7" are not dates: only with a year, or after a word that introduces a date
+        assertEquals("Aggiungi 1/2 cucchiaino di sale.", spokenNumbers("Aggiungi 1/2 cucchiaino di sale."))
+        assertEquals("Aperto 24/7, voto 4/5.", spokenNumbers("Aperto 24/7, voto 4/5."))
+        assertEquals("Valido dal 3 aprile al 5 giugno.", spokenNumbers("Valido dal 3/4 al 5/6."))
+        assertEquals("Ci vediamo venerdì 7 novembre.", spokenNumbers("Ci vediamo venerdì 7/11."))
         assertEquals("Sono le 12:49, costa 1.250 euro.", spokenNumbers("Sono le 12:49, costa 1.250 euro."))
     }
 

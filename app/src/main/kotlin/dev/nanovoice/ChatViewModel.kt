@@ -35,6 +35,8 @@ data class ChatMessage(
     val photo: AgentImage? = null,
     val time: Long = System.currentTimeMillis(),
     val quote: String? = null,
+    /** The barcode line that went to the agent with this message ("[codice a barre: …]"): sent again by "Riprova". */
+    val barcode: String? = null,
 )
 
 class ChatViewModel(
@@ -187,9 +189,11 @@ class ChatViewModel(
                 if (question != null && busy.value && spokenRequest && settings.value.speakReplies) {
                     askAloud(question)
                 } else if (question == null && askedAloud != null) {
-                    // Answered with a tap, or expired: the microphone opened for the answer is not needed any more.
+                    // Answered with a tap, or expired: the microphone opened for the answer is not needed any more,
+                    // nor the rest of the question still being read (five options take a while to say).
                     askedAloud = null
                     voice.cancel()
+                    spokenOutput.stop()
                 }
             }
         }
@@ -207,7 +211,7 @@ class ChatViewModel(
     /** "Riprova" on the last request: the same words (and photo) again, as a new request. */
     fun retry(message: ChatMessage) {
         if (!message.fromUser) return
-        submit(message.text, message.photo, message.image, barcode = null, spoken = false, quote = message.quote)
+        submit(message.text, message.photo, message.image, barcode = message.barcode, spoken = false, quote = message.quote)
     }
 
     /** "Rileggi ad alta voce": the message said again, as a reply is (no links, no Markdown symbols). */
@@ -228,11 +232,12 @@ class ChatViewModel(
         // While the agent waits for an approval, a short "sì" or "no", said or typed, is the answer; while it waits for a
         // choice, an option ("la seconda", "Otranto"). Anything else is a new request, which replaces the one waiting
         // (and so does not approve, nor choose).
-        consent.pending.value?.takeIf { photo == null && barcode == null }?.let { question ->
+        // Not on the lock screen: there a said "sì" must not approve a change asked for from the unlocked phone.
+        consent.pending.value?.takeIf { photo == null && barcode == null && !isLocked() }?.let { question ->
             if (question.isChoice) {
                 choiceAnswer(trimmed, question.options)?.let { return consent.pick(question.id, it) }
             } else {
-                consentAnswer(trimmed)?.let { return consent.answer(question.id, it) }
+                consentAnswer(trimmed, question.headline)?.let { return consent.answer(question.id, it) }
             }
         }
         // A question about the writing needs the larger copy; otherwise the lighter one.
@@ -248,7 +253,7 @@ class ChatViewModel(
         // One request at a time: a new one replaces the one still being answered (the server drops the rest of it).
         if (busy.value) stopReplies()
         spokenRequest = spoken
-        add(trimmed, fromUser = true, image = preview, photo = sent, quote = quote)
+        add(trimmed, fromUser = true, image = preview, photo = sent, quote = quote, barcode = barcode)
         // The barcode read on the phone goes to the agent (for the product databases), not into the bubble. Scanned or found
         // in a photo, it takes the line the agent's instructions know. A reply carries the start of the message it
         // answers, so the agent knows what "questo" refers to.
@@ -290,11 +295,13 @@ class ChatViewModel(
                 _working.value = false
                 _workingText.value = ""
                 active.update { it - 1 }
+                // The server keeps a request open while its question waits, so a question still shown when the reply
+                // ended (an error, a lost connection) answers nothing: close it instead of taking a tap for 90 s.
+                if (active.value == 0) consent.refuseAll()
             }
         }
     }
 
-    fun stopSpeaking() = spokenOutput.stop()
 
     /** Messages of the assistant sheet, appended to this chat when the app is opened from it. */
     fun adopt(handed: List<ChatMessage>) {
@@ -354,11 +361,18 @@ class ChatViewModel(
         return last.text.trim() == text.trim() && android.os.SystemClock.elapsedRealtime() - lastReplyAt < REPEAT_WINDOW_MS
     }
 
-    private fun add(text: String, fromUser: Boolean, image: ImageBitmap? = null, photo: AgentImage? = null, quote: String? = null): Long {
+    private fun add(
+        text: String,
+        fromUser: Boolean,
+        image: ImageBitmap? = null,
+        photo: AgentImage? = null,
+        quote: String? = null,
+        barcode: String? = null,
+    ): Long {
         if (!fromUser) lastReplyAt = android.os.SystemClock.elapsedRealtime()
         val id = nextId++
         _messages.update { list ->
-            val all = list + ChatMessage(id, text, fromUser, image, photo, quote = quote)
+            val all = list + ChatMessage(id, text, fromUser, image, photo, quote = quote, barcode = barcode)
             // The photo bytes (for a TinEye search from the bubble) stay for the latest few photos only.
             val keep = all.filter { it.photo != null }.takeLast(MAX_PHOTOS_KEPT).map { it.id }.toSet()
             all.map { if (it.photo != null && it.id !in keep) it.copy(photo = null) else it }

@@ -38,9 +38,23 @@ class ActionConsentTest {
     }
 
     @Test fun spokenAnswers() {
-        for (yes in listOf("sì", "Si.", "va bene", "ok spostalo", "sì, vai pure", "d'accordo", "certo", "approva", "cancellalo")) assertEquals(true, consentAnswer(yes), yes)
-        for (no in listOf("no", "No grazie", "sì, anzi no", "lascia stare", "annulla", "non approvare", "non spostarlo")) assertEquals(false, consentAnswer(no), no)
-        for (other in listOf("", "che tempo fa domani a Roma?", "non so che ore sono adesso scusa", "il meteo")) assertNull(consentAnswer(other), other)
+        val move = "Sposto «Dentista» da martedì alle 10 a mercoledì alle 10?"
+        for (yes in listOf("sì", "Si.", "va bene", "ok spostalo", "sì, vai pure", "d'accordo", "certo", "approva", "sì per favore"))
+            assertEquals(true, consentAnswer(yes, move), yes)
+        for (no in listOf("no", "No grazie", "sì, anzi no", "lascia stare", "annulla", "non approvare", "non spostarlo"))
+            assertEquals(false, consentAnswer(no, move), no)
+        for (other in listOf("", "che tempo fa domani a Roma?", "non so che ore sono adesso scusa", "il meteo"))
+            assertNull(consentAnswer(other, move), other)
+    }
+
+    @Test fun anAnswerWithMoreInItIsANewRequestNotAYes() {
+        val move = "Sposto «Dentista» da martedì alle 10 a mercoledì alle 10?"
+        // these approved the move before: each says something else, so the question is refused and the agent hears it
+        for (other in listOf("va bene ma alle 11", "spostalo a giovedì", "cancellalo", "sì, però alle undici", "no, spostalo a giovedì"))
+            assertNull(consentAnswer(other, move), other)
+        // the question's own verb agrees; another verb does not
+        assertEquals(true, consentAnswer("cancellala", "Cancello «Cena» di venerdì?"))
+        assertNull(consentAnswer("spostala", "Cancello «Cena» di venerdì?"))
     }
 
     @Test fun aChoiceReturnsTheIndexChosenAndIgnoresOneOutOfRange() = runBlocking {
@@ -82,6 +96,11 @@ class ActionConsentTest {
         assertNull(choiceAnswer("mare", listOf("Polignano a Mare", "Torre a Mare")))
         assertNull(choiceAnswer("la prima o la seconda", beaches))
         assertNull(choiceAnswer("che ore sono secondo te", beaches)) // "secondo" here is not the second option
+        // naming or asking about an option is not choosing it
+        for (s in listOf("quanto dista Gallipoli?", "non Gallipoli", "no, Gallipoli no", "Gallipoli o Otranto?")) assertNull(choiceAnswer(s, beaches), s)
+        // a word only one option has is enough
+        assertEquals(2, choiceAnswer("Polignano", beaches))
+        assertEquals(1, choiceAnswer("scelgo Gallipoli", beaches))
         assertEquals(1, choiceAnswer("seconda", beaches))
         assertEquals(1, choiceAnswer("opzione due", beaches))
     }

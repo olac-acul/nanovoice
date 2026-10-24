@@ -135,8 +135,11 @@ class PhoneActionHandler(
     private suspend fun confirm(question: String, request: ActionRequest): ActionOutcome {
         if (question.length > MAX_QUESTION) return ActionOutcome(false, "la domanda deve stare in $MAX_QUESTION caratteri")
         return when (consent(question)) {
-            Consent.Yes -> if (request.isOpen()) ActionOutcome(true, "la persona ha approvato: procedi")
-            else ActionOutcome(false, "richiesta interrotta: non fare la modifica")
+            Consent.Yes -> when {
+                !request.isOpen() -> ActionOutcome(false, "richiesta interrotta: non fare la modifica")
+                locked() -> ActionOutcome(false, "il telefono è bloccato: non fare la modifica")
+                else -> ActionOutcome(true, "la persona ha approvato: procedi")
+            }
             Consent.No -> ActionOutcome(false, "la persona non ha approvato: non fare la modifica")
             Consent.NoAnswer -> ActionOutcome(false, "nessuna risposta dalla persona: non fare la modifica")
         }
@@ -153,7 +156,11 @@ class PhoneActionHandler(
         return when (val index = choose(question, options)) {
             null -> ActionOutcome(false, "nessuna risposta dalla persona")
             ActionConsent.REFUSED -> ActionOutcome(false, "la persona non ha scelto nessuna opzione")
-            else -> if (request.isOpen()) ActionOutcome(true, options[index]) else ActionOutcome(false, "richiesta interrotta")
+            else -> when {
+                !request.isOpen() -> ActionOutcome(false, "richiesta interrotta")
+                locked() -> ActionOutcome(false, "il telefono è bloccato")
+                else -> ActionOutcome(true, options[index])
+            }
         }
     }
 

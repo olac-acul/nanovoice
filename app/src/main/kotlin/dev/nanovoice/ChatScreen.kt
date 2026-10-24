@@ -136,6 +136,9 @@ fun ChatScreen(
     // When the agent says it is working, the dots show at once and stay until its answer arrives.
     val workingText by viewModel.workingText.collectAsState()
     val appSettings by viewModel.appSettings.collectAsState()
+    val newChatLabel = stringResource(R.string.help_new_chat)
+    val helpLabel = stringResource(R.string.help_title)
+    val settingsLabel = stringResource(R.string.settings)
     val showStatus = working && workingText.isNotEmpty()
     val showTyping = (waited || working) && !showStatus
 
@@ -178,8 +181,7 @@ fun ChatScreen(
             cameraPermission.launch(Manifest.permission.CAMERA)
         }
     }
-    var scanKind by remember { mutableStateOf(ProductKind.Food) }
-    val scanner = rememberLauncherForActivityResult(BarcodeScanActivity.Scan()) { code -> code?.let { viewModel.attachBarcode(it, scanKind) } }
+    val scanner = rememberLauncherForActivityResult(BarcodeScanActivity.Scan()) { scanned -> scanned?.let { viewModel.attachBarcode(it.code, it.kind) } }
     val onTakePhoto = {
         withCamera {
             try {
@@ -191,7 +193,6 @@ fun ChatScreen(
     }
     val onPickPhoto = { picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }
     val onScanBarcode = { kind: ProductKind ->
-        scanKind = kind
         viewModel.chooseProductKind(kind)
         withCamera { scanner.launch(kind) }
     }
@@ -262,6 +263,7 @@ fun ChatScreen(
                     modifier = Modifier
                         .size(44.dp)
                         .background(MaterialTheme.colorScheme.surfaceContainerHigh, CircleShape)
+                        .semantics { contentDescription = newChatLabel }
                         .clickable { confirmNew = true },
                     contentAlignment = Alignment.Center,
                 ) { Icons.Flame(MaterialTheme.colorScheme.onSurface) }
@@ -270,6 +272,7 @@ fun ChatScreen(
                     modifier = Modifier
                         .size(44.dp)
                         .background(MaterialTheme.colorScheme.surfaceContainerHigh, CircleShape)
+                        .semantics { contentDescription = helpLabel }
                         .clickable { showHelp = true },
                     contentAlignment = Alignment.Center,
                 ) { Text("?", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface) }
@@ -278,6 +281,7 @@ fun ChatScreen(
                     modifier = Modifier
                         .size(44.dp)
                         .background(MaterialTheme.colorScheme.surfaceContainerHigh, CircleShape)
+                        .semantics { contentDescription = settingsLabel }
                         .clickable(onClick = onOpenSettings),
                     contentAlignment = Alignment.Center,
                 ) { Icons.Settings(MaterialTheme.colorScheme.onSurface) }
@@ -340,7 +344,7 @@ fun ChatScreen(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.SpaceEvenly,
                         ) {
-                            AttachButton(onTakePhoto, onPickPhoto, viewModel::productKinds, onScanBarcode)
+                            AttachButton(onTakePhoto, onPickPhoto, viewModel::productKinds, onScanBarcode, canScan = appSettings.photoServices)
                             Orb(
                                 state = orbState,
                                 action = orbAction,
@@ -366,6 +370,7 @@ fun ChatScreen(
                     input,
                     busy,
                     hasPhoto = photo != null,
+                    hasBarcode = barcode != null,
                     focus = focus,
                     onChange = { input = it },
                     onSend = ::submit,
@@ -517,6 +522,8 @@ private fun AttachButton(
     onPickPhoto: () -> Unit,
     productKinds: () -> List<ProductKind>,
     onScanBarcode: (ProductKind) -> Unit,
+    /** Off with "Servizi esterni per le foto": no database would get the code, so the agent could not look it up. */
+    canScan: Boolean = true,
 ) {
     var menu by remember { mutableStateOf(false) }
     var choosingKind by remember { mutableStateOf(false) }
@@ -538,7 +545,7 @@ private fun AttachButton(
             } else {
                 NanoMenuItem(stringResource(R.string.photo_take), { Icons.Camera(color, size = 20.dp) }) { close(); onTakePhoto() }
                 NanoMenuItem(stringResource(R.string.photo_pick), { Icons.Gallery(color, size = 20.dp) }) { close(); onPickPhoto() }
-                NanoMenuItem(stringResource(R.string.photo_scan_barcode), { Icons.Barcode(color, size = 20.dp) }) { choosingKind = true }
+                if (canScan) NanoMenuItem(stringResource(R.string.photo_scan_barcode), { Icons.Barcode(color, size = 20.dp) }) { choosingKind = true }
             }
         }
     }
@@ -618,6 +625,7 @@ private fun Composer(
     value: String,
     busy: Boolean,
     hasPhoto: Boolean,
+    hasBarcode: Boolean = false,
     focus: FocusRequester,
     onChange: (String) -> Unit,
     onSend: () -> Unit,
@@ -647,7 +655,7 @@ private fun Composer(
             keyboardActions = KeyboardActions(onSend = { onSend() }),
             maxLines = 4,
         )
-        val enabled = value.isNotBlank() || hasPhoto
+        val enabled = value.isNotBlank() || hasPhoto || hasBarcode // a scanned code alone asks "che prodotto è?"
         // While a request is being answered and nothing new is typed, the button interrupts it.
         val stop = busy && !enabled
         Box(

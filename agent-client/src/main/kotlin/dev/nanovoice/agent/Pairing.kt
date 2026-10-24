@@ -58,6 +58,8 @@ sealed interface PairingResult {
     data object TooManyAttempts : PairingResult
     /** The server could not be reached or answered something unexpected. */
     data object Unreachable : PairingResult
+    /** A ws:// server and no VPN: the token would travel in clear on this network, so nothing was sent. */
+    data object NeedsVpn : PairingResult
 }
 
 /** Trades a pairing code for the token. The code is never logged and nothing is kept of it. */

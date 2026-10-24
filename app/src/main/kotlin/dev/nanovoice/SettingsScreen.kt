@@ -356,6 +356,7 @@ fun SettingsScreen(
                                                 is dev.nanovoice.agent.PairingResult.InvalidCode -> pairMessage = R.string.pair_invalid_code
                                                 is dev.nanovoice.agent.PairingResult.TooManyAttempts -> pairMessage = R.string.pair_too_many
                                                 is dev.nanovoice.agent.PairingResult.Unreachable -> pairMessage = R.string.pair_unreachable
+                                                is dev.nanovoice.agent.PairingResult.NeedsVpn -> pairMessage = R.string.pair_needs_vpn
                                             }
                                         }
                                     }) { Text(stringResource(R.string.pair_confirm_yes)) }

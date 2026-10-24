@@ -92,27 +92,40 @@ class ActionConsent(private val timeoutMs: Long = 90_000) {
     }
 }
 
-private val YES = setOf("si", "certo", "ok", "okay", "vai", "fallo", "procedi", "conferma", "confermo", "esatto", "daccordo", "pure", "bene",
-    "approva", "approvo", "approvato", "sposta", "spostalo", "cancella", "cancellalo", "cambia", "cambialo")
-private val NO = setOf("no", "non", "annulla", "niente", "stop", "negativo", "aspetta", "fermo", "ferma", "lascia")
-private const val MAX_ANSWER_WORDS = 5
+private val YES = setOf(
+    "si", "certo", "ok", "okay", "vai", "fallo", "procedi", "conferma", "confermo", "esatto", "esattamente", "daccordo",
+    "pure", "bene", "va", "perfetto", "giusto", "sicuro", "approva", "approvo", "approvato",
+)
+private val NO = setOf("no", "non", "annulla", "niente", "stop", "negativo", "aspetta", "fermo", "ferma", "lascia", "stare", "approvare")
+/** Little words that add nothing to a yes or a no ("sì, per favore", "no, grazie"). */
+private val ANSWER_FILLERS = setOf("per", "favore", "grazie", "allora", "dai", "ehm", "beh", "anzi", "pure", "il", "la", "lo", "l")
+private const val MAX_ANSWER_WORDS = 6
 
-/**
- * A said or typed answer to a [ConsentRequest]: true for a short yes ("sì", "va bene, spostalo"), false for a short answer
- * with a no in it ("no", "non approvare", "sì, anzi no": a doubt is a no), null for something else, a new request.
- */
-internal fun consentAnswer(heard: String): Boolean? {
-    val plain = java.text.Normalizer.normalize(heard.lowercase(), java.text.Normalizer.Form.NFD)
+/** Lower case, no accents, letters and digits only: the words of a said or typed answer. */
+private fun plainWords(text: String): List<String> =
+    java.text.Normalizer.normalize(text.lowercase(), java.text.Normalizer.Form.NFD)
         .replace(Regex("\\p{Mn}+"), "")
         .replace("d'accordo", "daccordo")
-        .replace(Regex("[^a-z ]+"), " ")
+        .replace(Regex("[^a-z0-9 ]+"), " ")
         .trim()
-        .replace(Regex("\\s+"), " ")
-    val words = plain.split(' ').filter { it.isNotEmpty() }
-    // A long sentence is a new request (which refuses the question anyway), even with a "non" in it.
+        .split(Regex("\\s+"))
+        .filter { it.isNotEmpty() }
+
+/**
+ * A said or typed answer to a [ConsentRequest]: true for a plain yes ("sì", "va bene, procedi"), false for a plain no
+ * ("no", "non approvare", "sì, anzi no": a doubt is a no), null for anything with more in it, which is a new request
+ * (and refuses the question): "va bene ma alle 11", "spostalo a giovedì". A verb that repeats the question's own
+ * ("Sposto il dentista…?" "spostalo") counts as a yes; any other one ("cancellalo") does not.
+ */
+internal fun consentAnswer(heard: String, question: String = ""): Boolean? {
+    val words = plainWords(heard)
     if (words.isEmpty() || words.size > MAX_ANSWER_WORDS) return null
+    val verb = plainWords(question).firstOrNull()?.takeIf { it.length >= 5 }?.take(5)
+    val echoesVerb = { w: String -> verb != null && w.length >= 5 && w.startsWith(verb) }
+    val plain = words.all { it in YES || it in NO || it in ANSWER_FILLERS || echoesVerb(it) }
+    if (!plain) return null
     if (words.any { it in NO }) return false
-    return if (words.any { it in YES }) true else null
+    return if (words.any { it in YES || echoesVerb(it) }) true else null
 }
 
 private val ORDINALS = listOf(
@@ -125,34 +138,36 @@ private val ORDINALS = listOf(
 private val NONE = setOf("nessuna", "nessuno", "annulla", "niente")
 /** Words before an ordinal that make it one ("la seconda", "opzione due"): "secondo te" is not a choice. */
 private val BEFORE_ORDINAL = setOf("la", "il", "l", "lo", "opzione", "numero")
+/** Little words around a choice ("la seconda per favore", "scelgo Gallipoli", "va bene Otranto"). */
+private val CHOICE_FILLERS = setOf(
+    "la", "il", "lo", "l", "le", "i", "gli", "quella", "quello", "di", "del", "della", "per", "favore", "grazie", "scelgo",
+    "voglio", "preferisco", "prendo", "va", "bene", "ok", "opzione", "numero", "allora", "direi", "meglio", "si", "dai", "e",
+)
+private val LAST = setOf("ultima", "ultimo")
 private const val MAX_CHOICE_WORDS = 8
 
-private fun plainWords(text: String): List<String> =
-    java.text.Normalizer.normalize(text.lowercase(), java.text.Normalizer.Form.NFD)
-        .replace(Regex("\\p{Mn}+"), "")
-        .replace(Regex("[^a-z0-9 ]+"), " ")
-        .trim()
-        .split(Regex("\\s+"))
-        .filter { it.isNotEmpty() }
-
 /**
- * A said or typed answer to a choice: the index of the option ("la seconda", "l'ultima", or the option's own words,
- * "Otranto"), [ActionConsent.REFUSED] for "nessuna" or "annulla", null for something else, a new request. An answer
- * that fits two options fits none.
+ * A said or typed answer to a choice: the index of the option ("la seconda", "l'ultima", "Gallipoli", or a word only
+ * that option has: "Polignano" for "Polignano a Mare"), [ActionConsent.REFUSED] for "nessuna" or "annulla", null for
+ * anything else, a new request: an answer with words of its own ("quanto dista Gallipoli?", "non Gallipoli") is not a
+ * choice, and one that fits two options fits none.
  */
 internal fun choiceAnswer(heard: String, options: List<String>): Int? {
     val words = plainWords(heard)
     if (words.isEmpty() || words.size > MAX_CHOICE_WORDS) return null
-    if (words.any { it in NONE }) return ActionConsent.REFUSED
-    val byOption = options.indices.filter { i ->
-        val option = plainWords(options[i])
-        option.isNotEmpty() && words.windowed(option.size).any { it == option }
+    if (words.any { it in NONE }) return if (words.all { it in NONE || it in CHOICE_FILLERS }) ActionConsent.REFUSED else null
+    val optionWords = options.map { option -> plainWords(option).filter { it !in CHOICE_FILLERS } }
+    // a word of the answer that names exactly one option
+    val named = optionWords.indices.filter { i ->
+        words.any { w -> w.length >= 3 && w in optionWords[i] && optionWords.indices.none { j -> j != i && w in optionWords[j] } } &&
+            words.all { it in optionWords[i] || it in CHOICE_FILLERS }
     }
-    if (byOption.size == 1) return byOption[0]
-    if (byOption.size > 1) return null
-    // An ordinal alone, or after an article ("la seconda", "l'ultima"): in a sentence it is mostly something else.
+    if (named.size == 1) return named[0]
+    if (named.size > 1) return null
+    // an ordinal alone, or after an article ("la seconda", "l'ultima"): in a sentence it is mostly something else
+    if (!words.all { w -> w in CHOICE_FILLERS || w in BEFORE_ORDINAL || w in LAST || ORDINALS.any { w in it } }) return null
     fun said(forms: Set<String>) = words.indices.any { i -> words[i] in forms && (words.size == 1 || words.getOrNull(i - 1) in BEFORE_ORDINAL) }
     val byOrdinal = ORDINALS.indices.filter { i -> i < options.size && said(ORDINALS[i]) } +
-        listOfNotNull(options.lastIndex.takeIf { said(setOf("ultima", "ultimo")) })
+        listOfNotNull(options.lastIndex.takeIf { said(LAST) })
     return byOrdinal.distinct().singleOrNull()
 }

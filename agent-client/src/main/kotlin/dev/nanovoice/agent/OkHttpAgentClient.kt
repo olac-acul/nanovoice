@@ -167,6 +167,7 @@ class OkHttpAgentClient(
             _state.value = ConnectionState.Connecting
             val closed = CompletableDeferred<Unit>()
             var opened = false
+            var openedAt = 0L
             val request = runCatching {
                 Request.Builder().url(config.url).header("Authorization", "Bearer ${config.token}").build()
             }.getOrElse {
@@ -178,6 +179,7 @@ class OkHttpAgentClient(
             val ws = http.newWebSocket(request, object : WebSocketListener() {
                 override fun onOpen(webSocket: WebSocket, response: Response) {
                     opened = true
+                    openedAt = System.nanoTime()
                     protocolRefusal = null
                     webSocket.send(Protocol.hello(config.capabilities, config.locale))
                     // Always, even when none: a push turned off while offline must reach the server too.
@@ -208,7 +210,9 @@ class OkHttpAgentClient(
             }
             _state.value = ConnectionState.Disconnected
             failPending("connessione persa")
-            if (opened) backoff = config.initialBackoffMs
+            // Back to the short wait only after a connection that lasted: one closed at once (a refused protocol, two
+            // phones with the same token replacing each other) keeps backing off instead of reconnecting every second.
+            if (opened && System.nanoTime() - openedAt >= STABLE_CONNECTION_NANOS) backoff = config.initialBackoffMs
             delay(backoff)
             backoff = (backoff * 2).coerceAtMost(config.maxBackoffMs)
         }
@@ -216,8 +220,11 @@ class OkHttpAgentClient(
 
     private fun handle(ws: WebSocket, raw: String) {
         when (val msg = Protocol.parse(raw) ?: return) {
-            is Protocol.ServerMessage.Delta -> if (msg.replyTo !in abandoned) {
-                pending[msg.replyTo]?.trySend(AgentEvent.Delta(msg.text)) ?: _notifications.tryEmit(msg.text)
+            is Protocol.ServerMessage.Delta -> {
+                // The open request first: a reply leaves `abandoned` only after it is added there, so a delta that finds
+                // neither is truly for no request (a notification), never one for a request just given up.
+                val open = pending[msg.replyTo]
+                if (open != null) open.trySend(AgentEvent.Delta(msg.text)) else if (msg.replyTo !in abandoned) _notifications.tryEmit(msg.text)
             }
             is Protocol.ServerMessage.Working -> pending[msg.replyTo]?.trySend(AgentEvent.Working)
             is Protocol.ServerMessage.Done -> if (abandoned.remove(msg.replyTo)) Unit else pending[msg.replyTo]?.trySend(AgentEvent.Done)
@@ -259,7 +266,15 @@ class OkHttpAgentClient(
             else -> runCatching { actionHandler.handle(msg.name, msg.args, request) }
                 .getOrElse { ActionOutcome(false, it.message ?: "errore") }
         }
-        log("${msg.name}: " + if (outcome.ok) "ok" else "rifiutata (${if (request == null) "nessuna richiesta aperta" else outcome.detail.take(120)})")
+        // Never the detail: it can hold the person's words or the address book ("Non trovo X", "Mario o Maria?").
+        log(
+            "${msg.name}: " + when {
+                outcome.ok -> "ok"
+                request == null -> "rifiutata (nessuna richiesta aperta)"
+                msg.name !in config.capabilities -> "rifiutata (non dichiarata)"
+                else -> "rifiutata"
+            },
+        )
         ws.send(Protocol.actionResult(session, msg.actionId, outcome))
     }
 
@@ -272,6 +287,8 @@ class OkHttpAgentClient(
     private companion object {
         const val RESET_TIMEOUT_MS = 10_000L
         const val MAX_ABANDONED = 50
+        /** A connection that stayed up this long resets the reconnect wait to its shortest. */
+        const val STABLE_CONNECTION_NANOS = 30_000_000_000L
         const val BLOCKED_RECHECK_MS = 3_000L
         const val UNSUPPORTED_PROTOCOL = "unsupported protocol"
         val FATAL_ERROR_PREFIXES = arrayOf("hello required", UNSUPPORTED_PROTOCOL)

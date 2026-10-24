@@ -1,5 +1,7 @@
 package dev.nanovoice
 
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
@@ -92,8 +94,10 @@ class BarcodeScanActivity : ComponentActivity() {
                         )
                         Column(modifier = Modifier.fillMaxSize().safeDrawingPadding().padding(16.dp)) {
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                val closeLabel = stringResource(R.string.assistant_close)
                                 Box(
-                                    modifier = Modifier.size(44.dp).background(Color.Black.copy(alpha = 0.5f), CircleShape).clickable { finish() },
+                                    modifier = Modifier.size(44.dp).background(Color.Black.copy(alpha = 0.5f), CircleShape)
+                                        .semantics { contentDescription = closeLabel }.clickable { finish() },
                                     contentAlignment = Alignment.Center,
                                 ) { Icons.Close(Color.White) }
                                 Text(
@@ -179,7 +183,8 @@ class BarcodeScanActivity : ComponentActivity() {
             @Suppress("DEPRECATION")
             (getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator)?.vibrate(VibrationEffect.createOneShot(40, VibrationEffect.DEFAULT_AMPLITUDE))
         }
-        setResult(Activity.RESULT_OK, Intent().putExtra(EXTRA_CODE, code))
+        // The kind goes back with the code: the chat may have been recreated meanwhile (rotation, theme) and lost it.
+        setResult(Activity.RESULT_OK, Intent().putExtra(EXTRA_CODE, code).putExtra(EXTRA_KIND, kind.id))
         finish()
     }
 
@@ -188,12 +193,17 @@ class BarcodeScanActivity : ComponentActivity() {
         super.onDestroy()
     }
 
-    /** Opens the scanner for a kind of product; the result is the code's digits, or null when it was closed. */
-    class Scan : ActivityResultContract<ProductKind, String?>() {
+    /** A scanned code and the kind of product it was scanned as. */
+    data class Scanned(val code: String, val kind: ProductKind)
+
+    /** Opens the scanner for a kind of product; the result is the code and that kind, or null when it was closed. */
+    class Scan : ActivityResultContract<ProductKind, Scanned?>() {
         override fun createIntent(context: Context, input: ProductKind) =
             Intent(context, BarcodeScanActivity::class.java).putExtra(EXTRA_KIND, input.id)
-        override fun parseResult(resultCode: Int, intent: Intent?): String? =
-            intent?.getStringExtra(EXTRA_CODE)?.takeIf { resultCode == Activity.RESULT_OK }
+        override fun parseResult(resultCode: Int, intent: Intent?): Scanned? {
+            val code = intent?.getStringExtra(EXTRA_CODE)?.takeIf { resultCode == Activity.RESULT_OK } ?: return null
+            return Scanned(code, ProductKind.byId(intent.getStringExtra(EXTRA_KIND)) ?: ProductKind.Food)
+        }
     }
 
     /** Opens the scanner for a QR code; the result is its text, or null when it was closed. */

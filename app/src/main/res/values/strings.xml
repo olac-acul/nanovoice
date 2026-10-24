@@ -39,6 +39,7 @@
     <string name="pair_invalid_code">Il codice non è valido o è scaduto. Crea un nuovo QR nel pannello e riprova.</string>
     <string name="pair_too_many">Troppi tentativi. Aspetta qualche minuto e crea un nuovo QR.</string>
     <string name="pair_unreachable">Non riesco a raggiungere il server. Controlla l\'indirizzo e, per un indirizzo ws://, che la VPN sia attiva.</string>
+    <string name="pair_needs_vpn">Il server nel QR è in chiaro (ws://): attiva la VPN e riprova. Senza VPN il token passerebbe in chiaro su questa rete.</string>
     <string name="pair_bad_server">L\'indirizzo nel QR non è accettato: ws:// solo in rete locale o VPN, altrimenti wss://.</string>
     <string name="pair_not_qr">Questo non è un QR di NanoVoice.</string>
     <string name="pair_unsupported">Questo QR è di una versione che l\'app non conosce: aggiorna l\'app o il server.</string>
@@ -66,7 +67,7 @@
     <string name="photos_plantnet_title">Pl@ntNet, per le piante</string>
     <string name="photos_plantnet_hint">Servizio di un consorzio di ricerca pubblico francese: la foto resta nella sua memoria solo mentre la riconosce (conserva data, ora e richiesta). Serve una chiave gratuita, fino a 500 riconoscimenti al giorno: crea un account su my.plantnet.org e copia qui la chiave API dal tuo profilo.</string>
     <string name="photos_plantnet_key">Chiave API Pl@ntNet</string>
-    <string name="photos_off_title">Open Food Facts, per i prodotti alimentari</string>
+    <string name="photos_off_title">Database aperti dei prodotti e dei libri</string>
     <string name="photos_off_hint">Il telefono legge da solo il codice a barre nella foto; al database del tipo di prodotto (Open Food Facts e i suoi gemelli, o Open Library per i libri), aperti e senza scopo di lucro, va solo il numero, a uno solo. Non serve un account.</string>
     <string name="photos_search_title">TinEye</string>
     <string name="photos_search_hint">Trova dove compare in rete la stessa immagine, per esempio da dove viene una foto: si apre una pagina dentro l\'app con la foto, e TinEye la cancella dopo la ricerca. Lo apre l\'agente quando glielo chiedi, oppure tu toccando una foto nella chat. La pagina non usa il tuo account e quando la chiudi i suoi cookie vengono cancellati.</string>
@@ -169,7 +170,7 @@
     <string name="dynamic_hint">Usa i colori presi dallo sfondo del telefono (Material You) al posto di quelli di NanoVoice.</string>
     <string name="assistant_tap_to_speak">Tocca il cerchio per parlare</string>
     <string name="help_title">Cosa puoi chiedermi</string>
-    <string name="help_local_intro">Queste richieste le gestisco direttamente sul telefono, anche senza connessione.</string>
+    <string name="help_local_intro">Queste richieste le gestisco direttamente sul telefono, senza passare dall\'agente (se in Impostazioni i comandi semplici sono attivi): quasi tutte anche senza connessione.</string>
     <string name="help_time">Ora</string>
     <string name="help_time_ex">“Che ore sono?”</string>
     <string name="help_date">Data</string>
@@ -189,7 +190,7 @@
     <string name="help_music">Musica</string>
     <string name="help_music_ex">“Fammi sentire Vasco Rossi”: dal tuo server Navidrome (Impostazioni) con l\'app Tempo.</string>
     <string name="help_photo">Foto</string>
-    <string name="help_photo_ex">Tocca la fotocamera accanto al campo di testo, oppure condividi una foto con NanoVoice da un\'altra app, poi chiedi: “cos\'è?”, “traducimi il menu”. La foto va al tuo agente, ridotta e senza posizione né altri dati.</string>
+    <string name="help_photo_ex">Tocca la fotocamera accanto al cerchio, oppure condividi una foto con NanoVoice da un\'altra app, poi chiedi: “cos\'è?”, “traducimi il menu”. La foto va al tuo agente, ridotta e senza posizione né altri dati.</string>
     <string name="help_agent_title">Tutto il resto</string>
     <string name="help_agent_body">Le altre domande e richieste vanno al tuo agente NanoClaw, che risponde a voce o per iscritto. Per esempio “cerca su internet le spiagge più belle della Puglia”: cerca, ti dice cosa ha trovato e mette le fonti in fondo; se non cerca, te lo dice. Serve il server raggiunto: lo stato è sotto il titolo.</string>
     <string name="help_product">Prodotti e libri</string>
