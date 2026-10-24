@@ -101,6 +101,13 @@ class ActionConsentTest {
         // a word only one option has is enough
         assertEquals(2, choiceAnswer("Polignano", beaches))
         assertEquals(1, choiceAnswer("scelgo Gallipoli", beaches))
+        // a yes/no question asked as a choice: "sì" and "no" are its options
+        val yesNo = listOf("Sì", "No")
+        assertEquals(0, choiceAnswer("sì", yesNo))
+        assertEquals(0, choiceAnswer("Sì, per favore", yesNo))
+        assertEquals(1, choiceAnswer("no", yesNo))
+        assertEquals(0, choiceAnswer("sì", listOf("Sì, spostalo", "No, lascialo")))
+        assertNull(choiceAnswer("la", listOf("La Spezia", "Genova")))
         assertEquals(1, choiceAnswer("seconda", beaches))
         assertEquals(1, choiceAnswer("opzione due", beaches))
     }

@@ -144,6 +144,7 @@ private val CHOICE_FILLERS = setOf(
     "voglio", "preferisco", "prendo", "va", "bene", "ok", "opzione", "numero", "allora", "direi", "meglio", "si", "dai", "e",
 )
 private val LAST = setOf("ultima", "ultimo")
+private val YES_NO_WORDS = setOf("si", "no")
 private const val MAX_CHOICE_WORDS = 8
 
 /**
@@ -156,10 +157,17 @@ internal fun choiceAnswer(heard: String, options: List<String>): Int? {
     val words = plainWords(heard)
     if (words.isEmpty() || words.size > MAX_CHOICE_WORDS) return null
     if (words.any { it in NONE }) return if (words.all { it in NONE || it in CHOICE_FILLERS }) ActionConsent.REFUSED else null
-    val optionWords = options.map { option -> plainWords(option).filter { it !in CHOICE_FILLERS } }
-    // a word of the answer that names exactly one option
+    val optionWords = options.map(::plainWords)
+    // A word that names an option: not a little word ("la", "di") unless it is "sì" or "no", which name the options of
+    // a yes/no question ("Sì, spostalo" / "No, lascialo"); and not a two-letter word unless the option is that one word.
+    fun names(w: String, i: Int): Boolean {
+        val option = optionWords[i]
+        return w in option && (w !in CHOICE_FILLERS || w in YES_NO_WORDS) &&
+            (w.length >= 3 || option.size == 1 || w in YES_NO_WORDS)
+    }
+    // a word of the answer that names exactly one option, and nothing else in the answer but that option's words
     val named = optionWords.indices.filter { i ->
-        words.any { w -> w.length >= 3 && w in optionWords[i] && optionWords.indices.none { j -> j != i && w in optionWords[j] } } &&
+        words.any { w -> names(w, i) && optionWords.indices.none { j -> j != i && w in optionWords[j] } } &&
             words.all { it in optionWords[i] || it in CHOICE_FILLERS }
     }
     if (named.size == 1) return named[0]
