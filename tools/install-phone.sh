@@ -16,7 +16,10 @@
 # This script never uninstalls.
 set -euo pipefail
 cd "$(dirname "$0")/.."
+# A serial given on the command line (ANDROID_SERIAL=... tools/install-phone.sh) wins over the one in .dev-env.
+given_serial="${ANDROID_SERIAL:-}"
 [ -f .dev-env ] && . ./.dev-env
+[ -n "$given_serial" ] && ANDROID_SERIAL="$given_serial"
 die() { echo "install: $*" >&2; exit 1; }
 
 command -v adb > /dev/null || die "adb not found: set ANDROID_HOME in .dev-env"
@@ -58,6 +61,10 @@ ensure_phone() {
   for address in $found; do reach "$address"; done
   local candidates
   candidates=$(adb devices | awk 'NR > 1 && $2 == "device" {print $1}' | grep -v -x -F "$serial" || true)
+  # One phone can be listed twice (wireless debugging and port 5555): keep one entry per phone, port 5555 first.
+  candidates=$(for c in $candidates; do
+    echo "$(ANDROID_SERIAL="$c" timeout 5 adb shell getprop ro.serialno 2> /dev/null | tr -d "\r") $([[ "$c" == *:5555 ]] && echo 0 || echo 1) $c"
+  done | sort -k1,1 -k2,2 | awk '!seen[$1]++ {print $3}')
   case "$(printf '%s' "$candidates" | grep -c .)" in
     0)
       [ -n "$found" ] && echo "install: wireless debugging found, but this computer is not paired with the phone yet." >&2
@@ -73,10 +80,21 @@ ensure_phone() {
   fi
   echo "install: phone found at $candidates; opening port 5555 again (until the phone restarts)"
   ANDROID_SERIAL="$candidates" adb tcpip 5555 > /dev/null
+  # The VPN address may not answer (the VPN off on the phone): then the same port on the local network will do.
+  local local_serial="${candidates%:*}:5555"
   for _ in 1 2 3 4 5 6 7 8 9 10; do
     sleep 1
     reach "$serial"
     state && return 0
+    if [ "$local_serial" != "$serial" ]; then
+      reach "$local_serial"
+      if ANDROID_SERIAL="$local_serial" state; then
+        echo "install: $serial does not answer (is the VPN on on the phone?); using $local_serial on the local network"
+        ANDROID_SERIAL="$local_serial"
+        export ANDROID_SERIAL
+        return 0
+      fi
+    fi
   done
   die "port 5555 did not open on the phone; run this again, or set ANDROID_SERIAL=$candidates for this time"
 }
