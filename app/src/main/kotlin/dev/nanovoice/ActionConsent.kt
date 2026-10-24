@@ -132,6 +132,22 @@ internal fun consentAnswer(heard: String, question: String = ""): Boolean? {
     return if (words.any { it in YES || echoesVerb(it) }) true else null
 }
 
+/**
+ * The indexes of "Sì" and "No" when those are a choice's only options: the agent's yes/no questions can arrive that way,
+ * and are then answered like an approval ("va bene", "certo", "sì, eliminalo").
+ */
+internal fun yesNoIndexes(options: List<String>): Pair<Int, Int>? {
+    val words = options.map(::plainWords)
+    val yes = words.indexOf(listOf("si"))
+    val no = words.indexOf(listOf("no"))
+    return if (options.size == 2 && yes >= 0 && no >= 0) yes to no else null
+}
+
+/** An answer of a word or two that answers nothing ("se", a misheard "sì"): worth asking again, not a new request. */
+internal fun unclearShortAnswer(heard: String): Boolean = plainWords(heard).size in 1..MAX_UNCLEAR_WORDS
+
+private const val MAX_UNCLEAR_WORDS = 2
+
 private val ORDINALS = listOf(
     setOf("prima", "primo", "uno", "1"),
     setOf("seconda", "secondo", "due", "2"),

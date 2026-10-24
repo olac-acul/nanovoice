@@ -47,6 +47,25 @@ class ActionConsentTest {
         assertEquals(Consent.No, second.await())
     }
 
+    @Test fun aYesNoChoiceIsAnsweredLikeAnApproval() {
+        assertEquals(0 to 1, yesNoIndexes(listOf("Sì", "No")))
+        assertEquals(1 to 0, yesNoIndexes(listOf("No", "Sì")))
+        assertNull(yesNoIndexes(listOf("Sì", "No", "Forse")))
+        assertNull(yesNoIndexes(listOf("Sabaudia", "Gaeta")))
+        // heard on the Pixel for "sì, eliminalo": the question's verb, misheard, still counts as a yes
+        assertEquals(true, consentAnswer("Sì, eliminano.", "Elimino l'evento \"prova\" di lunedì 26 ottobre?"))
+        assertEquals(true, consentAnswer("va bene", "Sposto l'evento?"))
+    }
+
+    @Test fun aShortAnswerThatAnswersNothingIsAskedAgain() {
+        // "sì" heard as "se": not an answer, but too short to be a new request
+        assertNull(consentAnswer("se", "Elimino l'evento?"))
+        assertEquals(true, unclearShortAnswer("se"))
+        assertEquals(true, unclearShortAnswer("Sabaudia"))
+        assertEquals(false, unclearShortAnswer("quanto dista Gaeta da Roma"))
+        assertEquals(false, unclearShortAnswer(""))
+    }
+
     @Test fun spokenAnswers() {
         val move = "Sposto «Dentista» da martedì alle 10 a mercoledì alle 10?"
         for (yes in listOf("sì", "Si.", "va bene", "ok spostalo", "sì, vai pure", "d'accordo", "certo", "approva", "sì per favore"))

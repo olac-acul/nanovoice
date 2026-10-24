@@ -138,15 +138,18 @@ class ChatViewModel(
     /** The question asked aloud, whose answer the next utterance is. */
     private var askedAloud: Long? = null
 
+    /** The question already asked again after an answer that was not understood: a second one is a new request. */
+    private var askedAgain: Long? = null
+
     private fun heard(text: String) {
         askedAloud = null
         send(text, spoken = true)
     }
 
     /** Says the question and then listens for the answer, once the voice has finished. */
-    private suspend fun askAloud(question: ConsentRequest) {
+    private suspend fun askAloud(question: ConsentRequest, text: String = question.spoken) {
         askedAloud = question.id
-        spokenOutput.speak(question.spoken)
+        spokenOutput.speak(text)
         withTimeoutOrNull(SPEECH_START_MS) { spokenOutput.speaking.first { it } }
         spokenOutput.speaking.first { !it }
         if (consent.pending.value?.id == question.id && !voice.state.value.listening) voice.listen()
@@ -229,15 +232,27 @@ class ChatViewModel(
         // Scanned, it says its kind; found in a photo, the agent tells the kind from what the photo shows.
         val barcode = _barcode.value?.lineForAgent() ?: photo?.barcode?.let { "[codice a barre nella foto: $it]" }
         if (trimmed.isEmpty() && photo == null && barcode == null) return
-        // While the agent waits for an approval, a short "sì" or "no", said or typed, is the answer; while it waits for a
-        // choice, an option ("la seconda", "Otranto"). Anything else is a new request, which replaces the one waiting
-        // (and so does not approve, nor choose).
+        // While the agent waits for an approval (or a choice of just "Sì" and "No"), a short "sì" or "no", said or typed,
+        // is the answer; while it waits for a choice, an option ("la seconda", "Otranto"). Anything else is a new request,
+        // which replaces the one waiting (and so does not approve, nor choose).
         // Not on the lock screen: there a said "sì" must not approve a change asked for from the unlocked phone.
         consent.pending.value?.takeIf { photo == null && barcode == null && !isLocked() }?.let { question ->
-            if (question.isChoice) {
+            val yesNo = yesNoIndexes(question.options)
+            if (yesNo != null) {
+                consentAnswer(trimmed, question.headline)?.let { return consent.pick(question.id, if (it) yesNo.first else yesNo.second) }
+            } else if (question.isChoice) {
                 choiceAnswer(trimmed, question.options)?.let { return consent.pick(question.id, it) }
             } else {
                 consentAnswer(trimmed, question.headline)?.let { return consent.answer(question.id, it) }
+            }
+            // A said word or two that answers nothing is most likely the answer misheard ("se" for "sì"): asked once
+            // more, rather than taken as a new request that would refuse the question.
+            if (spoken && askedAgain != question.id && unclearShortAnswer(trimmed)) {
+                askedAgain = question.id
+                viewModelScope.launch(conversation) {
+                    if (settings.value.speakReplies) askAloud(question, "$NOT_UNDERSTOOD ${question.spoken}") else voice.listen()
+                }
+                return
             }
         }
         // A question about the writing needs the larger copy; otherwise the lighter one.
@@ -412,6 +427,8 @@ private const val REPEAT_WINDOW_MS = 60_000L
 
 /** How long a question may take to start being spoken before listening for the answer anyway. */
 private const val SPEECH_START_MS = 2_000L
+private const val NOT_UNDERSTOOD = "Non ho capito."
+
 
 /** The reply without the line the agent said before it started working. */
 internal fun visibleReply(reply: String, ack: String): String =
