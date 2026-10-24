@@ -19,6 +19,16 @@ class ActionConsentTest {
         assertNull(consent.pending.value)
     }
 
+    @Test fun aYesDoesNotPickAnOptionOfAChoice() = runBlocking {
+        val consent = ActionConsent()
+        val choice = async { consent.choose("Quale spiaggia?", listOf("Otranto", "Gallipoli", "Porto Cesareo")) }
+        val shown = consent.pending.filterNotNull().first()
+        consent.answer(shown.id, true)
+        assertEquals(shown, consent.pending.value) // still waiting
+        consent.pick(shown.id, 2)
+        assertEquals(2, choice.await())
+    }
+
     @Test fun noAnswerInTimeIsANo() = runBlocking {
         assertEquals(Consent.NoAnswer, ActionConsent(timeoutMs = 50).ask("Cancello la cena?"))
     }

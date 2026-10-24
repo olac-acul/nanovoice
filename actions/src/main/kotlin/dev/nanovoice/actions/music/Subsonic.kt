@@ -96,7 +96,8 @@ object Subsonic {
         fetchAlbum: suspend (String) -> List<Song>,
         fetchArtistAlbums: suspend (String) -> List<Named>,
     ): PlayPlan? {
-        val q = key(query)
+        // A query of punctuation alone has no key: an exact match would then take any name without one.
+        val q = key(query).ifEmpty { null }
         result.artists.firstOrNull { key(it.name) == q }?.let { artist ->
             val songs = fetchArtistAlbums(artist.id).take(MAX_ARTIST_ALBUMS).flatMap { fetchAlbum(it.id) }
                 .ifEmpty { result.songs.filter { key(it.artist) == q } }
@@ -112,10 +113,10 @@ object Subsonic {
         return PlayPlan(listOf(song), PlayPlan.Kind.Song, song.title)
     }
 
-    /** Comparable form of a name: lowercase, no accents, no punctuation. */
+    /** Comparable form of a name: lowercase, no accents, no punctuation; letters of any script are kept. */
     fun key(text: String): String {
         val noMarks = Regex("\\p{Mn}+").replace(Normalizer.normalize(text.lowercase(), Normalizer.Form.NFD), "")
-        return Regex("[^0-9a-z]+").replace(noMarks, " ").trim()
+        return Regex("[^\\p{L}\\p{N}]+").replace(noMarks, " ").trim()
     }
 
     private fun base(account: MusicAccount) = account.baseUrl.trimEnd('/')

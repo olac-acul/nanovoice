@@ -50,6 +50,13 @@ class SubsonicTest {
         )
     }
 
+    @Test fun namesInOtherScriptsKeepTheirLetters() {
+        assertEquals("東京事変", Subsonic.key("東京事変!"))
+        // Marks go in every script, as accents do: the query and the name lose the same ones.
+        assertEquals("мумии тролль", Subsonic.key("Мумий Тролль"))
+        assertEquals("beyonce", Subsonic.key("Beyoncé"))
+    }
+
     @Test fun aTitlePlaysTheBestSong() {
         val p = plan("bohemian rhapsody queen")!!
         assertEquals(PlayPlan.Kind.Song, p.kind)

@@ -70,9 +70,13 @@ class ActionConsent(private val timeoutMs: Long = 90_000) {
         }
     }
 
-    /** The person's answer to the question [id]; one about a question no longer shown is ignored. */
+    /**
+     * The person's answer to the question [id]; one about a question no longer shown is ignored. A choice is not
+     * answered by a yes (that would pick whichever option YES happens to number): only [pick] chooses, or a no.
+     */
     fun answer(id: Long, yes: Boolean) = synchronized(this) {
-        if (_pending.value?.id == id) answer?.complete(if (yes) YES else REFUSED)
+        val pending = _pending.value ?: return@synchronized
+        if (pending.id == id && !(yes && pending.isChoice)) answer?.complete(if (yes) YES else REFUSED)
     }
 
     /** The option the person chose for the question [id]; [REFUSED] for none of them. */
