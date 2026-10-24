@@ -62,6 +62,8 @@ interface SpokenPhrases {
     val musicNotConfigured: String
     val musicServerError: String
     val noMusicApp: String
+    /** The play key reached no player: nothing was playing before, so there is nothing to resume. */
+    val nothingToResume: String
     /** Tempo is there but not signed as expected (installed from another source): its songs would get the token. */
     val musicAppUntrusted: String
     /** Tempo took the songs but no music is heard yet. */

@@ -146,6 +146,7 @@ object ItalianPhrases : SpokenPhrases {
     override val musicNotConfigured = "Per la musica collega Navidrome nelle impostazioni di NanoVoice, in Musica."
     override val musicServerError = "Non riesco a raggiungere Navidrome: controlla indirizzo e password nelle impostazioni."
     override val noMusicApp = "Non riesco a far partire la musica su Tempo: controlla che sia installato."
+    override val nothingToResume = "Non è partito niente: nessun lettore aveva musica da riprendere. Serve un brano, un album o un artista."
     override fun musicQueued(label: String) = "Ho passato $label a Tempo, ma non sento ancora la musica: se non parte, toccalo in Tempo."
     override val musicAppUntrusted = "Il Tempo installato non ha la firma di F-Droid che conosco, quindi non gli passo l'accesso a Navidrome."
     override fun signalDraft(name: String?) = if (name != null) "Ho aperto Signal con il messaggio pronto: scegli $name e premi invia." else "Ho aperto Signal con il messaggio pronto: scegli la chat e premi invia."

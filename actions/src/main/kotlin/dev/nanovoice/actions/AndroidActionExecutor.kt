@@ -167,7 +167,7 @@ class AndroidActionExecutor(
         })
     }
 
-    private fun media(command: PhoneAction.MediaCommand): ActionResult {
+    private suspend fun media(command: PhoneAction.MediaCommand): ActionResult {
         val code = when (command) {
             PhoneAction.MediaCommand.Play -> KeyEvent.KEYCODE_MEDIA_PLAY
             PhoneAction.MediaCommand.Pause -> KeyEvent.KEYCODE_MEDIA_PAUSE
@@ -179,7 +179,18 @@ class AndroidActionExecutor(
         val audio = context.getSystemService(AudioManager::class.java)
         audio.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, code))
         audio.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_UP, code))
+        // Play with no player to resume does nothing at all: say so, or the agent announces music that never starts.
+        if (command == PhoneAction.MediaCommand.Play && !musicStarts(audio)) return ActionResult(false, phrases.nothingToResume)
         return ActionResult(true, phrases.media(command))
+    }
+
+    /** Whether music is heard within a moment of the play key. */
+    private suspend fun musicStarts(audio: AudioManager): Boolean {
+        repeat((MEDIA_CHECK_MS / RING_POLL_MS).toInt()) {
+            if (audio.isMusicActive) return true
+            delay(RING_POLL_MS)
+        }
+        return audio.isMusicActive
     }
 
     /**
@@ -541,6 +552,8 @@ class AndroidActionExecutor(
         /** How long the clock app may take to silence a timer, and how often the sound is checked meanwhile. */
         const val RING_CHECK_MS = 4_000L
         const val RING_POLL_MS = 200L
+        /** How long a player may take to start after the play key. */
+        const val MEDIA_CHECK_MS = 2_000L
         const val MAX_EVENTS = 15
         const val SIGNAL = "org.thoughtcrime.securesms"
         const val NOTES = "it.niedermann.owncloud.notes"
