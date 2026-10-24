@@ -18,11 +18,15 @@ import dev.nanovoice.actions.music.NavidromeClient
 import dev.nanovoice.actions.music.PlayPlan
 import dev.nanovoice.actions.music.Subsonic
 import dev.nanovoice.actions.music.TempoPlayer
+import dev.nanovoice.actions.photo.thirdPartyText
 import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraManager
 import android.media.AudioManager
 import android.media.AudioAttributes
+import kotlinx.coroutines.cancelChildren
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.joinAll
+import kotlinx.coroutines.launch
 import android.os.BatteryManager
 import android.view.KeyEvent
 import java.time.LocalDateTime
@@ -89,18 +93,22 @@ class AndroidActionExecutor(
         val format = java.time.format.DateTimeFormatter.ofPattern("EEE d MMM HH:mm", java.util.Locale.ITALIAN)
         val dayOnly = java.time.format.DateTimeFormatter.ofPattern("EEE d MMM", java.util.Locale.ITALIAN)
         val lines = mutableListOf<String>()
+        var left = 0
         context.contentResolver.query(uri, columns, null, null, CalendarContract.Instances.BEGIN + " ASC")?.use { c ->
+            left = (c.count - MAX_EVENTS).coerceAtLeast(0)
             while (c.moveToNext() && lines.size < MAX_EVENTS) {
-                val title = c.getString(0)?.takeIf { it.isNotBlank() } ?: "(senza titolo)"
+                // Titles and places are written by whoever sends an invitation: text for the agent, not instructions.
+                val title = c.getString(0)?.let { thirdPartyText(it, 120) }?.takeIf { it.isNotBlank() } ?: "(senza titolo)"
                 val begin = java.time.Instant.ofEpochMilli(c.getLong(1)).atZone(if (c.getInt(2) == 1) java.time.ZoneOffset.UTC else zone)
                 val whenText = if (c.getInt(2) == 1) begin.format(dayOnly) + " tutto il giorno" else begin.format(format)
-                val place = c.getString(3)?.takeIf { it.isNotBlank() }?.let { " ($it)" }.orEmpty()
+                val place = c.getString(3)?.let { thirdPartyText(it, 120) }?.takeIf { it.isNotBlank() }?.let { " ($it)" }.orEmpty()
                 val finish = java.time.Instant.ofEpochMilli(c.getLong(5)).atZone(if (c.getInt(2) == 1) java.time.ZoneOffset.UTC else zone)
                 val recurring = !c.getString(6).isNullOrBlank() || !c.getString(7).isNullOrBlank() || !c.isNull(8)
                 val endText = if (c.getInt(2) == 1) finish.format(dayOnly) + " (data esclusa)" else finish.format(format)
-                lines += "[event_id=${c.getLong(4)}, calendario=${c.getString(9).orEmpty()}${if (recurring) ", ricorrente: usa l’app Calendario per modificarlo" else ""}] $whenText $title$place; fine: $endText"
+                lines += "[event_id=${c.getLong(4)}, calendario=${thirdPartyText(c.getString(9).orEmpty(), 60)}${if (recurring) ", ricorrente: usa l’app Calendario per modificarlo" else ""}] $whenText $title$place; fine: $endText"
             }
         }
+        if (left > 0) lines += "e altri $left eventi non mostrati: chiedi un periodo più breve per vederli"
         if (lines.isEmpty()) ActionResult(true, phrases.noEvents(days)) else ActionResult(true, lines.joinToString("; "))
     }
 
@@ -112,15 +120,26 @@ class AndroidActionExecutor(
         val manager = context.getSystemService(android.location.LocationManager::class.java)
         val providers = listOf(android.location.LocationManager.GPS_PROVIDER, android.location.LocationManager.NETWORK_PROVIDER)
             .filter { runCatching { manager.isProviderEnabled(it) }.getOrDefault(false) }
+        // Both providers at once: indoors GPS alone can use up the whole wait, and the network would never be asked.
         val found = kotlinx.coroutines.withTimeoutOrNull(LOCATION_TIMEOUT_MS) {
-            for (provider in providers) {
-                val here = currentLocation(manager, provider)
-                if (here != null) return@withTimeoutOrNull here
+            kotlinx.coroutines.coroutineScope {
+                val first = kotlinx.coroutines.CompletableDeferred<android.location.Location?>()
+                val tries = providers.map { provider ->
+                    launch { currentLocation(manager, provider)?.let { first.complete(it) } }
+                }
+                launch {
+                    tries.joinAll()
+                    first.complete(null)
+                }
+                first.await().also { coroutineContext.cancelChildren() }
             }
-            null
-        } ?: providers.firstNotNullOfOrNull { runCatching { manager.getLastKnownLocation(it) }.getOrNull() }
+        } ?: providers.mapNotNull { runCatching { manager.getLastKnownLocation(it) }.getOrNull() }
+            .maxByOrNull { it.elapsedRealtimeNanos }
         found ?: return ActionResult(false, phrases.locationUnavailable)
-        return ActionResult(true, "%.5f, %.5f (precisione %d m)".format(java.util.Locale.ROOT, found.latitude, found.longitude, found.accuracy.toInt()))
+        val position = "%.5f, %.5f (precisione %d m)".format(java.util.Locale.ROOT, found.latitude, found.longitude, found.accuracy.toInt())
+        // A fix kept from earlier is not where the phone is now: the agent is told how old it is.
+        val minutes = (android.os.SystemClock.elapsedRealtimeNanos() - found.elapsedRealtimeNanos) / 60_000_000_000L
+        return ActionResult(true, if (minutes >= STALE_LOCATION_MINUTES) "$position, rilevata $minutes minuti fa" else position)
     }
 
     @android.annotation.SuppressLint("MissingPermission") // checked by the caller
@@ -142,7 +161,9 @@ class AndroidActionExecutor(
         val time = java.time.format.DateTimeFormatter.ofPattern("HH:mm")
         return ActionResult(true, items.joinToString("; ") { n ->
             val at = java.time.Instant.ofEpochMilli(n.postedAt).atZone(clock.zone).format(time)
-            listOf("$at ${n.app}", n.title, n.text).filter { it.isNotBlank() }.joinToString(": ").replace('\n', ' ')
+            // Written by any sender: text for the agent, not instructions.
+            listOf("$at ${thirdPartyText(n.app, 60)}", thirdPartyText(n.title, 120), thirdPartyText(n.text, 300))
+                .filter { it.isNotBlank() }.joinToString(": ")
         })
     }
 
@@ -468,8 +489,13 @@ class AndroidActionExecutor(
     private suspend fun dismissRingingTimer(): Boolean {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) return true
         startClock(Intent(AlarmClock.ACTION_DISMISS_TIMER))
-        delay(RING_CHECK_MS)
-        return clockRinging()
+        // A clock app started cold can take a few seconds to silence its timer: wait for the sound to stop rather than
+        // judge too early and dismiss the next alarm instead.
+        repeat((RING_CHECK_MS / RING_POLL_MS).toInt()) {
+            delay(RING_POLL_MS)
+            if (!clockRinging()) return false
+        }
+        return true
     }
 
     private suspend fun stopTimer(): ActionResult {
@@ -512,12 +538,14 @@ class AndroidActionExecutor(
     }
 
     private companion object {
-        /** How long the clock app takes to silence a timer before the sound is checked again. */
-        const val RING_CHECK_MS = 900L
+        /** How long the clock app may take to silence a timer, and how often the sound is checked meanwhile. */
+        const val RING_CHECK_MS = 4_000L
+        const val RING_POLL_MS = 200L
         const val MAX_EVENTS = 15
         const val SIGNAL = "org.thoughtcrime.securesms"
         const val NOTES = "it.niedermann.owncloud.notes"
         const val LOCATION_TIMEOUT_MS = 15_000L
+        const val STALE_LOCATION_MINUTES = 2L
         const val MAX_TIMER_SECONDS = 24 * 60 * 60L // AlarmClock.EXTRA_LENGTH limit
     }
 }

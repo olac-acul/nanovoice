@@ -11,6 +11,7 @@ import com.google.zxing.PlanarYUVLuminanceSource
 import com.google.zxing.ReaderException
 import com.google.zxing.RGBLuminanceSource
 import com.google.zxing.common.HybridBinarizer
+import com.google.zxing.oned.UPCEReader
 
 /** Product barcodes (EAN/UPC) in a photo or a camera frame, read on the phone with ZXing: nothing leaves it. */
 object Barcodes {
@@ -55,13 +56,18 @@ object Barcodes {
         null
     }
 
-    /** UPC-A is EAN-13 with a leading 0: Open Food Facts files products under the 13 digits. */
-    internal fun normalised(code: String): String = if (code.length == 12) "0$code" else code
+    /**
+     * The code as Open Food Facts files it, 13 digits for the UPC family: UPC-A is EAN-13 with a leading 0, and UPC-E
+     * (8 digits, like EAN-8, so only the format tells them apart) is a UPC-A with its zeros left out.
+     */
+    internal fun normalised(code: String, format: BarcodeFormat? = null): String {
+        val upcA = if (format == BarcodeFormat.UPC_E && code.length == 8) UPCEReader.convertUPCEtoUPCA(code) else code
+        return if (upcA.length == 12) "0$upcA" else upcA
+    }
 
     private fun decode(source: LuminanceSource): String? = try {
-        MultiFormatReader().decode(BinaryBitmap(HybridBinarizer(source)), hints).text
-            ?.takeIf { code -> code.all { it.isDigit() } }
-            ?.let(::normalised)
+        val result = MultiFormatReader().decode(BinaryBitmap(HybridBinarizer(source)), hints)
+        result.text?.takeIf { code -> code.all { it.isDigit() } }?.let { normalised(it, result.barcodeFormat) }
     } catch (_: ReaderException) {
         null
     }

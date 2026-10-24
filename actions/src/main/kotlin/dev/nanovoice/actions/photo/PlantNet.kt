@@ -43,7 +43,7 @@ object PlantNet {
             try {
                 conn.outputStream.use { it.write(body) }
                 when (val code = conn.responseCode) {
-                    200 -> conn.inputStream.use { describe(parse(it.readBytes().decodeToString())) }
+                    200 -> conn.inputStream.use { describe(parse(it.readCapped("Pl@ntNet").decodeToString())) }
                     404 -> "Pl@ntNet non ha riconosciuto nessuna pianta nella foto."
                     401, 403 -> error("la chiave Pl@ntNet non è valida (Impostazioni → Foto)")
                     429 -> error("i riconoscimenti gratuiti di oggi su Pl@ntNet sono finiti")

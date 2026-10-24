@@ -1,15 +1,11 @@
 package dev.nanovoice.actions.photo
 
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.doubleOrNull
-import java.net.HttpURLConnection
-import java.net.URL
 import java.util.Locale
 
 /**
@@ -17,7 +13,6 @@ import java.util.Locale
  * application User-Agent. Only the number leaves the phone (the barcode is read on the phone, see Photos).
  */
 object OpenFoodFacts {
-    private const val USER_AGENT = "NanoVoice/0.1 (personal voice assistant)"
     private val FIELDS = listOf(
         "product_name_it", "product_name", "brands", "quantity", "nutriscore_grade", "nova_group",
         "ingredients_text_it", "ingredients_text", "allergens_tags", "traces_tags", "nutriments",
@@ -27,24 +22,10 @@ object OpenFoodFacts {
 
     fun isBarcode(code: String) = code.length in 8..14 && code.all { it in '0'..'9' }
 
-    suspend fun product(barcode: String): Result<String> = withContext(Dispatchers.IO) {
-        runCatching {
-            require(isBarcode(barcode)) { "il codice a barre deve avere da 8 a 14 cifre" }
-            val conn = URL("https://world.openfoodfacts.org/api/v2/product/$barcode.json?fields=$FIELDS").openConnection() as HttpURLConnection
-            conn.connectTimeout = 8_000
-            conn.readTimeout = 12_000
-            conn.instanceFollowRedirects = false
-            conn.setRequestProperty("User-Agent", USER_AGENT)
-            try {
-                when (val code = conn.responseCode) {
-                    200 -> conn.inputStream.use { describe(barcode, it.readBytes().decodeToString()) }
-                    404 -> notFound(barcode)
-                    else -> error("Open Food Facts ha risposto con l'errore $code")
-                }
-            } finally {
-                conn.disconnect()
-            }
-        }
+    suspend fun product(barcode: String): Result<String> = runCatching {
+        require(isBarcode(barcode)) { "il codice a barre deve avere da 8 a 14 cifre" }
+        openDataGet("https://world.openfoodfacts.org/api/v2/product/$barcode.json?fields=$FIELDS", "Open Food Facts")
+            ?.let { describe(barcode, it) } ?: notFound(barcode)
     }
 
     /** A short summary for the agent, or that the product is unknown. */
@@ -92,5 +73,6 @@ object OpenFoodFacts {
 
     private fun fmt(d: Double): String = if (d == Math.floor(d)) d.toLong().toString() else String.format(Locale.ITALY, "%.1f", d)
 
-    private fun JsonObject.string(key: String) = (this[key] as? JsonPrimitive)?.contentOrNull?.trim()?.takeIf { it.isNotEmpty() }
+    private fun JsonObject.string(key: String) =
+        (this[key] as? JsonPrimitive)?.contentOrNull?.let(::withoutEntities)?.trim()?.takeIf { it.isNotEmpty() }
 }

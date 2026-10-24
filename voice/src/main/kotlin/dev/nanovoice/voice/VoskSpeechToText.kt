@@ -125,9 +125,20 @@ class VoskSpeechToText(
                 }
             }
             if (isActive) {
-                val quick = VoskJson.join(finished, VoskJson.text(recognizer.finalResult))
                 reading.set(false)
                 runCatching { record.stop() } // free the microphone while the utterance is transcribed again
+                if (stopRequested.get()) {
+                    // Released while the recognizer lagged behind (Parakeet loading, say): what is still queued is the
+                    // end of the sentence, said just before the release.
+                    reader?.join(READER_JOIN_MS)
+                    while (true) {
+                        val chunk = chunks.poll() ?: break
+                        if (chunk === END_OF_AUDIO) break
+                        if (audio != null && audio.size() < MAX_UTTERANCE_BYTES) audio.write(chunk, 0, chunk.size)
+                        if (recognizer.acceptWaveForm(chunk, chunk.size)) finished = VoskJson.join(finished, VoskJson.text(recognizer.result))
+                    }
+                }
+                val quick = VoskJson.join(finished, VoskJson.text(recognizer.finalResult))
                 SpeechLatency.endOfSpeech()
                 trySend(SttEvent.Ended)
                 val secondPass = audio != null && (quick.isNotEmpty() || heardSomething)
@@ -224,7 +235,6 @@ class VoskSpeechToText(
         awaitClose { }
     }.flowOn(Dispatchers.IO)
 
-    /** Frees the loaded model (about 100 MB of RAM for the small Italian one). */
     /**
      * Loads the model in the background, so the first listening after the app starts does not wait for it (about
      * 100 MB). Cheap when it is already loaded; a no-op without a model.
@@ -234,7 +244,8 @@ class VoskSpeechToText(
         Thread({ runCatching { model(dir) } }, "vosk-preload").apply { priority = Thread.MIN_PRIORITY; isDaemon = true }.start()
     }
 
-    fun unload() {
+    /** Frees the loaded model (about 100 MB of RAM for the small Italian one). */
+    private fun unload() {
         loaded?.second?.close()
         loaded = null
     }

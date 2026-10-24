@@ -23,6 +23,8 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.selects.select
+import kotlinx.coroutines.withTimeoutOrNull
 import java.io.File
 import java.util.concurrent.atomic.AtomicInteger
 
@@ -72,6 +74,10 @@ class SherpaSpokenOutput(
 
     private val texts = Channel<Item>(Channel.UNLIMITED)
     private val clips = Channel<Clip>(1)
+    /** Nothing is left to say: the playing coroutine releases the kept track (it alone touches it). */
+    private val idle = Channel<Unit>(Channel.CONFLATED)
+    /** [begin] and [done] change the count and the audio focus together, so neither can undo the other's change. */
+    private val focusLock = Any()
 
     /**
      * The output track. One is kept for all the sentences of a reply (same sample rate, no stop in between), so the
@@ -91,7 +97,14 @@ class SherpaSpokenOutput(
                 .collect { id -> load(id) }
         }
         scope.launch(Dispatchers.Default) { for (item in texts) synthesize(item) }
-        scope.launch(Dispatchers.IO) { for (clip in clips) play(clip) }
+        scope.launch(Dispatchers.IO) {
+            while (true) {
+                select<Unit> {
+                    clips.onReceive { play(it) }
+                    idle.onReceive { if (pending.get() == 0) releaseTrack() }
+                }
+            }
+        }
     }
 
     override fun speak(text: String) {
@@ -131,9 +144,11 @@ class SherpaSpokenOutput(
     }
 
     private fun begin() {
-        if (pending.getAndIncrement() == 0) {
-            audio.requestAudioFocus(focusRequest)
-            _speaking.value = true
+        synchronized(focusLock) {
+            if (pending.getAndIncrement() == 0) {
+                audio.requestAudioFocus(focusRequest)
+                _speaking.value = true
+            }
         }
     }
 
@@ -155,7 +170,10 @@ class SherpaSpokenOutput(
     private fun load(voiceId: String?) {
         synchronized(engineLock) {
             if (engine?.id == voiceId) return
-            engine?.tts?.release()
+            engine?.let {
+                it.tts.release()
+                cache.clearVoice(it.id) // its phrases, the pinned ones too, are of no use to another voice
+            }
             engine = null
             if (voiceId == null) {
                 _status.value = TtsStatus.NeedsVoice
@@ -228,8 +246,11 @@ class SherpaSpokenOutput(
             clips.send(Clip(item.epoch, cached.samples, cached.sampleRate))
             return
         }
-        val audioOut = synchronized(engineLock) {
-            engine?.tts?.let { tts ->
+        // The voice that actually speaks, read under the same lock: a switch in between must not file this audio
+        // under the other voice.
+        val (spokenBy, audioOut) = synchronized(engineLock) {
+            val current = engine
+            current?.id to current?.tts?.let { tts ->
                 runCatching { tts.generate(text = item.text, sid = 0, speed = 1.0f) }
                     .onFailure { Log.w(TAG, "synthesis failed", it) }
                     .getOrNull()
@@ -238,7 +259,7 @@ class SherpaSpokenOutput(
         Log.d(TAG, "voice=$voice ${item.text.length} chars -> ${audioOut?.samples?.size} samples in ${(System.nanoTime() - startedAt) / 1_000_000} ms")
         if (audioOut == null || audioOut.samples.isEmpty() || item.epoch != epoch.get()) return done()
         Loudness.normalize(audioOut.samples)
-        if (voice != null) cache.put(voice, item.text, PhraseCache.Audio(audioOut.samples, audioOut.sampleRate))
+        if (spokenBy != null) cache.put(spokenBy, item.text, PhraseCache.Audio(audioOut.samples, audioOut.sampleRate))
         clips.send(Clip(item.epoch, audioOut.samples, audioOut.sampleRate))
     }
 
@@ -256,7 +277,12 @@ class SherpaSpokenOutput(
             }
             trackFrames += offset
             val heard = trackFrames
-            while (clip.epoch == epoch.get() && audioTrack.playbackHeadPosition.toLong() < heard) delay(15)
+            // Bounded by what is left to play: a head that stops moving (an audio route change, a dead track) must not
+            // leave the app "speaking" for ever, waiting to listen for an answer.
+            val leftMs = (heard - audioTrack.playbackHeadPosition.toLong()).coerceAtLeast(0) * 1000 / clip.sampleRate
+            withTimeoutOrNull(leftMs + HEAD_WAIT_MARGIN_MS) {
+                while (clip.epoch == epoch.get() && audioTrack.playbackHeadPosition.toLong() < heard) delay(15)
+            }
         } finally {
             done()
             // Kept for the next sentence of this reply; released when the reply is over or was stopped.
@@ -296,15 +322,19 @@ class SherpaSpokenOutput(
     }
 
     private fun done() {
-        if (pending.updateAndGet { (it - 1).coerceAtLeast(0) } == 0) {
+        synchronized(focusLock) {
+            if (pending.updateAndGet { (it - 1).coerceAtLeast(0) } != 0) return
             audio.abandonAudioFocusRequest(focusRequest)
             _speaking.value = false
         }
+        // The last sentence may have ended without playing (failed or empty synthesis): the track is not kept for it.
+        idle.trySend(Unit)
     }
 
     private companion object {
         const val TAG = "SherpaSpokenOutput"
         const val LOAD_WAIT_MS = 15_000L
+        const val HEAD_WAIT_MARGIN_MS = 1_500L
         const val SYNTH_THREADS = 4
     }
 }

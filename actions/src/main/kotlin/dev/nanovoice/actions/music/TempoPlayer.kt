@@ -111,8 +111,11 @@ class TempoPlayer(private val context: Context) {
             controller.currentMediaItem?.mediaId == firstId
 
     companion object {
-        /** Tempo builds (F-Droid "notquitemy" and upstream); the media service class is the same in both. */
-        val PACKAGES = listOf("com.cappielloantonio.notquitemy.tempo", "com.cappielloantonio.tempo")
+        /**
+         * Tempo as F-Droid builds it ("notquitemy"). Upstream's own builds have another package and a signing key not
+         * known here: they would only ever be refused, so they are not looked for.
+         */
+        val PACKAGES = listOf("com.cappielloantonio.notquitemy.tempo")
 
         /** SHA-256 of the signing certificates trusted per package: Tempo as built and signed by F-Droid. */
         private val SIGNERS = mapOf(

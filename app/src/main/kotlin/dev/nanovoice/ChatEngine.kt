@@ -54,17 +54,19 @@ class ChatEngine(
      * [localOnly] is for the locked phone: only the time, the date, timers and alarms are answered; anything else
      * (the agent, opening apps, calls) would reach private data or the unlocked phone, so it asks to unlock.
      * A message with an [image] is always for the agent: "cos'è questo?" is about the photo, not a local command.
+     * [forAgent] is what the agent gets when it answers: [text] with the app's own lines (the message it replies to,
+     * a barcode). The local commands read only [text], the person's words.
      */
-    fun respond(text: String, localOnly: Boolean = false, image: AgentImage? = null): Flow<ReplySnapshot> = flow {
+    fun respond(text: String, localOnly: Boolean = false, image: AgentImage? = null, forAgent: String = text): Flow<ReplySnapshot> = flow {
         if (clock() - askedAt > QUESTION_TTL_MS) resetConversation()
         if (image != null) {
-            if (localOnly) emit(ReplySnapshot(phrases.unlockNeeded)) else askAgent(text, image)
+            if (localOnly) emit(ReplySnapshot(phrases.unlockNeeded)) else askAgent(forAgent, image)
             return@flow
         }
         // On the lock screen the agent is out of reach: the simple commands stay on the phone even when switched off.
         if (!localOnly && !localCommands()) {
             resetConversation()
-            askAgent(text)
+            askAgent(forAgent)
             return@flow
         }
         val router = routerProvider()
@@ -118,7 +120,7 @@ class ChatEngine(
             LocalIntent.StopTimer -> emit(ReplySnapshot(executor.execute(PhoneAction.StopTimer).message))
             is LocalIntent.StopAlarm -> emit(ReplySnapshot(executor.execute(PhoneAction.StopAlarm(intent.time?.hour, intent.time?.minute)).message))
             is LocalIntent.SnoozeAlarm -> emit(ReplySnapshot(executor.execute(PhoneAction.SnoozeAlarm(intent.minutes)).message))
-            null -> if (localOnly) emit(ReplySnapshot(phrases.unlockNeeded)) else askAgent(text)
+            null -> if (localOnly) emit(ReplySnapshot(phrases.unlockNeeded)) else askAgent(forAgent)
         }
     }
 

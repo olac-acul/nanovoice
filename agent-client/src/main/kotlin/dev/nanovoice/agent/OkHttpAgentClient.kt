@@ -75,11 +75,13 @@ class OkHttpAgentClient(
      * Replies the user stopped waiting for (interrupted before `done`). The agent may still be working on them: what
      * it sends later is dropped instead of popping up as a notification, and the actions it asks for are refused.
      */
-    private val abandoned: MutableSet<String> = ConcurrentHashMap.newKeySet()
+    private val abandoned: MutableSet<String> = java.util.Collections.synchronizedSet(LinkedHashSet())
 
     @Volatile private var socket: WebSocket? = null
     @Volatile private var pushEndpoint: String? = null
     @Volatile private var pendingReset: CompletableDeferred<Boolean>? = null
+    /** Answers to `new_conversation` requests that timed out and may still arrive: they must not answer a later one. */
+    private val lateResets = java.util.concurrent.atomic.AtomicInteger(0)
 
     /** Why the server refused the last session because of the protocol version, in words for the person; null if not. */
     @Volatile private var protocolRefusal: String? = null
@@ -90,7 +92,9 @@ class OkHttpAgentClient(
         val answer = CompletableDeferred<Boolean>()
         pendingReset = answer
         if (!ws.send(Protocol.newConversation())) return false
-        return withTimeoutOrNull(RESET_TIMEOUT_MS) { answer.await() } ?: false
+        val ok = withTimeoutOrNull(RESET_TIMEOUT_MS) { answer.await() }
+        if (ok == null) lateResets.incrementAndGet()
+        return ok ?: false
     }
 
     override fun warmUp() {
@@ -147,8 +151,10 @@ class OkHttpAgentClient(
         } finally {
             // Marked before it leaves `pending`, so a late frame never finds it in neither; the server is told too.
             if (!finished) {
-                if (abandoned.size >= MAX_ABANDONED) abandoned.iterator().run { next(); remove() }
-                abandoned += id
+                synchronized(abandoned) {
+                    if (abandoned.size >= MAX_ABANDONED) abandoned.remove(abandoned.first()) // the oldest
+                    abandoned += id
+                }
                 socket?.send(Protocol.cancel(session, id))
             }
             pending.remove(id)
@@ -181,6 +187,7 @@ class OkHttpAgentClient(
                     opened = true
                     openedAt = System.nanoTime()
                     protocolRefusal = null
+                    lateResets.set(0) // answers of the previous connection no longer come
                     webSocket.send(Protocol.hello(config.capabilities, config.locale))
                     // Always, even when none: a push turned off while offline must reach the server too.
                     webSocket.send(Protocol.pushEndpoint(pushEndpoint))
@@ -245,7 +252,8 @@ class OkHttpAgentClient(
                 }
             }
             is Protocol.ServerMessage.Notify -> _notifications.tryEmit(msg.text)
-            is Protocol.ServerMessage.ConversationReset -> pendingReset?.complete(msg.ok)
+            is Protocol.ServerMessage.ConversationReset ->
+                if (lateResets.getAndUpdate { (it - 1).coerceAtLeast(0) } == 0) pendingReset?.complete(msg.ok)
             is Protocol.ServerMessage.Action -> {
                 // Decided now, in frame order: a `done` right behind the action must not make it look unsolicited.
                 val request = msg.replyTo?.takeIf(::isOpen)?.let { ActionRequest(it, images[it]) { isOpen(it) } }

@@ -266,7 +266,7 @@ class ChatViewModel(
             var replyId: Long? = null
             val presenter = ReplyPresenter()
             try {
-                engine.respond(forAgent, localOnly = isLocked(), image = sent).collect { snap ->
+                engine.respond(trimmed, localOnly = isLocked(), image = sent, forAgent = forAgent).collect { snap ->
                     _thinking.value = false
                     _working.value = snap.working
                     val step = presenter.next(snap, hasBubble = replyId != null)

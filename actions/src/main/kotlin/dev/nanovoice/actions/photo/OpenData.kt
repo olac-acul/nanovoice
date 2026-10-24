@@ -19,12 +19,27 @@ internal suspend fun openDataGet(url: String, service: String): String? = withCo
     conn.setRequestProperty("User-Agent", OPEN_DATA_USER_AGENT)
     try {
         when (val code = conn.responseCode) {
-            200 -> conn.inputStream.use { it.readBytes().decodeToString() }
+            200 -> conn.inputStream.use { it.readCapped(service).decodeToString() }
             404 -> null
             else -> error("$service ha risposto con l'errore $code")
         }
     } finally {
         conn.disconnect()
+    }
+}
+
+/** Larger than any answer of these services: a bigger body is refused instead of filling the memory. */
+internal const val MAX_BODY_BYTES = 2 * 1024 * 1024
+
+/** The whole body, or an error naming [service] when it is larger than [max]. */
+internal fun java.io.InputStream.readCapped(service: String, max: Int = MAX_BODY_BYTES): ByteArray {
+    val out = java.io.ByteArrayOutputStream()
+    val buffer = ByteArray(16 * 1024)
+    while (true) {
+        val n = read(buffer)
+        if (n < 0) return out.toByteArray()
+        if (out.size() + n > max) error("$service ha mandato una risposta troppo grande")
+        out.write(buffer, 0, n)
     }
 }
 

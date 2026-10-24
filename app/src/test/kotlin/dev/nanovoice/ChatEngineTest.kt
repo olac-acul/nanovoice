@@ -46,6 +46,20 @@ class ChatEngineTest {
         assertEquals(emptyList(), asked)
     }
 
+    @Test fun theQuotedMessageIsForTheAgentNotForTheLocalCommands() {
+        agentReply = flowOf(AgentEvent.Delta("Prego."), AgentEvent.Done)
+        val forAgent = "[in risposta a: «metti la sveglia alle sette»]\ngrazie"
+        runBlocking { engine.respond("grazie", forAgent = forAgent).toList() }
+        assertEquals(emptyList<PhoneAction>(), executed)
+        assertEquals(listOf(forAgent), asked)
+    }
+
+    @Test fun aLocalCommandInAReplyStaysLocal() {
+        runBlocking { engine.respond("che ore sono", forAgent = "[in risposta a: «ciao»]\nche ore sono").toList() }
+        assertEquals(listOf<PhoneAction>(PhoneAction.TellTime), executed)
+        assertEquals(emptyList(), asked)
+    }
+
     @Test fun aPhotoAlwaysGoesToTheAgentEvenWithALocalCommand() {
         agentReply = flowOf(AgentEvent.Delta("Un gatto."), AgentEvent.Done)
         val photo = AgentImage("image/jpeg", byteArrayOf(1))
