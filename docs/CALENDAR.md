@@ -2,15 +2,10 @@
 
 ## Stato
 
-Implementati nell'app `calendar_update` e `calendar_delete`, spenti per impostazione predefinita, con approvazione
-legata all'evento e alla modifica. Gli strumenti MCP corrispondenti e il payload della skill `add-voice` sono aggiornati
-nel testbed NanoClaw locale (`../nanoclaw-testbed/upstream`). Le modifiche del testbed non aggiornano l'istanza in uso.
-
-Il 14 ottobre 2026 sono passati 525 test JVM (23 nuovi), i 25 test degli strumenti telefono NanoClaw,
-i 51 test dell’adattatore vocale e il controllo TypeScript dell’agent runner. Compilato l’APK release; lint Android
-completato senza errori, con avvisi già presenti. Corretti anche tre errori preesistenti di lint relativi
-alla compatibilità Android 8.0 e alla dichiarazione del permesso microfono. ADB non rilevava dispositivi collegati: il provider Android reale,
-l'interfaccia sul dispositivo e la sincronizzazione DAVx5 restano da verificare.
+`calendar_read`, `calendar_update` e `calendar_delete` sono nell'app, spenti per impostazione predefinita, con
+approvazione legata all'evento e alla modifica; gli strumenti corrispondenti sono nella skill `add-voice`. I test
+automatici li coprono da entrambe le parti. Sul telefono non sono ancora stati provati una modifica o una
+cancellazione reale e la loro sincronizzazione con DAVx5: la prova è descritta più sotto.
 
 ## Aggiornare NanoClaw
 

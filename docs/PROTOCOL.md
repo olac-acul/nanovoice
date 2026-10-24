@@ -8,7 +8,7 @@ Autenticazione: header `Authorization: Bearer <token>` nell'upgrade WebSocket (4
 ## App → NanoClaw
 
 ```json
-{"type": "hello", "protocol": 1, "capabilities": ["set_timer", "tell_time", "calendar_read", "calendar_update", "calendar_delete"], "locale": "it-IT"}
+{"type": "hello", "protocol": 1, "capabilities": ["set_timer", "tell_time", "tell_date", "set_alarm", "open_app", "call", "stop_timer", "stop_alarm", "snooze_alarm", "confirm", "choose", "calendar_read", "calendar_update", "calendar_delete"], "locale": "it-IT"}
 {"type": "message", "session": "abc", "id": "m1", "text": "sposta il dentista a domani alle 10"}
 {"type": "message", "session": "abc", "id": "m2", "text": "cos'è?", "image": {"mime": "image/jpeg", "data": "<base64>"}}
 {"type": "action_result", "session": "abc", "action_id": "a1", "ok": true, "detail": "Evento aggiornato nel calendario del telefono."}
@@ -50,12 +50,14 @@ Autenticazione: header `Authorization: Bearer <token>` nell'upgrade WebSocket (4
 - Le aggiunte di capacità restano nella versione 1. Modifiche incompatibili incrementano `protocol`.
 - Una versione che il server non conosce viene rifiutata con `error` "unsupported protocol; expected N" e la chiusura
   della connessione. L'app lo spiega alla persona dicendo quale dei due aggiornare (N maggiore della sua: l'app; minore:
-  il server), e lo ripete a ogni richiesta finché un nuovo tentativo di connessione non riesce.
+  il server), e lo ripete a ogni richiesta finché non parte un nuovo tentativo di connessione (anche se viene rifiutato di nuovo, nel qual caso
+  il messaggio torna).
 
 ## Semantica dei frame
 
 - `delta`: testo da accodare alla risposta di `reply_to`. NanoClaw consegna messaggi interi; dal secondo il server
-  inserisce uno spazio iniziale. Non è uno streaming di singoli token del modello.
+  inserisce uno spazio iniziale. Non è uno streaming di singoli token del modello. Un `delta` per una richiesta che
+  l'app non conosce o ha già chiuso viene mostrato come una notifica.
 - `done`: chiude la risposta dopo 1,5 secondi senza altre consegne. Durante un lavoro lungo o un'azione in attesa,
   lo scambio resta aperto fino al limite di 3 minuti. Il seguito di un risultato di azione conserva lo stesso `reply_to`.
 - `working`: l'agente annuncia un lavoro lungo con `voice_working`; l'app mantiene la risposta e mostra lo stato di lavoro.

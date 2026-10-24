@@ -20,6 +20,7 @@ cd "$(dirname "$0")/.."
 die() { echo "install: $*" >&2; exit 1; }
 
 command -v adb > /dev/null || die "adb not found: set ANDROID_HOME in .dev-env"
+command -v apksigner > /dev/null || die "apksigner not found: put the Android build-tools on PATH in .dev-env"
 
 how_to_connect() {
   cat >&2 << 'HOW'
@@ -89,13 +90,13 @@ echo "installed: version $(info versionName), first installed $(info firstInstal
 if [ -n "${NANOVOICE_KEYSTORE:-}" ]; then
   [ -f "$NANOVOICE_KEYSTORE" ] || die "NANOVOICE_KEYSTORE points to a file that does not exist"
   if [ -z "${NANOVOICE_STORE_PASSWORD:-}" ]; then
-    read -r -s -p "Release keystore password: " NANOVOICE_STORE_PASSWORD
+    read -r -s -p "Development keystore password: " NANOVOICE_STORE_PASSWORD
     echo
   fi
   export NANOVOICE_KEYSTORE NANOVOICE_STORE_PASSWORD
   echo "signing with the development key"
 else
-  echo "no NANOVOICE_KEYSTORE: signing with the local debug key"
+  die "NANOVOICE_KEYSTORE is not set (put it in .dev-env): the app on the phone is signed with the development key, and an APK signed with another key cannot replace it"
 fi
 
 NANOVOICE_VERSION_SUFFIX=-dev ./gradlew --no-daemon :app:assembleRelease

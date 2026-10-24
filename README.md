@@ -70,7 +70,7 @@ Le due versioni hanno lo stesso identificativo ma firme diverse: sullo stesso te
 
 A mano: Impostazioni → Server NanoClaw: indirizzo (`ws://host:8767` in rete locale/VPN, `wss://` su internet) e token.
 Il token è cifrato con una chiave dell'Android Keystore. `ws://` è accettato solo per host privati
-(loopback, reti private, Tailscale/`.ts.net`, nomi senza punto) e con una VPN attiva; altrimenti l'app chiede la VPN o `wss://`.
+(loopback, reti private, Tailscale/`.ts.net`, nomi `.local`, nomi senza punto) e con una VPN attiva; altrimenti l'app chiede la VPN o `wss://`.
 Lato server serve la skill `add-voice` di [skills-for-nanoclaw](https://github.com/olac-acul/skills-for-nanoclaw) (canale WebSocket per NanoClaw, con uno script che lo attiva e mostra indirizzo e token da inserire nell'app). Protocollo: `docs/PROTOCOL.md`.
 
 - **Quando va al server:** quando il router locale non riconosce la richiesta o resta sotto la soglia di confidenza.
