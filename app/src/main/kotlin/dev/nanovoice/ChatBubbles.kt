@@ -40,6 +40,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -82,6 +83,20 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
+/** "Ascolta" (and "Riprova" for a reply that is no answer) under the latest reply: the long press stays a shortcut. */
+@Composable
+private fun ReplyActions(onListen: () -> Unit, onRetry: (() -> Unit)?) {
+    val color = MaterialTheme.colorScheme.onSurfaceVariant
+    Row(modifier = Modifier.padding(start = 4.dp, top = 4.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        TextButton(onClick = onListen) {
+            Icons.Speaker(color, size = 18.dp)
+            Spacer(Modifier.width(6.dp))
+            Text(stringResource(R.string.reply_listen), color = color)
+        }
+        if (onRetry != null) TextButton(onClick = onRetry) { Text(stringResource(R.string.msg_retry), color = color) }
+    }
+}
+
 /** What the long-press menu of a message can ask of the chat. */
 class MessageActions(
     val reply: (ChatMessage) -> Unit,
@@ -106,6 +121,9 @@ fun ChatList(
 ) {
     val zone = remember { ZoneId.systemDefault() }
     val lastUserId = messages.lastOrNull { it.fromUser }?.id
+    // Under the latest reply, once it is complete: "Ascolta", and "Riprova" when it is no answer.
+    val lastReply = messages.lastOrNull()?.takeIf { !it.fromUser && !showTyping && workingText == null }
+    val lastRequest = messages.lastOrNull { it.fromUser }
     val scope = rememberCoroutineScope()
     // Following the conversation unless the person scrolled up to read: then new text does not pull them down.
     var followLatest by remember { mutableStateOf(true) }
@@ -116,7 +134,7 @@ fun ChatList(
     }
     LaunchedEffect(messages.size, showTyping, workingText != null) {
         // Every message, one chip per day, and the dots or the status line after them.
-        val last = messages.size + dayCount(messages, zone) + (if (showTyping || workingText != null) 1 else 0) - 1
+        val last = messages.size + dayCount(messages, zone) + (if (showTyping || workingText != null || lastReply != null) 1 else 0) - 1
         if (last >= 0 && (followLatest || messages.lastOrNull()?.fromUser == true)) {
             followLatest = true
             listState.animateScrollToItem(last)
@@ -145,6 +163,14 @@ fun ChatList(
                         canRetry = message.id == lastUserId,
                         actions = actions,
                         modifier = Modifier.padding(top = if (startsGroup) 10.dp else 3.dp),
+                    )
+                }
+            }
+            if (lastReply != null) {
+                item(key = "after-${lastReply.id}") {
+                    ReplyActions(
+                        onListen = { actions.readAloud(lastReply) },
+                        onRetry = lastRequest?.takeIf { lastReply.failed }?.let { request -> { actions.retry(request) } },
                     )
                 }
             }

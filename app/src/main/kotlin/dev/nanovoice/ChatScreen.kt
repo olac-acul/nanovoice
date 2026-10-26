@@ -73,6 +73,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.semantics.Role
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -115,7 +116,7 @@ fun ChatScreen(
     val working by viewModel.working.collectAsState()
     val speaking by viewModel.speaking.collectAsState()
     val ttsStatus by viewModel.ttsStatus.collectAsState()
-    var input by remember { mutableStateOf("") }
+    val input by viewModel.draft.collectAsState()
     var showHelp by remember { mutableStateOf(false) }
     var confirmNew by remember { mutableStateOf(false) }
     // While typing, the keyboard takes most of the screen: the orb gives way so the conversation keeps its room.
@@ -149,7 +150,7 @@ fun ChatScreen(
     fun submit() {
         // A scanned code alone still needs a question for the agent, and a bubble that says what was asked.
         viewModel.send(if (input.isBlank() && barcode != null && photo == null) productQuestion else input)
-        input = ""
+        viewModel.setDraft("")
     }
 
     val context = LocalContext.current
@@ -202,7 +203,7 @@ fun ChatScreen(
     val keyboard = LocalSoftwareKeyboardController.current
     var imeShown by remember { mutableStateOf(false) }
     // The keyboard was closed with something typed: the field stays, and the orb comes back above it.
-    var closedWithText by remember { mutableStateOf(false) }
+    var closedWithText by remember { mutableStateOf(input.isNotBlank()) }
     LaunchedEffect(keyboardOpen) {
         if (keyboardOpen) {
             imeShown = true
@@ -281,7 +282,7 @@ fun ChatScreen(
                         .size(44.dp)
                         .background(MaterialTheme.colorScheme.surfaceContainerHigh, CircleShape)
                         .semantics { contentDescription = settingsLabel }
-                        .clickable(onClick = onOpenSettings),
+                        .clickable(role = Role.Button, onClick = onOpenSettings),
                     contentAlignment = Alignment.Center,
                 ) { Icons.Settings(MaterialTheme.colorScheme.onSurface) }
             }
@@ -371,7 +372,7 @@ fun ChatScreen(
                     hasPhoto = photo != null,
                     hasBarcode = barcode != null,
                     focus = focus,
-                    onChange = { input = it },
+                    onChange = viewModel::setDraft,
                     onSend = ::submit,
                     onStop = viewModel::interrupt,
                 )
@@ -506,7 +507,7 @@ private fun RoundButton(label: String, onClick: () -> Unit, icon: @Composable ()
             .size(52.dp)
             .background(MaterialTheme.colorScheme.surfaceContainerHigh, CircleShape)
             .semantics { contentDescription = label }
-            .clickable(onClick = onClick),
+            .clickable(role = Role.Button, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) { icon() }
 }
@@ -559,7 +560,7 @@ private fun AttachmentSend(onSend: () -> Unit) {
             .size(44.dp)
             .background(colors.primary, CircleShape)
             .semantics { contentDescription = label }
-            .clickable(onClick = onSend),
+            .clickable(role = Role.Button, onClick = onSend),
         contentAlignment = Alignment.Center,
     ) { Icons.Send(colors.onPrimary) }
 }
@@ -588,7 +589,7 @@ private fun AttachedBarcode(scanned: ScannedProduct, onRemove: () -> Unit, onSen
                 .size(40.dp)
                 .background(colors.surfaceContainerHigh, CircleShape)
                 .semantics { contentDescription = removeLabel }
-                .clickable(onClick = onRemove),
+                .clickable(role = Role.Button, onClick = onRemove),
             contentAlignment = Alignment.Center,
         ) { Icons.Close(colors.onSurface) }
         onSend?.let { AttachmentSend(it) }
@@ -612,7 +613,7 @@ private fun AttachedPhoto(preview: ImageBitmap, onRemove: () -> Unit, onSend: ((
                 .size(40.dp)
                 .background(colors.surfaceContainerHigh, CircleShape)
                 .semantics { contentDescription = removeLabel }
-                .clickable(onClick = onRemove),
+                .clickable(role = Role.Button, onClick = onRemove),
             contentAlignment = Alignment.Center,
         ) { Icons.Close(colors.onSurface) }
         onSend?.let { AttachmentSend(it) }

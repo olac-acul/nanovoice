@@ -22,6 +22,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.semantics.Role
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -91,7 +92,7 @@ fun AssistantScreen(
                     // The name opens the whole app, with this exchange in its chat.
                     Wordmark(
                         size = 22.sp,
-                        modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable(onClick = onOpenApp).padding(horizontal = 4.dp, vertical = 2.dp),
+                        modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable(role = Role.Button, onClick = onOpenApp).padding(horizontal = 4.dp, vertical = 2.dp),
                     )
                     TextButton(onClick = onClose) { Text(stringResource(R.string.assistant_close)) }
                 }

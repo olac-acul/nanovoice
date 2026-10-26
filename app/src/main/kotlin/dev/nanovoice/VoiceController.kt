@@ -90,6 +90,11 @@ class VoiceController(
         }
     }
 
+    /** The message of a failed attempt goes once something else was done (a typed request, a photo sent). */
+    fun clearError() {
+        if (_state.value.error != null && !_state.value.listening) _state.value = _state.value.copy(error = null)
+    }
+
     /** Throws the audio away without producing text. */
     fun cancel() {
         job?.cancel()

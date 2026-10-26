@@ -209,6 +209,7 @@
     <string name="msg_read_aloud">Rileggi ad alta voce</string>
     <string name="msg_share">Condividi</string>
     <string name="msg_retry">Riprova</string>
+    <string name="reply_listen">Ascolta</string>
     <string name="msg_copy_link">Copia link</string>
     <string name="msg_open_link">Apri %1$s</string>
     <string name="msg_copied">Copiato</string>
@@ -225,7 +226,7 @@
     <string name="choice_none">Nessuna</string>
     <string name="choice_hint">Puoi anche dire o scrivere l’opzione, o «la prima», «la seconda»… Senza risposta l’agente va avanti senza una scelta.</string>
     <string name="consent_hint">Puoi anche dire o scrivere «sì» o «no». Senza risposta non cambia niente.</string>
-    <string name="interrupt">Interrompi la richiesta</string>
+    <string name="interrupt">Interrompi la risposta</string>
     <string name="wake_test_title">Prova la parola di attivazione</string>
     <string name="wake_test_hint">Di\' «Zanzibar» ogni tanto e parla normalmente nel resto del tempo, anche di proposito con parole simili («zanzare», «zanzariera»). Conto quante volte lo sento e quanto lavora il processore. Lo schermo resta acceso finché la prova è in corso. Per ora l\'assistente non si apre: è solo una misura.</string>
     <string name="wake_test_start">Avvia la prova</string>

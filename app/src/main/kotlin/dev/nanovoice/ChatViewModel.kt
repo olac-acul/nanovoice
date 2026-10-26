@@ -37,6 +37,8 @@ data class ChatMessage(
     val quote: String? = null,
     /** The barcode line that went to the agent with this message ("[codice a barre: …]"): sent again by "Riprova". */
     val barcode: String? = null,
+    /** A reply that is no answer (an error, an interrupted request): the request is worth sending again. */
+    val failed: Boolean = false,
 )
 
 class ChatViewModel(
@@ -117,6 +119,7 @@ class ChatViewModel(
     /** The keyboard was opened: a typed request is coming, the agent may start meanwhile. */
     fun startTyping() {
         if (!isLocked()) connection.warmUp()
+        voice.clearError() // writing now: an earlier failed listening is not the news any more
     }
 
     /** Tap to talk: what is heard becomes a normal message, answered aloud, or the answer to a question of [consent]. */
@@ -202,6 +205,15 @@ class ChatViewModel(
         }
     }
 
+    private val _draft = MutableStateFlow("")
+
+    /** The text being written: kept here, not in the screen, so opening the settings and coming back keeps it. */
+    val draft: StateFlow<String> = _draft
+
+    fun setDraft(text: String) {
+        _draft.value = text
+    }
+
     private val _replyingTo = MutableStateFlow<ChatMessage?>(null)
 
     /** The message the next one answers ("Rispondi" in its menu), shown above the input until sent or dismissed. */
@@ -265,6 +277,7 @@ class ChatViewModel(
     }
 
     private fun submit(trimmed: String, sent: AgentImage?, preview: ImageBitmap?, barcode: String?, spoken: Boolean, quote: String?) {
+        voice.clearError() // a new request: an earlier failed listening is not the news any more
         // One request at a time: a new one replaces the one still being answered (the server drops the rest of it).
         if (busy.value) stopReplies()
         spokenRequest = spoken
@@ -304,7 +317,7 @@ class ChatViewModel(
             } catch (e: Exception) {
                 val message = e.message ?: e.javaClass.simpleName
                 val id = replyId
-                if (id == null) add(message, fromUser = false) else replace(id, message)
+                if (id == null) add(message, fromUser = false, failed = true) else replace(id, message, failed = true)
             } finally {
                 _thinking.value = false
                 _working.value = false
@@ -330,7 +343,7 @@ class ChatViewModel(
     fun interrupt() {
         if (!busy.value) return
         stopReplies()
-        if (_messages.value.lastOrNull()?.fromUser != false) add(phrases.requestInterrupted, fromUser = false)
+        if (_messages.value.lastOrNull()?.fromUser != false) add(phrases.requestInterrupted, fromUser = false, failed = true)
     }
 
     private fun stopReplies() {
@@ -383,11 +396,12 @@ class ChatViewModel(
         photo: AgentImage? = null,
         quote: String? = null,
         barcode: String? = null,
+        failed: Boolean = false,
     ): Long {
         if (!fromUser) lastReplyAt = android.os.SystemClock.elapsedRealtime()
         val id = nextId++
         _messages.update { list ->
-            val all = list + ChatMessage(id, text, fromUser, image, photo, quote = quote, barcode = barcode)
+            val all = list + ChatMessage(id, text, fromUser, image, photo, quote = quote, barcode = barcode, failed = failed)
             // The photo bytes (for a TinEye search from the bubble) stay for the latest few photos only.
             val keep = all.filter { it.photo != null }.takeLast(MAX_PHOTOS_KEPT).map { it.id }.toSet()
             all.map { if (it.photo != null && it.id !in keep) it.copy(photo = null) else it }
@@ -397,9 +411,9 @@ class ChatViewModel(
 
     private fun remove(id: Long) = _messages.update { list -> list.filter { it.id != id } }
 
-    private fun replace(id: Long, text: String) {
+    private fun replace(id: Long, text: String, failed: Boolean = false) {
         lastReplyAt = android.os.SystemClock.elapsedRealtime()
-        _messages.update { list -> list.map { if (it.id == id) it.copy(text = text) else it } }
+        _messages.update { list -> list.map { if (it.id == id) it.copy(text = text, failed = failed) else it } }
     }
 }
 

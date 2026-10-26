@@ -153,7 +153,7 @@ object ItalianPhrases : SpokenPhrases {
     override val noSignal = "Signal non è installato."
     override val noteWritten = "Ho scritto la nota in Notes."
     override val noNotesApp = "Nextcloud Notes non è installato."
-    override val requestInterrupted = "Richiesta interrotta."
+    override val requestInterrupted = "Risposta interrotta."
     override val unlockNeeded = "Per questo sblocca il telefono. Da bloccato posso dirti l'ora e la data, e impostare timer e sveglie."
     override val newConversationFailed = "Non sono riuscito ad avviare una nuova conversazione sul server: la chat è vuota, ma l'agente ricorda ancora la precedente. Riprova quando sei connesso."
 

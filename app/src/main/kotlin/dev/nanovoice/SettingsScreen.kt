@@ -26,6 +26,12 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.material3.LocalTextStyle
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.semantics.Role
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -187,6 +193,7 @@ fun SettingsScreen(
         if (page == null) onBack() else pageName = null
     }
     BackHandler(onBack = ::leave)
+    val backLabel = stringResource(R.string.back)
 
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Column(modifier = Modifier.safeDrawingPadding().padding(horizontal = 16.dp)) {
@@ -196,7 +203,8 @@ fun SettingsScreen(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 Box(
-                    modifier = Modifier.size(44.dp).background(MaterialTheme.colorScheme.surfaceContainerHigh, CircleShape).clickable(onClick = ::leave),
+                    modifier = Modifier.size(44.dp).background(MaterialTheme.colorScheme.surfaceContainerHigh, CircleShape)
+                        .semantics { contentDescription = backLabel }.clickable(role = Role.Button, onClick = ::leave),
                     contentAlignment = Alignment.Center,
                 ) { Icons.Back(MaterialTheme.colorScheme.onSurface) }
                 Text(stringResource(page?.title ?: R.string.settings_title), style = MaterialTheme.typography.headlineSmall)
@@ -248,30 +256,15 @@ fun SettingsScreen(
                         Hint(R.string.theme_hint)
                     }.also {
                         Card {
-                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                    Text(stringResource(R.string.previews_label), style = MaterialTheme.typography.titleMedium)
-                                    Hint(R.string.previews_hint)
-                                }
-                                Switch(checked = previews, onCheckedChange = { previews = it; commit() })
-                            }
+                            SwitchRow(R.string.previews_label, previews, hint = R.string.previews_hint, style = MaterialTheme.typography.titleMedium) { previews = it; commit() }
                         }
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) Card {
-                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                    Text(stringResource(R.string.dynamic_label), style = MaterialTheme.typography.titleMedium)
-                                    Hint(R.string.dynamic_hint)
-                                }
-                                Switch(checked = dynamic, onCheckedChange = { dynamic = it; commit() })
-                            }
+                            SwitchRow(R.string.dynamic_label, dynamic, hint = R.string.dynamic_hint, style = MaterialTheme.typography.titleMedium) { dynamic = it; commit() }
                         }
                     }
                     SettingsPage.Voice -> {
                         Card {
-                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                                Text(stringResource(R.string.speak_replies), modifier = Modifier.weight(1f))
-                                Switch(checked = speakReplies, onCheckedChange = { speakReplies = it; commit() })
-                            }
+                            SwitchRow(R.string.speak_replies, speakReplies) { speakReplies = it; commit() }
                         }
                         Card {
                             Text(stringResource(R.string.voice_choose), style = MaterialTheme.typography.titleMedium)
@@ -309,17 +302,8 @@ fun SettingsScreen(
                         }
                         if (vosk != null && modelState == ModelState.Installed) {
                             Card {
-                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                                    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                        Text(stringResource(R.string.wake_label), style = MaterialTheme.typography.titleMedium)
-                                        Hint(R.string.wake_hint)
-                                    }
-                                    Switch(
-                                        checked = wake,
-                                        onCheckedChange = { on ->
-                                            if (on && !micGranted) onRequestMic() else { wake = on; commit() }
-                                        },
-                                    )
+                                SwitchRow(R.string.wake_label, wake, hint = R.string.wake_hint, style = MaterialTheme.typography.titleMedium) { on ->
+                                    if (on && !micGranted) onRequestMic() else { wake = on; commit() }
                                 }
                                 if (wake && !notificationsAllowed) {
                                     OutlinedButton(onClick = onRequestNotifications, modifier = Modifier.fillMaxWidth()) {
@@ -391,13 +375,7 @@ fun SettingsScreen(
                             )
                         }
                         Card {
-                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                    Text(stringResource(R.string.local_commands), style = MaterialTheme.typography.titleMedium)
-                                    Hint(R.string.local_commands_hint)
-                                }
-                                Switch(checked = localCommands, onCheckedChange = { localCommands = it; commit() })
-                            }
+                            SwitchRow(R.string.local_commands, localCommands, hint = R.string.local_commands_hint, style = MaterialTheme.typography.titleMedium) { localCommands = it; commit() }
                         }
                     }
                     SettingsPage.Music -> Card {
@@ -450,13 +428,7 @@ fun SettingsScreen(
                     SettingsPage.Photos -> Card {
                         Text(stringResource(R.string.photos_title), style = MaterialTheme.typography.titleMedium)
                         Hint(R.string.photos_hint)
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                Text(stringResource(R.string.photos_services_label), style = MaterialTheme.typography.titleSmall)
-                                Hint(R.string.photos_services_hint)
-                            }
-                            Switch(checked = photoServices, onCheckedChange = { photoServices = it; commit() })
-                        }
+                        SwitchRow(R.string.photos_services_label, photoServices, hint = R.string.photos_services_hint, style = MaterialTheme.typography.titleSmall) { photoServices = it; commit() }
                         Text(stringResource(R.string.photos_plantnet_title), style = MaterialTheme.typography.titleSmall)
                         Hint(R.string.photos_plantnet_hint)
                         OutlinedTextField(
@@ -499,15 +471,8 @@ fun SettingsScreen(
                             Text(stringResource(R.string.agent_phone_title), style = MaterialTheme.typography.titleMedium)
                             Hint(R.string.agent_phone_hint)
                             @Composable
-                            fun toggle(label: Int, hint: Int, checked: Boolean, set: (Boolean) -> Unit) {
-                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                                    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                        Text(stringResource(label))
-                                        Hint(hint)
-                                    }
-                                    Switch(checked = checked, onCheckedChange = { set(it); commit() })
-                                }
-                            }
+                            fun toggle(label: Int, hint: Int, checked: Boolean, set: (Boolean) -> Unit) =
+                                SwitchRow(label, checked, hint = hint) { set(it); commit() }
                             toggle(R.string.agent_phone_controls, R.string.agent_phone_controls_hint, phoneControls) { phoneControls = it }
                             toggle(R.string.agent_phone_links, R.string.agent_phone_links_hint, phoneLinks) { phoneLinks = it }
                             toggle(R.string.agent_phone_drafts, R.string.agent_phone_drafts_hint, phoneDrafts) { phoneDrafts = it }
@@ -517,15 +482,8 @@ fun SettingsScreen(
                             Text(stringResource(R.string.agent_reads_title), style = MaterialTheme.typography.titleMedium)
                             Hint(R.string.agent_reads_hint)
                             @Composable
-                            fun toggle(label: Int, hint: Int, checked: Boolean, set: (Boolean) -> Unit) {
-                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                                    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                        Text(stringResource(label))
-                                        Hint(hint)
-                                    }
-                                    Switch(checked = checked, onCheckedChange = { set(it); commit() })
-                                }
-                            }
+                            fun toggle(label: Int, hint: Int, checked: Boolean, set: (Boolean) -> Unit) =
+                                SwitchRow(label, checked, hint = hint) { set(it); commit() }
                             toggle(R.string.agent_read_calendar, R.string.agent_read_calendar_hint, readCalendar) { on ->
                                 readCalendar = on
                                 if (!on) editCalendar = false
@@ -593,13 +551,38 @@ private fun Hint(text: Int) {
     Text(stringResource(text), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
 }
 
+/**
+ * A setting turned on or off: the whole row is the control, so a tap anywhere on it switches, and a screen reader says
+ * the label, the hint and the state together.
+ */
+@Composable
+private fun SwitchRow(
+    title: Int,
+    checked: Boolean,
+    hint: Int? = null,
+    style: TextStyle = LocalTextStyle.current,
+    onChange: (Boolean) -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth().toggleable(value = checked, role = Role.Switch, onValueChange = onChange),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(stringResource(title), style = style)
+            hint?.let { Hint(it) }
+        }
+        Switch(checked = checked, onCheckedChange = null)
+    }
+}
+
 @Composable
 private fun CategoryRow(title: Int, summary: String, onClick: () -> Unit) {
     Surface(
         shape = MaterialTheme.shapes.large,
         color = MaterialTheme.colorScheme.surfaceContainer,
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
+        modifier = Modifier.fillMaxWidth().clickable(role = Role.Button, onClick = onClick),
     ) {
         Row(modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
