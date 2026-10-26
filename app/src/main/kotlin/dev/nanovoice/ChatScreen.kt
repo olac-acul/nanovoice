@@ -198,12 +198,14 @@ fun ChatScreen(
     }
 
     // The text field shows only after a tap on the keyboard button, and goes away with the keyboard when nothing was typed.
-    var typing by rememberSaveable { mutableStateOf(false) }
+    // Back from the settings with a draft: the field is there again, with the orb above it and the keyboard closed.
+    val draftOnReturn = remember { input.isNotBlank() }
+    var typing by rememberSaveable { mutableStateOf(draftOnReturn) }
     val focus = remember { FocusRequester() }
     val keyboard = LocalSoftwareKeyboardController.current
     var imeShown by remember { mutableStateOf(false) }
     // The keyboard was closed with something typed: the field stays, and the orb comes back above it.
-    var closedWithText by remember { mutableStateOf(input.isNotBlank()) }
+    var closedWithText by remember { mutableStateOf(draftOnReturn) }
     LaunchedEffect(keyboardOpen) {
         if (keyboardOpen) {
             imeShown = true
@@ -218,10 +220,10 @@ fun ChatScreen(
         keyboard?.show()
     }
     LaunchedEffect(typing) {
-        if (typing) {
+        if (typing && !(draftOnReturn && closedWithText)) {
             openKeyboard()
             viewModel.startTyping()
-        } else {
+        } else if (!typing) {
             closedWithText = false
         }
     }
