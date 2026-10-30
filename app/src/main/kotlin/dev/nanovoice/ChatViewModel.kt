@@ -212,6 +212,9 @@ class ChatViewModel(
     private var conversation = Job(viewModelScope.coroutineContext[Job])
 
     init {
+        // A dictation that ends without words (silence, an error, cancelled) is over: the next answer said aloud (to a
+        // question of the agent, say) must not land in the text field. With words, heard() has already taken them.
+        viewModelScope.launch { voice.state.collect { if (!it.listening) dictating = false } }
         // Kept a moment after each change, off the main thread: a burst of a streamed reply is written once.
         chatStore?.let { store ->
             viewModelScope.launch {
