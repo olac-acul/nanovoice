@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -73,6 +74,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
@@ -167,22 +169,40 @@ private fun EarlierToggle(count: Int, shown: Boolean, onToggle: () -> Unit) {
 @Composable
 private fun ReplyActions(onListen: (() -> Unit)?, onRetry: (() -> Unit)?, onCheck: (() -> Unit)?) {
     val color = MaterialTheme.colorScheme.onSurfaceVariant
-    FlowRow(modifier = Modifier.padding(start = 4.dp, top = 4.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-        if (onListen != null) TextButton(onClick = onListen) {
-            Icons.Speaker(color, size = 18.dp)
-            Spacer(Modifier.width(6.dp))
-            Text(stringResource(R.string.reply_listen), color = color)
+    FlowRow(modifier = Modifier.closeUnder(), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+        if (onListen != null) MessageAction(onListen) {
+            Icons.Speaker(color, size = 16.dp)
+            Spacer(Modifier.width(4.dp))
+            Text(stringResource(R.string.reply_listen), style = MaterialTheme.typography.labelMedium, color = color)
         }
-        if (onRetry != null) TextButton(onClick = onRetry) { Text(stringResource(R.string.msg_retry), color = color) }
-        if (onCheck != null) TextButton(onClick = onCheck) { Text(stringResource(R.string.status_check), color = color) }
+        if (onRetry != null) MessageAction(onRetry) { Text(stringResource(R.string.msg_retry), style = MaterialTheme.typography.labelMedium, color = color) }
+        if (onCheck != null) MessageAction(onCheck) { Text(stringResource(R.string.status_check), style = MaterialTheme.typography.labelMedium, color = color) }
     }
+}
+
+/** A small action of the message above it ("Ascolta", "Correggi"): secondary, as the time in the bubble is. */
+@Composable
+private fun MessageAction(onClick: () -> Unit, content: @Composable RowScope.() -> Unit) {
+    TextButton(onClick = onClick, contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp), content = content)
+}
+
+/**
+ * Drawn right under the message it belongs to: a button keeps its full touch area, but the empty top of that area
+ * overlaps the gap under the bubble instead of pushing the button away from it.
+ */
+private fun Modifier.closeUnder(): Modifier = layout { measurable, constraints ->
+    val placeable = measurable.measure(constraints)
+    val pull = 8.dp.roundToPx()
+    layout(placeable.width, (placeable.height - pull).coerceAtLeast(0)) { placeable.place(0, -pull) }
 }
 
 /** Under the person's latest request, on their side: "Correggi", for words misheard or mistyped. */
 @Composable
 private fun EditAction(onEdit: () -> Unit) {
-    Box(Modifier.fillMaxWidth().padding(end = 4.dp, top = 2.dp), contentAlignment = Alignment.CenterEnd) {
-        TextButton(onClick = onEdit) { Text(stringResource(R.string.msg_edit), color = MaterialTheme.colorScheme.onSurfaceVariant) }
+    Box(Modifier.fillMaxWidth().closeUnder(), contentAlignment = Alignment.CenterEnd) {
+        MessageAction(onEdit) {
+            Text(stringResource(R.string.msg_edit), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
     }
 }
 

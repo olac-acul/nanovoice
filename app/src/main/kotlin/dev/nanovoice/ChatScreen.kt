@@ -297,14 +297,12 @@ fun ChatScreen(
 
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Column(modifier = Modifier.safeDrawingPadding().padding(horizontal = 16.dp)) {
+            // The name and the buttons on one steady row; the status under them, however long it gets.
             Row(
-                modifier = Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 4.dp),
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Wordmark()
-                    StatusLine(status, onCheck = onCheckConnection)
-                }
+                Box(Modifier.weight(1f)) { Wordmark() }
                 Box(
                     modifier = Modifier
                         .size(44.dp)
@@ -332,6 +330,7 @@ fun ChatScreen(
                     contentAlignment = Alignment.Center,
                 ) { Icons.Settings(MaterialTheme.colorScheme.onSurface) }
             }
+            Column(Modifier.padding(bottom = 4.dp)) { StatusLine(status, onCheck = onCheckConnection) }
             Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
                 if (messages.isEmpty() && !showStatus && !showTyping) {
                     EmptyHint(modifier = Modifier.align(Alignment.Center))
