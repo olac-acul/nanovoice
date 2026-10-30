@@ -45,7 +45,21 @@ data class ChatMessage(
     val failed: Boolean = false,
     /** Not a message but a line of the app's own, between messages ("Conversazione ricominciata"). */
     val notice: Boolean = false,
+    /** From before the server started the conversation over: kept to read again, folded, unknown to the agent. */
+    val earlier: Boolean = false,
 )
+
+/** Something the person should know about the draft, shown above the field until sent or dismissed. */
+sealed interface DraftNote {
+    /** The draft was replaced (a message to fix, an example to try): what was there, to put back. */
+    data class Replaced(val text: String, val photo: PreparedPhoto? = null, val barcode: ScannedProduct? = null) : DraftNote
+
+    /** Shared text longer than a message takes: only its first [chars] characters came in. */
+    data class Cut(val chars: Int) : DraftNote
+
+    /** The message to fix had a photo the app no longer keeps (only its thumbnail): it has to be attached again. */
+    data object PhotoGone : DraftNote
+}
 
 class ChatViewModel(
     private val engine: ChatEngine,
@@ -159,7 +173,7 @@ class ChatViewModel(
         // Dictated from the text field: the words join the draft, to send with the rest when the person is ready.
         if (_dictating.value) {
             _dictating.value = false
-            putInDraft(listOf(_draft.value.trimEnd(), text.trim()).filter { it.isNotEmpty() }.joinToString(" "))
+            compose(listOf(_draft.value.trimEnd(), text.trim()).filter { it.isNotEmpty() }.joinToString(" "))
             return
         }
         send(text, spoken = true)
@@ -268,13 +282,56 @@ class ChatViewModel(
     /** Counts the times something put text in the draft for the person to finish: the screen opens the text field. */
     val composeRequests: StateFlow<Int> = _composeRequests
 
-    /** "Correggi e reinvia": the words of a message back in the field, to fix a misheard name or number and send again. */
+    private val _draftNotes = MutableStateFlow<List<DraftNote>>(emptyList())
+
+    /** What the person should know about the draft: something replaced, cut, or missing. */
+    val draftNotes: StateFlow<List<DraftNote>> = _draftNotes
+
+    private fun note(note: DraftNote) = _draftNotes.update { list -> list.filterNot { it::class == note::class } + note }
+
+    fun dismissNote(note: DraftNote) = _draftNotes.update { it - note }
+
+    /** "Ripristina": the draft that was there before, with its attachments. */
+    fun restoreDraft(note: DraftNote.Replaced) {
+        dismissNote(note)
+        _draftNotes.update { list -> list.filterNot { it == DraftNote.PhotoGone } }
+        note.photo?.let { _photo.value = it }
+        note.barcode?.let { _barcode.value = it }
+        compose(note.text)
+    }
+
+    /**
+     * "Correggi": the whole request back in the field to fix and send again, its words and what went with them (the
+     * photo, the scanned code). A photo the app no longer keeps is said, to be attached again.
+     */
     fun editAndResend(message: ChatMessage) {
-        if (message.fromUser) putInDraft(message.text)
+        if (!message.fromUser) return
+        val photo = message.photo?.let { sent ->
+            message.image?.let { PreparedPhoto(sent, it, barcode = message.barcode?.let(::barcodeInPhoto)) }
+        }
+        val scanned = message.barcode?.let(ScannedProduct::fromLine)
+        replaceDraft(message.text, photo, scanned, attachments = true)
+        if (message.image != null && photo == null) note(DraftNote.PhotoGone)
     }
 
     /** An example from the help, in the field to send or change: some of them act ("imposta un timer"), so not sent. */
-    fun putInDraft(text: String) {
+    fun putInDraft(text: String) = replaceDraft(text, null, null, attachments = false)
+
+    /** The draft becomes [text] (and these attachments): what it replaces can be put back with "Ripristina". */
+    private fun replaceDraft(text: String, photo: PreparedPhoto?, barcode: ScannedProduct?, attachments: Boolean) {
+        val oldText = _draft.value.takeIf { it.isNotBlank() && it.trim() != text.trim() }
+        val oldPhoto = _photo.value.takeIf { attachments && it != null && it !== photo }
+        val oldBarcode = _barcode.value.takeIf { attachments && it != null && it != barcode }
+        if (oldText != null || oldPhoto != null || oldBarcode != null) note(DraftNote.Replaced(_draft.value, oldPhoto, oldBarcode))
+        if (attachments) {
+            _photo.value = photo
+            _barcode.value = barcode
+        }
+        compose(text)
+    }
+
+    /** [text] in the field, the field opened on it with the cursor at the end. */
+    private fun compose(text: String) {
         _draft.value = text
         _composeRequests.update { it + 1 }
     }
@@ -285,8 +342,8 @@ class ChatViewModel(
      */
     fun receiveShared(text: String, subject: String?) {
         val next = sharedDraft(_draft.value, text, subject) ?: return
-        _draft.value = next
-        _composeRequests.update { it + 1 }
+        if (text.trim().length > MAX_SHARED_CHARS) note(DraftNote.Cut(MAX_SHARED_CHARS))
+        compose(next)
     }
 
     private val _replyingTo = MutableStateFlow<ChatMessage?>(null)
@@ -353,6 +410,7 @@ class ChatViewModel(
         _barcode.value = null
         val quote = _replyingTo.value?.let { quoteOf(it) }
         _replyingTo.value = null
+        _draftNotes.value = emptyList()
         submit(trimmed, sent, photo?.preview, barcode, spoken, quote)
     }
 
@@ -372,6 +430,7 @@ class ChatViewModel(
             active.update { it + 1 }
             _thinking.value = true
             var replyId: Long? = null
+            var failed = false
             val presenter = ReplyPresenter()
             try {
                 engine.respond(trimmed, localOnly = isLocked(), image = sent, forAgent = forAgent).collect { snap ->
@@ -383,6 +442,7 @@ class ChatViewModel(
                         return@collect
                     }
                     _thinking.value = false
+                    if (snap.failed) failed = true
                     _working.value = snap.working
                     val step = presenter.next(snap, hasBubble = replyId != null)
                     // The line said before the work is a status, not a message: if it was shown as one, it goes.
@@ -393,7 +453,7 @@ class ChatViewModel(
                     _workingText.value = step.status
                     step.bubbleText?.let { text ->
                         val id = replyId
-                        if (id == null) replyId = add(text, fromUser = false) else replace(id, text)
+                        if (id == null) replyId = add(text, fromUser = false, failed = failed) else replace(id, text, failed = failed)
                     }
                     speaker?.onSnapshot(snap.text)
                     if (snap.working || snap.messageEnd) speaker?.pause()
@@ -456,6 +516,7 @@ class ChatViewModel(
         _photo.value = null
         _barcode.value = null
         _replyingTo.value = null
+        _draftNotes.value = emptyList()
         _messages.value = emptyList()
         viewModelScope.launch(conversation) {
             if (status.value == AgentStatus.NotConfigured) return@launch
@@ -499,14 +560,15 @@ class ChatViewModel(
     private fun remove(id: Long) = _messages.update { list -> list.filter { it.id != id } }
 
     /**
-     * The server started the conversation over before the request [from] (after a long pause): what came before goes
-     * from the screen too, so the chat shows what the agent knows, under a [headline] of the app's own.
+     * The server started the conversation over before the request [from] (after a long pause): the chat starts over
+     * too, under a [headline] of the app's own, so it shows what the agent knows. What came before stays, folded above
+     * it, to read again ("Nuova conversazione" empties it all).
      */
     private fun startOverAt(from: Long, headline: String) {
         val id = nextId++
         _messages.update { list ->
             val at = list.indexOfFirst { it.id == from }.takeIf { it >= 0 } ?: list.size
-            listOf(ChatMessage(id, headline, fromUser = false, notice = true)) + list.drop(at)
+            list.take(at).map { it.copy(earlier = true) } + ChatMessage(id, headline, fromUser = false, notice = true) + list.drop(at)
         }
     }
 
@@ -559,7 +621,7 @@ internal fun sharedDraft(draft: String, text: String, subject: String?): String?
     return if (draft.isBlank()) "$shared\n" else "${draft.trimEnd()}\n$shared\n"
 }
 /** More than any page title and address, or a passage worth asking about: a whole article is cut there. */
-private const val MAX_SHARED_CHARS = 4_000
+internal const val MAX_SHARED_CHARS = 4_000
 
 
 /** The reply without the line the agent said before it started working. */

@@ -16,6 +16,13 @@ data class ScannedProduct(val code: String, val kind: ProductKind, val notIsbn: 
             val kind = ProductKind.resolve(code, chosen)
             return ScannedProduct(code, kind, notIsbn = chosen == ProductKind.Book && kind != ProductKind.Book)
         }
+
+        /** The scanned code of a sent message, from its [lineForAgent]; null for any other line. */
+        fun fromLine(line: String): ScannedProduct? {
+            val match = Regex("""^\[codice a barre: (\d{8,14}), tipo: ([a-z_]+)]$""").find(line.trim()) ?: return null
+            val kind = ProductKind.byId(match.groupValues[2]) ?: return null
+            return ScannedProduct(match.groupValues[1], kind)
+        }
     }
 }
 
@@ -34,3 +41,7 @@ fun productKindsFor(lastId: String): List<ProductKind> {
     val last = ProductKind.byId(lastId) ?: ProductKind.Food
     return listOf(last) + ProductKind.entries.filter { it != last }
 }
+
+/** The code found in a sent photo, from its line ("[codice a barre nella foto: …]"); null for any other line. */
+internal fun barcodeInPhoto(line: String): String? =
+    Regex("""^\[codice a barre nella foto: (\d{8,14})]$""").find(line.trim())?.groupValues?.get(1)

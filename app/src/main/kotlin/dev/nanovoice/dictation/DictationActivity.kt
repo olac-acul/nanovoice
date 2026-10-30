@@ -57,6 +57,7 @@ class DictationActivity : ComponentActivity() {
                     Spacer(Modifier.fillMaxWidth().weight(1f).clickable(remember { MutableInteractionSource() }, indication = null, onClick = ::cancel))
                     DictationPanel(
                         state,
+                        title = stringResource(R.string.dictation_title_keyboard),
                         onFinish = voice::finish,
                         onCancel = ::cancel,
                         onRetry = voice::listen,

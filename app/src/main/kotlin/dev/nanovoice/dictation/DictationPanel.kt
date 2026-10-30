@@ -29,11 +29,13 @@ import dev.nanovoice.ui.VoiceOrb
 /**
  * The one dictation panel: in the app's text field, in place of the keyboard in any other app (the voice keyboard) and
  * for an app's own microphone button. The orb listening, what is understood so far, and two ways out: "Fine" ends the
- * sentence now (a pause does it too), "Annulla" drops it. After a failure, "Riprova".
+ * sentence now (a pause does it too), "Annulla" drops it. After a failure, "Riprova". Its [title] says where the words go.
  */
 @Composable
 fun DictationPanel(
     voice: VoiceUiState,
+    /** Where the words go ("Dettatura nella bozza"): never mistaken for a request to the assistant. */
+    title: String,
     onFinish: () -> Unit,
     onCancel: () -> Unit,
     onRetry: () -> Unit,
@@ -55,6 +57,7 @@ fun DictationPanel(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
+            Text(title, style = MaterialTheme.typography.labelLarge, color = colors.onSurfaceVariant)
             val failed = problem != null || voice.error != null
             VoiceOrb(
                 when {

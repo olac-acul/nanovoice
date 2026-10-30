@@ -5,12 +5,15 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.clickable
 import androidx.compose.material3.Button
 import androidx.compose.material3.Text
@@ -34,6 +37,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -45,10 +49,18 @@ import kotlinx.coroutines.withContext
 /**
  * A photo on the whole screen, to check it is the right one or read a detail: two fingers zoom and move it, a double
  * tap goes back to the whole photo. It shows the copy that was (or will be) sent, sharper than the chat's thumbnail,
- * once decoded. [onSearch], when given, is the reverse image search, a separate step the person chooses.
+ * once decoded. [onSearch], when given, is the reverse image search, a separate step the person chooses. Without
+ * [full] (the app keeps the photos themselves for the latest few messages only, and not across a restart) it says the
+ * thumbnail is all there is, and offers [onAttachAgain].
  */
 @Composable
-fun PhotoViewer(preview: ImageBitmap, full: AgentImage?, onSearch: (() -> Unit)?, onDismiss: () -> Unit) {
+fun PhotoViewer(
+    preview: ImageBitmap,
+    full: AgentImage?,
+    onSearch: (() -> Unit)?,
+    onDismiss: () -> Unit,
+    onAttachAgain: (() -> Unit)? = null,
+) {
     var shown by remember { mutableStateOf(preview) }
     LaunchedEffect(full) {
         val bytes = full?.bytes ?: return@LaunchedEffect
@@ -100,6 +112,20 @@ fun PhotoViewer(preview: ImageBitmap, full: AgentImage?, onSearch: (() -> Unit)?
                     onClick = onSearch,
                     modifier = Modifier.safeDrawingPadding().padding(bottom = 24.dp).align(Alignment.BottomCenter),
                 ) { Text(stringResource(R.string.search_tineye)) }
+            } else if (full == null) {
+                Column(
+                    modifier = Modifier
+                        .safeDrawingPadding()
+                        .padding(start = 24.dp, end = 24.dp, bottom = 24.dp)
+                        .background(Color.Black.copy(alpha = 0.55f), RoundedCornerShape(16.dp))
+                        .padding(12.dp)
+                        .align(Alignment.BottomCenter),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Text(stringResource(R.string.photo_preview_only), color = Color.White, textAlign = TextAlign.Center)
+                    if (onAttachAgain != null) Button(onClick = onAttachAgain) { Text(stringResource(R.string.draft_attach_again)) }
+                }
             }
         }
     }

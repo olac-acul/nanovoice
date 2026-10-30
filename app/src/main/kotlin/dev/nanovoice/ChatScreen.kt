@@ -344,6 +344,7 @@ fun ChatScreen(
                                 retry = viewModel::retry,
                                 readAloud = viewModel::readAloud,
                                 edit = viewModel::editAndResend,
+                                attachAgain = onPickPhoto,
                             )
                         },
                         modifier = Modifier.fillMaxSize(),
@@ -362,6 +363,17 @@ fun ChatScreen(
             // without a word (the agent describes the photo, or is asked "che prodotto è?").
             val sendAttachment = if (typing) null else ::submit
             replyingTo?.let { ReplyBar(it, onCancel = { viewModel.replyTo(null) }) }
+            if (typing) {
+                val notes by viewModel.draftNotes.collectAsState()
+                notes.forEach { note ->
+                    DraftNoteBar(
+                        note,
+                        onRestore = { if (note is DraftNote.Replaced) viewModel.restoreDraft(note) },
+                        onAttachAgain = { viewModel.dismissNote(note); onPickPhoto() },
+                        onDismiss = { viewModel.dismissNote(note) },
+                    )
+                }
+            }
             consentRequest?.let { request ->
                 ConsentCard(
                     request,
@@ -449,6 +461,7 @@ fun ChatScreen(
             ) {
                 DictationPanel(
                     voice,
+                    title = stringResource(R.string.dictation_title_draft),
                     onFinish = viewModel.voice::finish,
                     onCancel = { viewModel.endDictation(); openKeyboard() },
                     onRetry = viewModel::dictate,
@@ -811,25 +824,77 @@ private fun Composer(
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
             keyboardActions = KeyboardActions(onSend = { onSend() }),
             maxLines = 4,
+            // The microphone stays in the field whatever is in it: dictating adds to the text and the attachments.
+            trailingIcon = {
+                Box(
+                    modifier = Modifier
+                        .size(44.dp)
+                        .clip(CircleShape)
+                        .semantics { contentDescription = dictateLabel }
+                        .clickable(role = Role.Button, onClick = onDictate),
+                    contentAlignment = Alignment.Center,
+                ) { Icons.Mic(colors.onSurfaceVariant) }
+            },
         )
         val enabled = value.isNotBlank() || hasPhoto || hasBarcode // a scanned code alone asks "che prodotto è?"
-        // While a request is being answered and nothing new is typed, the button interrupts it; with nothing to send it
-        // is the microphone, into this field.
-        val stop = busy && !enabled
-        val dictate = !enabled && !stop
-        Box(
-            modifier = Modifier
-                .size(48.dp)
-                .background(if (dictate) colors.surfaceContainerHigh else colors.primary, CircleShape)
-                .semantics { contentDescription = if (stop) stopLabel else if (dictate) dictateLabel else sendLabel }
-                .clickable(role = Role.Button, onClick = if (stop) onStop else if (dictate) onDictate else onSend),
-            contentAlignment = Alignment.Center,
-        ) {
-            when {
-                stop -> Icons.Stop(colors.onPrimary)
-                dictate -> Icons.Mic(colors.onSurface)
-                else -> Icons.Send(colors.onPrimary)
+        // While a request is being answered, its stop keeps its place; sending something new goes beside it.
+        if (busy) RoundAction(stopLabel, onStop, filled = !enabled) { Icons.Stop(if (enabled) colors.onSurface else colors.onPrimary) }
+        if (enabled || !busy) {
+            RoundAction(sendLabel, onSend, filled = enabled, enabled = enabled) {
+                Icons.Send(if (enabled) colors.onPrimary else colors.onSurfaceVariant)
             }
+        }
+    }
+}
+
+/** A round button of the field's row: [filled] for the step that comes next, quiet otherwise. */
+@Composable
+private fun RoundAction(label: String, onClick: () -> Unit, filled: Boolean, enabled: Boolean = true, icon: @Composable () -> Unit) {
+    val colors = MaterialTheme.colorScheme
+    Box(
+        modifier = Modifier
+            .size(48.dp)
+            .background(if (filled) colors.primary else colors.surfaceContainerHigh, CircleShape)
+            .semantics { contentDescription = label }
+            .clickable(role = Role.Button, enabled = enabled, onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) { icon() }
+}
+
+/** A line above the field about the draft: what was replaced (to put back), cut, or is missing (to attach again). */
+@Composable
+private fun DraftNoteBar(note: DraftNote, onRestore: () -> Unit, onAttachAgain: () -> Unit, onDismiss: () -> Unit) {
+    val colors = MaterialTheme.colorScheme
+    val text = when (note) {
+        is DraftNote.Replaced -> stringResource(R.string.draft_replaced)
+        is DraftNote.Cut -> stringResource(R.string.draft_cut, java.text.NumberFormat.getIntegerInstance(java.util.Locale.ITALY).format(note.chars))
+        DraftNote.PhotoGone -> stringResource(R.string.draft_photo_gone)
+    }
+    val closeLabel = stringResource(R.string.assistant_close)
+    Surface(
+        shape = MaterialTheme.shapes.large,
+        color = colors.surfaceContainerHigh,
+        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+    ) {
+        Row(modifier = Modifier.padding(start = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text,
+                style = MaterialTheme.typography.bodyMedium,
+                color = colors.onSurfaceVariant,
+                modifier = Modifier.weight(1f).padding(vertical = 10.dp).semantics { liveRegion = LiveRegionMode.Polite },
+            )
+            when (note) {
+                is DraftNote.Replaced -> TextButton(onClick = onRestore) { Text(stringResource(R.string.draft_restore)) }
+                DraftNote.PhotoGone -> TextButton(onClick = onAttachAgain) { Text(stringResource(R.string.draft_attach_again)) }
+                is DraftNote.Cut -> Unit
+            }
+            Box(
+                modifier = Modifier
+                    .size(44.dp)
+                    .semantics { contentDescription = closeLabel }
+                    .clickable(role = Role.Button, onClick = onDismiss),
+                contentAlignment = Alignment.Center,
+            ) { Icons.Close(colors.onSurfaceVariant) }
         }
     }
 }

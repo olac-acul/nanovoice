@@ -44,6 +44,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -97,7 +98,7 @@ import java.util.Locale
  * large as the empty chat's, and the day under it, coming in softly.
  */
 @Composable
-private fun OpeningHeader(text: String, day: LocalDate) {
+private fun OpeningHeader(text: String, day: LocalDate, note: String?) {
     val shown = remember { Animatable(0f) }
     LaunchedEffect(Unit) { shown.animateTo(1f, tween(durationMillis = 320, easing = FastOutSlowInEasing)) }
     Column(
@@ -119,6 +120,26 @@ private fun OpeningHeader(text: String, day: LocalDate) {
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
         )
+        // The headline changes with the hour and the pause; this says, always the same way, what happened.
+        if (note != null) {
+            Text(
+                note,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(horizontal = 24.dp),
+            )
+        }
+    }
+}
+
+/** The conversation from before the server started over, folded: a tap shows it again, to read. */
+@Composable
+private fun EarlierToggle(count: Int, shown: Boolean, onToggle: () -> Unit) {
+    Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+        TextButton(onClick = onToggle) {
+            Text(if (shown) stringResource(R.string.earlier_hide) else stringResource(R.string.earlier_show, count))
+        }
     }
 }
 
@@ -142,6 +163,8 @@ class MessageActions(
     val retry: (ChatMessage) -> Unit,
     val readAloud: (ChatMessage) -> Unit,
     val edit: (ChatMessage) -> Unit,
+    /** Opens the photo picker: a photo the app no longer keeps, to attach again. */
+    val attachAgain: () -> Unit = {},
 )
 
 /**
@@ -160,7 +183,14 @@ fun ChatList(
     modifier: Modifier = Modifier,
 ) {
     val zone = remember { ZoneId.systemDefault() }
+    // What came before the server started over stays, folded at the top until asked for.
+    val earlierCount = messages.count { it.earlier && !it.notice }
+    var showEarlier by rememberSaveable { mutableStateOf(false) }
+    val all = messages
+    @Suppress("NAME_SHADOWING")
+    val messages = if (showEarlier) all else all.filterNot { it.earlier }
     val lastUserId = messages.lastOrNull { it.fromUser }?.id
+    val freshStartNote = stringResource(if (earlierCount > 0) R.string.fresh_start_note_earlier else R.string.fresh_start_note)
     // Under the latest reply, once it is complete: "Ascolta", and "Riprova" when it is no answer.
     val lastReply = messages.lastOrNull()?.takeIf { !it.fromUser && !it.notice && !showTyping && workingText == null }
     val lastRequest = messages.lastOrNull { it.fromUser }
@@ -174,7 +204,8 @@ fun ChatList(
     }
     LaunchedEffect(messages.size, showTyping, workingText != null) {
         // Every message, one chip per day, and the dots or the status line after them.
-        val last = messages.size + dayCount(messages, zone) + (if (showTyping || workingText != null || lastReply != null) 1 else 0) - 1
+        val last = messages.size + dayCount(messages, zone) + (if (earlierCount > 0) 1 else 0) +
+            (if (showTyping || workingText != null || lastReply != null) 1 else 0) - 1
         if (last >= 0 && (followLatest || messages.lastOrNull()?.fromUser == true)) {
             followLatest = true
             listState.animateScrollToItem(last)
@@ -187,6 +218,9 @@ fun ChatList(
             // Room under the header for the first message; it scrolls away with the list.
             contentPadding = PaddingValues(top = 16.dp, bottom = 8.dp),
         ) {
+            if (earlierCount > 0) {
+                item(key = "earlier") { EarlierToggle(earlierCount, showEarlier) { showEarlier = !showEarlier } }
+            }
             messages.forEachIndexed { index, message ->
                 val previous = messages.getOrNull(index - 1)
                 val day = day(message.time, zone)
@@ -195,7 +229,7 @@ fun ChatList(
                     item(key = "day-${message.id}") { DayChip(day) }
                 }
                 if (message.notice) {
-                    item(key = message.id) { OpeningHeader(message.text, day) }
+                    item(key = message.id) { OpeningHeader(message.text, day, freshStartNote.takeIf { !message.earlier }) }
                     return@forEachIndexed
                 }
                 val startsGroup = previous == null || previous.fromUser != message.fromUser || previous.notice ||
@@ -335,7 +369,9 @@ private fun MessageBubble(
             ) {
                 Column {
                     message.quote?.let { QuoteLine(it, content, Modifier.padding(start = 10.dp, end = 10.dp, top = 8.dp)) }
-                    message.image?.let { SentPhoto(it, message.photo, onLongPress = { menu = true }) }
+                    message.image?.let {
+                        SentPhoto(it, message.photo, onLongPress = { menu = true }, onAttachAgain = actions.attachAgain.takeIf { message.fromUser })
+                    }
                     // With a link preview the time goes under it, as messaging apps do; otherwise at the end of the text.
                     val link = remember(message.text) { if (previewsOn) firstUrl(message.text) else null }
                     if (message.text.isNotEmpty()) {
@@ -476,7 +512,7 @@ private fun share(context: Context, text: String) {
 /** A photo in the chat; a tap shows it on the whole screen (with the reverse image search there), a long press the menu. */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun SentPhoto(preview: ImageBitmap, photo: AgentImage?, onLongPress: () -> Unit) {
+private fun SentPhoto(preview: ImageBitmap, photo: AgentImage?, onLongPress: () -> Unit, onAttachAgain: (() -> Unit)?) {
     val context = LocalContext.current
     var viewing by remember { mutableStateOf(false) }
     Box {
@@ -498,6 +534,7 @@ private fun SentPhoto(preview: ImageBitmap, photo: AgentImage?, onLongPress: () 
             full = photo,
             onSearch = photo?.let { { viewing = false; ImageSearchActivity.open(context, it, ImageSearchActivity.Engine.TinEye) } },
             onDismiss = { viewing = false },
+            onAttachAgain = onAttachAgain?.let { attach -> { viewing = false; attach() } },
         )
     }
 }

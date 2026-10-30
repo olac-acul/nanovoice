@@ -12,6 +12,7 @@ class ChatStoreTest {
             StoredMessage(3, "Rieccoci.", fromUser = false, time = 3_000, notice = true),
             StoredMessage(4, "cos'è?", fromUser = true, time = 4_000, barcode = "[codice a barre: 123]", preview = byteArrayOf(1, 2, 3)),
             StoredMessage(5, "Risposta interrotta.", fromUser = false, time = 5_000, failed = true),
+            StoredMessage(6, "di prima", fromUser = true, time = 500, earlier = true),
         )
         val back = decodeChat(encodeChat(messages))
         assertEquals(messages.map { it.copy(preview = null) }, back.map { it.copy(preview = null) })

@@ -26,6 +26,8 @@ data class ReplySnapshot(
     val messageEnd: Boolean = false,
     /** The server started the conversation over before this request: nothing to show as reply text. */
     val contextRestarted: Boolean = false,
+    /** The reply is no answer but an error (the server unreachable, not answering): worth asking again. */
+    val failed: Boolean = false,
 )
 
 /**
@@ -148,7 +150,7 @@ class ChatEngine(
                 AgentEvent.Done -> Unit
                 AgentEvent.ContextRestarted -> emit(ReplySnapshot(reply.toString(), contextRestarted = true))
                 // An error ends the work too: it must show, not stay hidden behind the status line.
-                is AgentEvent.Error -> emit(ReplySnapshot(if (reply.isEmpty()) event.message else "$reply\n${event.message}"))
+                is AgentEvent.Error -> emit(ReplySnapshot(if (reply.isEmpty()) event.message else "$reply\n${event.message}", failed = true))
             }
         }
     }

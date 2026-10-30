@@ -101,6 +101,7 @@ class VoiceInputMethod : InputMethodService(), LifecycleOwner, SavedStateRegistr
                     Box(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface).padding(bottom = bottom).padding(8.dp)) {
                         DictationPanel(
                             state,
+                            title = getString(R.string.dictation_title_keyboard),
                             onFinish = voice::finish,
                             onCancel = ::back,
                             onRetry = voice::listen,

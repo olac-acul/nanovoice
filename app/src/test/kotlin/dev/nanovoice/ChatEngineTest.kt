@@ -155,7 +155,7 @@ class ChatEngineTest {
     @Test fun anErrorAfterWorkingEndsTheWorkAndShows() {
         agentReply = flowOf(AgentEvent.Delta("Cerco sul Web..."), AgentEvent.Working, AgentEvent.Error("Il server non risponde."))
         val last = runBlocking { engine.respond("trova qualcosa").toList() }.last()
-        assertEquals(ReplySnapshot("Cerco sul Web...\nIl server non risponde."), last)
+        assertEquals(ReplySnapshot("Cerco sul Web...\nIl server non risponde.", failed = true), last)
     }
 
     @Test fun newConversationForgetsAPendingQuestion() {
@@ -196,6 +196,13 @@ class ChatEngineTest {
         assertEquals("Server non raggiungibile.", say("riassumimi le email"))
         say("che ore sono")
         assertEquals(listOf<PhoneAction>(PhoneAction.TellTime), executed)
+    }
+
+    @Test fun aServerErrorIsMarkedFailedSoItCanBeRetried() {
+        agentReply = flowOf(AgentEvent.Error("Server non raggiungibile."))
+        assertTrue(runBlocking { engine.respond("riassumimi le email").toList() }.last().failed)
+        agentReply = flowOf(AgentEvent.Delta("Oggi hai tre email."), AgentEvent.Done)
+        assertTrue(runBlocking { engine.respond("riassumimi le email").toList() }.none { it.failed })
     }
 
     @Test fun errorAfterPartialReplyKeepsTheText() {

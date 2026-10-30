@@ -7,6 +7,18 @@ import kotlin.test.assertTrue
 import kotlin.test.Test
 
 class ScannedProductTest {
+    @Test fun theCodeOfASentMessageComesBackFromItsLine() {
+        val scanned = ScannedProduct.of("5010394133852", ProductKind.PetFood)
+        assertEquals(scanned, ScannedProduct.fromLine(scanned.lineForAgent()))
+        assertEquals(null, ScannedProduct.fromLine("[codice a barre nella foto: 5010394133852]"))
+        assertEquals(null, ScannedProduct.fromLine("[codice a barre: 123, tipo: food]"))
+    }
+
+    @Test fun theCodeFoundInAPhotoComesBackFromItsLine() {
+        assertEquals("8001505005707", barcodeInPhoto("[codice a barre nella foto: 8001505005707]"))
+        assertEquals(null, barcodeInPhoto("[codice a barre: 8001505005707, tipo: food]"))
+    }
+
     @Test fun aScannedCodeTellsTheAgentItsKind() {
         assertEquals("[codice a barre: 3600523307500, tipo: beauty]", ScannedProduct.of("3600523307500", ProductKind.Beauty).lineForAgent())
         assertEquals("[codice a barre: 5010394133852, tipo: pet_food]", ScannedProduct.of("5010394133852", ProductKind.PetFood).lineForAgent())

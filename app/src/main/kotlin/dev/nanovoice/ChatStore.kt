@@ -21,8 +21,8 @@ import java.util.Base64
 
 /**
  * The conversation on the screen, kept in the app's private files: a restart of the app (Android ends it to free
- * memory, an update) shows it again. Only the current conversation: "Nuova conversazione" and the server starting over
- * after a pause empty it, as they empty the screen. A photo keeps its thumbnail; the photo itself (for TinEye) is not
+ * memory, an update) shows it again, with what came before the server started it over (folded on screen), up to
+ * [MAX_KEPT] messages in all. "Nuova conversazione" empties it, as it empties the screen. A photo keeps its thumbnail; the photo itself (for TinEye) is not
  * kept. Never in a backup: the app opts out of Android's cloud backup and device transfer.
  */
 class ChatStore(private val file: File) {
@@ -46,12 +46,13 @@ class ChatStore(private val file: File) {
     private fun ChatMessage.toStored() = StoredMessage(
         id, text, fromUser, time, quote, barcode, failed, notice,
         preview = image?.let(::jpeg),
+        earlier = earlier,
     )
 
     private fun StoredMessage.toMessage() = ChatMessage(
         id, text, fromUser,
         image = preview?.let { BitmapFactory.decodeByteArray(it, 0, it.size)?.asImageBitmap() },
-        time = time, quote = quote, barcode = barcode, failed = failed, notice = notice,
+        time = time, quote = quote, barcode = barcode, failed = failed, notice = notice, earlier = earlier,
     )
 
     private fun jpeg(image: ImageBitmap): ByteArray = ByteArrayOutputStream().use { out ->
@@ -76,6 +77,7 @@ internal data class StoredMessage(
     val failed: Boolean = false,
     val notice: Boolean = false,
     val preview: ByteArray? = null,
+    val earlier: Boolean = false,
 )
 
 internal fun encodeChat(messages: List<StoredMessage>): String = buildJsonObject {
@@ -90,6 +92,7 @@ internal fun encodeChat(messages: List<StoredMessage>): String = buildJsonObject
             m.barcode?.let { put("barcode", it) }
             if (m.failed) put("failed", true)
             if (m.notice) put("notice", true)
+            if (m.earlier) put("earlier", true)
             m.preview?.let { put("preview", Base64.getEncoder().encodeToString(it)) }
         })
     })
@@ -112,6 +115,7 @@ internal fun decodeChat(text: String): List<StoredMessage> {
             barcode = str("barcode"),
             failed = bool("failed"),
             notice = bool("notice"),
+            earlier = bool("earlier"),
             preview = str("preview")?.let { runCatching { Base64.getDecoder().decode(it) }.getOrNull() },
         )
     }
