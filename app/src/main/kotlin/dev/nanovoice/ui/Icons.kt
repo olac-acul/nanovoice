@@ -221,6 +221,16 @@ object Icons {
         drawArc(color, -45f, 90f, false, Offset(0.42f * w, 0.32f * w), androidx.compose.ui.geometry.Size(0.36f * w, 0.36f * w), style = Stroke(w * 0.08f, cap = StrokeCap.Round))
     }
 
+    /** A microphone: say it instead of typing it. */
+    @Composable
+    fun Mic(color: Color, modifier: Modifier = Modifier, size: Dp = 24.dp) = Canvas(modifier.size(size)) {
+        val w = this.size.width
+        val stroke = Stroke(w * 0.085f, cap = StrokeCap.Round)
+        drawRoundRect(color, Offset(0.38f * w, 0.12f * w), androidx.compose.ui.geometry.Size(0.24f * w, 0.42f * w), androidx.compose.ui.geometry.CornerRadius(0.12f * w), style = stroke)
+        drawArc(color, 0f, 180f, false, Offset(0.26f * w, 0.28f * w), androidx.compose.ui.geometry.Size(0.48f * w, 0.42f * w), style = stroke)
+        line(color, w, 0.5f, 0.7f, 0.5f, 0.86f)
+    }
+
     /** A circular arrow: try again. */
     @Composable
     fun Retry(color: Color, modifier: Modifier = Modifier, size: Dp = 20.dp) = Canvas(modifier.size(size)) {

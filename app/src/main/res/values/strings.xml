@@ -222,6 +222,7 @@
     <string name="reply_listen">Ascolta</string>
     <string name="msg_edit">Correggi e reinvia</string>
     <string name="msg_more">Altre azioni</string>
+    <string name="dictate">Detta nel campo</string>
     <string name="msg_copy_link">Copia link</string>
     <string name="msg_open_link">Apri %1$s</string>
     <string name="msg_copied">Copiato</string>

@@ -97,6 +97,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import dev.nanovoice.ui.Icons
 import dev.nanovoice.ui.Wordmark
@@ -409,6 +410,19 @@ fun ChatScreen(
                     onChange = viewModel::setDraft,
                     onSend = ::submit,
                     onStop = viewModel::interrupt,
+                    // Writing does not hide the other ways in: a photo or a code, and the voice into the same field.
+                    attach = {
+                        AttachButton(onTakePhoto, onPickPhoto, viewModel::productKinds, onScanBarcode, canScan = appSettings.photoServices, size = 44.dp)
+                    },
+                    onDictate = {
+                        if (!hasMicPermission()) {
+                            requestMicPermission()
+                        } else {
+                            keyboard?.hide()
+                            closedWithText = true // the orb comes back over the field, with "Ti ascolto…" and the words
+                            viewModel.dictate()
+                        }
+                    },
                 )
             }
         }
@@ -565,10 +579,10 @@ private fun Orb(state: OrbState, action: OrbAction, onTap: () -> Unit) {
 }
 
 @Composable
-private fun RoundButton(label: String, onClick: () -> Unit, icon: @Composable () -> Unit) {
+private fun RoundButton(label: String, onClick: () -> Unit, size: Dp = 52.dp, icon: @Composable () -> Unit) {
     Box(
         modifier = Modifier
-            .size(52.dp)
+            .size(size)
             .background(MaterialTheme.colorScheme.surfaceContainerHigh, CircleShape)
             .semantics { contentDescription = label }
             .clickable(role = Role.Button, onClick = onClick),
@@ -588,13 +602,14 @@ private fun AttachButton(
     onScanBarcode: (ProductKind) -> Unit,
     /** Off with "Servizi esterni per le foto": no database would get the code, so the agent could not look it up. */
     canScan: Boolean = true,
+    size: Dp = 52.dp,
 ) {
     var menu by remember { mutableStateOf(false) }
     var choosingKind by remember { mutableStateOf(false) }
     val color = MaterialTheme.colorScheme.onSurface
     val close = { menu = false; choosingKind = false }
     Box {
-        RoundButton(stringResource(R.string.photo_attach), onClick = { menu = true }) { Icons.Camera(color) }
+        RoundButton(stringResource(R.string.photo_attach), onClick = { menu = true }, size = size) { Icons.Camera(color) }
         NanoMenu(expanded = menu, onDismiss = close) {
             if (choosingKind) {
                 Text(
@@ -732,10 +747,13 @@ private fun Composer(
     onChange: (String) -> Unit,
     onSend: () -> Unit,
     onStop: () -> Unit,
+    attach: @Composable () -> Unit,
+    onDictate: () -> Unit,
 ) {
     val colors = MaterialTheme.colorScheme
     val stopLabel = stringResource(R.string.interrupt)
     val sendLabel = stringResource(R.string.send)
+    val dictateLabel = stringResource(R.string.dictate)
     // The cursor too: text put in from outside (a shared link, a message to fix) leaves it at the end, ready for more.
     var field by remember { mutableStateOf(TextFieldValue(value, TextRange(value.length))) }
     if (field.text != value) field = TextFieldValue(value, TextRange(value.length))
@@ -744,6 +762,7 @@ private fun Composer(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
+        attach()
         TextField(
             value = field,
             onValueChange = {
@@ -764,16 +783,24 @@ private fun Composer(
             maxLines = 4,
         )
         val enabled = value.isNotBlank() || hasPhoto || hasBarcode // a scanned code alone asks "che prodotto è?"
-        // While a request is being answered and nothing new is typed, the button interrupts it.
+        // While a request is being answered and nothing new is typed, the button interrupts it; with nothing to send it
+        // is the microphone, into this field.
         val stop = busy && !enabled
+        val dictate = !enabled && !stop
         Box(
             modifier = Modifier
                 .size(48.dp)
-                .background(if (enabled || stop) colors.primary else colors.surfaceContainerHigh, CircleShape)
-                .semantics { contentDescription = if (stop) stopLabel else sendLabel }
-                .clickable(enabled = enabled || stop, onClick = if (stop) onStop else onSend),
+                .background(if (dictate) colors.surfaceContainerHigh else colors.primary, CircleShape)
+                .semantics { contentDescription = if (stop) stopLabel else if (dictate) dictateLabel else sendLabel }
+                .clickable(role = Role.Button, onClick = if (stop) onStop else if (dictate) onDictate else onSend),
             contentAlignment = Alignment.Center,
-        ) { if (stop) Icons.Stop(colors.onPrimary) else Icons.Send(if (enabled) colors.onPrimary else colors.outline) }
+        ) {
+            when {
+                stop -> Icons.Stop(colors.onPrimary)
+                dictate -> Icons.Mic(colors.onSurface)
+                else -> Icons.Send(colors.onPrimary)
+            }
+        }
     }
 }
 

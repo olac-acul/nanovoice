@@ -47,8 +47,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.material3.Button
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.draw.clip
-import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.ui.Modifier
@@ -179,10 +177,11 @@ class BarcodeScanActivity : ComponentActivity() {
             for (option in ProductKind.entries) {
                 val on = option == selected
                 Surface(
+                    selected = on,
+                    onClick = { onSelect(option) },
                     shape = CircleShape,
                     color = if (on) Color.White else Color.Black.copy(alpha = 0.5f),
                     contentColor = if (on) Color.Black else Color.White,
-                    modifier = Modifier.clip(CircleShape).selectable(selected = on, role = Role.RadioButton) { onSelect(option) },
                 ) {
                     Text(stringResource(option.label), style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp))
                 }

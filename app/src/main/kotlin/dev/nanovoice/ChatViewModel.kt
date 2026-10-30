@@ -121,6 +121,7 @@ class ChatViewModel(
 
     /** Listens for a request, and lets the server start the agent meanwhile (the local router may not need it). */
     fun startListening() {
+        dictating = false
         if (!isLocked()) connection.warmUp()
         voice.listen()
     }
@@ -155,7 +156,22 @@ class ChatViewModel(
 
     private fun heard(text: String) {
         askedAloud = null
+        // Dictated from the text field: the words join the draft, to send with the rest when the person is ready.
+        if (dictating) {
+            dictating = false
+            putInDraft(listOf(_draft.value.trimEnd(), text.trim()).filter { it.isNotEmpty() }.joinToString(" "))
+            return
+        }
         send(text, spoken = true)
+    }
+
+    /** True while the microphone was opened from the text field: what is heard goes into the field, not out. */
+    private var dictating = false
+
+    /** The microphone of the text field: speech into the draft, alongside what is typed and attached. */
+    fun dictate() {
+        dictating = true
+        voice.listen()
     }
 
     /** Says the question and then listens for the answer, once the voice has finished. */
