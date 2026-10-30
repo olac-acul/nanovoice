@@ -80,11 +80,14 @@ Lato server serve la skill `add-voice` di [skills-for-nanoclaw](https://github.c
   voce stanno in una sezione delle istruzioni del gruppo che vale solo per il canale `voice`.
 - **Lavori lunghi:** prima di una ricerca l'agente chiama `voice_working`; l'app legge subito "Cerco sul Web..." e mostra
   una riga animata finché non arriva la risposta, nella stessa conversazione.
-- **Interrompere:** il pulsante di invio diventa "stop" mentre una richiesta è in corso. L'app smette di aspettare,
+- **Interrompere:** mentre una richiesta è in corso accanto al campo c'è "stop" (e "invia" accanto, se si scrive altro). L'app smette di aspettare,
   scarta quello che arriva dopo e rifiuta le azioni di quella richiesta. Sul server l'agente finisce comunque il lavoro:
   NanoClaw non ha un modo per fermarlo senza farlo ripetere.
 - **Nuova conversazione:** il pulsante con la fiamma svuota la chat e chiede al server di ripartire. L'utente dell'app
   non è amministratore, quindi è l'adattatore a scrivere `/clear` nella sessione dell'app. La memoria resta.
+- **Ripartenza dopo una pausa:** quando il server ricomincia la conversazione, la chat riparte sotto un titolo e una frase
+  fissa che lo spiega; i messaggi di prima restano, chiusi sotto "Mostra la conversazione precedente". La chat è salvata
+  nei file privati dell'app (al massimo 200 messaggi; delle foto solo la miniatura), esclusa dai backup di Android.
 - **Notifiche:** i messaggi che l'agente manda da solo arrivano come notifica di sistema quando l'app non è in primo
   piano. Con UnifiedPush (per esempio ntfy) il server sveglia il telefono anche ad app chiusa; la push non contiene
   testo, che arriva poi dal server.
@@ -138,6 +141,12 @@ su GrapheneOS è spesso solo inglese (Transcribro include `whisper tiny.en`).
 - **Velocità:** le build di debug sono `debuggable`, quindi Android non le compila in AOT e decomprimere i modelli è lento.
   Per usare l'app: `./gradlew :app:installRelease` (firmata con la chiave di debug) e poi
   `adb shell cmd package compile -m speed -f dev.nanovoice`.
+- **Dettatura ovunque:** "NanoVoice voce" è una tastiera solo vocale. Abilitata fra le tastiere di Android, il tasto del
+  microfono di un'altra tastiera (HeliBoard, per esempio) passa a lei: ascolta, scrive la frase nel campo e torna alla
+  tastiera di prima. Se sono abilitate più tastiere vocali, la tastiera ne usa una sola. Le app che chiedono ad Android
+  il riconoscimento vocale (`RECOGNIZE_SPEECH`) ricevono lo stesso pannello.
+- **Lingua:** Parakeet riconosce la lingua da solo e su frasi brevi a volte sceglie un alfabeto non latino; in quel caso
+  l'app tiene il testo di Vosk, che conosce solo l'italiano.
 - **Attivazione:** “Zanzibar”, facoltativa. Il servizio mostra una notifica permanente, si ferma mentre l'app ascolta
   o parla e richiede che NanoVoice sia l'assistente predefinito.
 
@@ -145,9 +154,12 @@ su GrapheneOS è spesso solo inglese (Transcribro include `whisper tiny.en`).
 
 - **Temi:** chiaro, scuro o automatico, con palette ricavata dall'icona; in alternativa i colori di sistema
   (Material You, Android 12+), che valgono anche per l'orb del microfono.
-- **Microfono:** un orb con quattro stati (pronto, ascolto, penso, parlo). In chat si tiene premuto per parlare; nel
-  foglio dell'assistente si tocca.
-- **Impostazioni** divise in categorie: Aspetto, Voce e ascolto, Server NanoClaw, Notifiche, Permessi.
+- **Microfono:** un orb con quattro stati (pronto, ascolto, penso, parlo); si tocca per parlare e la richiesta parte da
+  sola alla pausa. Il microfono dentro il campo di testo invece detta nella bozza, che si invia quando si è pronti.
+- **Correggere:** sotto l'ultima risposta "Correggi" riporta nel campo la richiesta con foto e codice; la bozza che
+  sostituisce si recupera con "Ripristina". Dopo un errore ci sono anche "Riprova" e "Controlla il collegamento".
+- **Impostazioni** divise per obiettivo: Come risponde, Ascolto, Collegamento, Cosa può fare sul telefono, Foto e codici,
+  Musica, Notifiche, Aspetto; i dettagli tecnici stanno in "Dettagli avanzati".
 - **Anteprime dei link:** sotto un messaggio compare una scheda per il primo link. La pagina viene scaricata dal telefono,
   quindi il sito vede l'indirizzo di rete: si può disattivare in Aspetto. Solo `https`, solo host pubblici (niente reti
   private né Tailscale, controllati anche a ogni reindirizzamento), senza cookie, con limiti di tempo e di dimensione.
