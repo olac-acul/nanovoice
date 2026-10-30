@@ -234,8 +234,11 @@
     <string name="msg_edit">Correggi</string>
     <string name="msg_more">Altre azioni</string>
     <string name="dictate">Detta nel campo</string>
-    <string name="earlier_show">Mostra la conversazione precedente (%1$d)</string>
-    <string name="earlier_hide">Nascondi la conversazione precedente</string>
+    <plurals name="earlier_show">
+        <item quantity="one">%1$d messaggio precedente</item>
+        <item quantity="other">%1$d messaggi precedenti</item>
+    </plurals>
+    <string name="earlier_hide">Nascondi i messaggi precedenti</string>
     <string name="draft_replaced">La bozza di prima è stata sostituita.</string>
     <string name="draft_restore">Ripristina</string>
     <string name="draft_cut">Del testo condiviso sono arrivati solo i primi %1$s caratteri.</string>

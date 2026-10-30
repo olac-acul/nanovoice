@@ -85,8 +85,8 @@ Lato server serve la skill `add-voice` di [skills-for-nanoclaw](https://github.c
   NanoClaw non ha un modo per fermarlo senza farlo ripetere.
 - **Nuova conversazione:** il pulsante con la fiamma svuota la chat e chiede al server di ripartire. L'utente dell'app
   non è amministratore, quindi è l'adattatore a scrivere `/clear` nella sessione dell'app. La memoria resta.
-- **Ripartenza dopo una pausa:** quando il server ricomincia la conversazione, la chat riparte sotto un titolo e una frase
-  fissa che lo spiega; i messaggi di prima restano, chiusi sotto "Mostra la conversazione precedente". La chat è salvata
+- **Ripartenza dopo una pausa:** quando il server ricomincia la conversazione, la chat riparte sotto un titolo con la
+  data; i messaggi di prima restano, chiusi dietro una linea "N messaggi precedenti" che li riapre. La chat è salvata
   nei file privati dell'app (al massimo 200 messaggi; delle foto solo la miniatura), esclusa dai backup di Android.
 - **Notifiche:** i messaggi che l'agente manda da solo arrivano come notifica di sistema quando l'app non è in primo
   piano. Con UnifiedPush (per esempio ntfy) il server sveglia il telefono anche ad app chiusa; la push non contiene

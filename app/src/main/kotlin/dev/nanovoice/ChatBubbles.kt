@@ -39,6 +39,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.material3.Surface
@@ -47,6 +48,9 @@ import androidx.compose.material3.TextButton
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -123,27 +127,35 @@ private fun OpeningHeader(text: String, day: LocalDate) {
 }
 
 /**
- * The conversation from before the server started over, folded: a tap shows it again, to read. A small bubble shaped
- * like the long-press menu, so it reads as something to tap.
+ * The conversation from before the server started over, folded: a tap shows it again, to read. A thin line across with
+ * the words in the middle, as messaging apps mark where the unread messages start: part of the timeline, not a message.
  */
 @Composable
 private fun EarlierToggle(count: Int, shown: Boolean, onToggle: () -> Unit) {
-    val colors = MaterialTheme.colorScheme
-    Box(Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 4.dp), contentAlignment = Alignment.Center) {
-        Surface(
-            onClick = onToggle,
-            shape = RoundedCornerShape(18.dp),
-            // Translucent and small: a way back to old messages, not one of them.
-            color = colors.surfaceContainer.copy(alpha = 0.6f),
-            border = BorderStroke(1.dp, colors.outlineVariant.copy(alpha = 0.6f)),
+    val color = MaterialTheme.colorScheme.onSurfaceVariant
+    val line = MaterialTheme.colorScheme.outlineVariant
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        HorizontalDivider(Modifier.weight(1f), color = line)
+        Row(
+            modifier = Modifier
+                .clip(RoundedCornerShape(16.dp))
+                .clickable(role = Role.Button, onClick = onToggle)
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
         ) {
+            // Down to unfold, as a list that opens; up to fold the messages away again.
+            Icons.Chevron(color, Modifier.rotate(if (shown) -90f else 90f), size = 18.dp)
             Text(
-                if (shown) stringResource(R.string.earlier_hide) else stringResource(R.string.earlier_show, count),
+                if (shown) stringResource(R.string.earlier_hide) else pluralStringResource(R.plurals.earlier_show, count, count),
                 style = MaterialTheme.typography.bodyMedium,
-                color = colors.onSurfaceVariant.copy(alpha = 0.85f),
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 9.dp),
+                color = color,
             )
         }
+        HorizontalDivider(Modifier.weight(1f), color = line)
     }
 }
 
