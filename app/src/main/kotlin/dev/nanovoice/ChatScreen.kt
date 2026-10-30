@@ -115,6 +115,8 @@ fun ChatScreen(
     hasMicPermission: () -> Boolean,
     requestMicPermission: () -> Unit,
     onOpenSettings: () -> Unit,
+    /** Opens the connection page of the settings. */
+    onCheckConnection: () -> Unit = onOpenSettings,
 ) {
     val messages by viewModel.messages.collectAsState()
     val status by viewModel.status.collectAsState()
@@ -298,7 +300,7 @@ fun ChatScreen(
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Wordmark()
-                    StatusLine(status, onCheck = onOpenSettings)
+                    StatusLine(status, onCheck = onCheckConnection)
                 }
                 Box(
                     modifier = Modifier
@@ -348,7 +350,7 @@ fun ChatScreen(
                             )
                         },
                         modifier = Modifier.fillMaxSize(),
-                        onCheckConnection = onOpenSettings.takeIf { status != AgentStatus.Connected },
+                        onCheckConnection = onCheckConnection.takeIf { status != AgentStatus.Connected },
                     )
                 }
             }

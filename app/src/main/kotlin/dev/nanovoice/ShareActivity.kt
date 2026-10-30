@@ -6,6 +6,7 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.widget.Toast
 
 /**
  * "Condividi → Chiedi a NanoVoice": hands the shared photo, or text and links, to the chat already open (its own task),
@@ -41,11 +42,9 @@ class ShareActivity : Activity() {
             try {
                 startActivity(forward)
             } catch (_: SecurityException) {
-                // The sending app gave no permission to read it, so there is none to pass on: the chat tries anyway and
-                // says the photo could not be opened, instead of the app closing.
-                forward.clipData = null
-                forward.removeFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                startActivity(forward)
+                // The sending app gave no permission to read it, so there is none to pass on and the chat could not open
+                // it either: said here, instead of the app closing.
+                Toast.makeText(applicationContext, R.string.photo_failed, Toast.LENGTH_SHORT).show()
             }
         }
         finish()

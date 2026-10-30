@@ -55,7 +55,7 @@ import dev.nanovoice.voice.TtsStatus
 import dev.nanovoice.voice.VoiceCatalog
 
 /** Pages by what the person wants done, not by component: the technical parts sit in "Dettagli avanzati". */
-private enum class SettingsPage(val title: Int) {
+enum class SettingsPage(val title: Int) {
     Replies(R.string.cat_replies),
     Listening(R.string.cat_listening),
     Server(R.string.cat_server),
@@ -104,6 +104,8 @@ fun SettingsScreen(
     /** Trades the pairing code of a scanned QR for the token. */
     onPair: suspend (dev.nanovoice.agent.PairingLinkResult.Valid) -> dev.nanovoice.agent.PairingResult = { dev.nanovoice.agent.PairingResult.Unreachable },
     onBack: () -> Unit,
+    /** The page to open on ("Controlla il collegamento" opens the connection); null for the list of categories. */
+    startPage: SettingsPage? = null,
 ) {
     var url by remember { mutableStateOf(initial.serverUrl) }
     var token by remember { mutableStateOf(initial.token) }
@@ -134,7 +136,7 @@ fun SettingsScreen(
     val baseline = remember { initial }
     // Turned off from its notification while this screen is open: show it.
     LaunchedEffect(initial.wakeWord) { if (initial.wakeWord != baseline.wakeWord) wake = initial.wakeWord }
-    var pageName by rememberSaveable { mutableStateOf<String?>(null) }
+    var pageName by rememberSaveable { mutableStateOf(startPage?.name) }
     val page = SettingsPage.entries.firstOrNull { it.name == pageName }
 
     val urlCheck = if (url.isBlank()) null else ServerUrl.check(url)

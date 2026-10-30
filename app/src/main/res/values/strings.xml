@@ -135,7 +135,7 @@
     <string name="setup_welcome_intro">NanoVoice è la voce del tuo assistente NanoClaw. Per cominciare collegalo: nel pannello di NanoClaw, pagina Phone, c\'è un QR da inquadrare con il telefono. Chi ha installato il server te lo può mostrare.</string>
     <string name="setup_pair_later">Lo faccio dopo</string>
     <string name="setup_download_size">Scarica e continua (circa %1$d MB)</string>
-    <string name="setup_intro">Per parlare con l\'assistente e sentire le risposte, scarica la voce: una volta sola, poi funziona anche senza rete. Puoi anche usare solo il testo e scaricarla più tardi dalle impostazioni.</string>
+    <string name="setup_intro">Per parlare con l\'assistente e sentire le risposte, scarica la voce: una volta sola. Poi ascolto e lettura funzionano sul telefono, anche senza rete; le risposte dell\'assistente arrivano dal server. Puoi anche usare solo il testo e scaricarla più tardi dalle impostazioni.</string>
     <string name="setup_recognition">Riconoscimento vocale (necessario)</string>
     <string name="setup_voice">Voce che legge le risposte</string>
     <string name="setup_download">Scarica e continua</string>

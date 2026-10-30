@@ -97,6 +97,7 @@ class MainActivity : ComponentActivity() {
             NanoTheme(themeMode.themeMode, themeMode.dynamicColors) {
                 val vm: ChatViewModel = viewModel(factory = chatViewModelFactory(container))
                 var showSettings by rememberSaveable { mutableStateOf(false) }
+                var settingsStart by rememberSaveable { mutableStateOf<String?>(null) }
                 val status by container.connection.status.collectAsState()
                 val settings by container.settingsStore.settings.collectAsState()
                 val modelState by container.voskModels.state.collectAsState()
@@ -164,13 +165,15 @@ class MainActivity : ComponentActivity() {
                             runCatching { startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)) }
                         },
                         onBack = { showSettings = false },
+                        startPage = SettingsPage.entries.firstOrNull { it.name == settingsStart },
                     )
                 } else {
                     ChatScreen(
                         viewModel = vm,
                         hasMicPermission = ::hasMicPermission,
                         requestMicPermission = { micLauncher.launch(Manifest.permission.RECORD_AUDIO) },
-                        onOpenSettings = { showSettings = true },
+                        onOpenSettings = { settingsStart = null; showSettings = true },
+                        onCheckConnection = { settingsStart = SettingsPage.Server.name; showSettings = true },
                     )
                 }
             }
