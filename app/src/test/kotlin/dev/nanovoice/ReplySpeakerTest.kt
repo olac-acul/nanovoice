@@ -105,7 +105,24 @@ class ReplySpeakerTest {
     @Test fun shortSentencesNumbersAndUnbrokenClausesStayWhole() {
         assertEquals(listOf("Sono le dieci, e un quarto."), spokenChunks("Sono le dieci, e un quarto."))
         val decimals = "La temperatura media di domani sarà di 21,5 gradi con umidità al 60,5 per cento e vento debole da nord."
-        assertEquals(listOf(decimals), spokenChunks(decimals))
+        assertEquals(
+            listOf("La temperatura media di domani sarà di 21,5 gradi con umidità al 60,5 per cento,", "e vento debole da nord."),
+            spokenChunks(decimals),
+        )
+        val unbroken = "La riunione con il gruppo di lavoro del progetto nuovo è stata spostata a giovedì pomeriggio alle quindici."
+        assertEquals(listOf(unbroken), spokenChunks(unbroken))
+    }
+
+    @Test fun aLongSentenceWithoutCommasIsCutBeforeAConnectingWord() {
+        assertEquals(
+            listOf("Domani il tempo resta stabile al mattino,", "ma nel pomeriggio arrivano nuvole e qualche pioggia."),
+            spokenChunks("Domani il tempo resta stabile al mattino ma nel pomeriggio arrivano nuvole e qualche pioggia."),
+        )
+    }
+
+    @Test fun noPieceIsCutTooShort() {
+        assertEquals(listOf("Ho comprato il pane e il latte"), breathPieces("Ho comprato il pane e il latte"))
+        assertEquals(listOf("E poi la sera siamo usciti", "ma faceva troppo freddo"), breathPieces("E poi la sera siamo usciti ma faceva troppo freddo"))
     }
 
     @Test fun theSpeakerSaysTheLongSentenceInPieces() {

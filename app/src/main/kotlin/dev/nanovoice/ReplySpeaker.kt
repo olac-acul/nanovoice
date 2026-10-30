@@ -113,31 +113,52 @@ internal fun withoutMarkdown(sentence: String): String {
 
 private val clauseBreak = Regex("""(?<=[,;:])\s+""")
 
+/** Before a word that opens a new part of the sentence, where a person would take a breath ("… al mattino ma nel …"). */
+private val breathBreak = Regex("""\s+(?=(?:e|ed|ma|però|perché|che|quando|se|mentre|dove|oppure|quindi|invece)\s)""", RegexOption.IGNORE_CASE)
+
+/**
+ * A clause cut before its connecting words, never into a piece shorter than [MIN_PIECE] ("e poi basta" stays with what
+ * comes before it). A clause with none stays whole.
+ */
+internal fun breathPieces(clause: String): List<String> {
+    val pieces = mutableListOf<String>()
+    for (piece in clause.split(breathBreak)) {
+        if (pieces.isNotEmpty() && (pieces.last().length < MIN_PIECE || piece.length < MIN_PIECE)) {
+            pieces[pieces.lastIndex] = "${pieces.last()} $piece"
+        } else {
+            pieces += piece
+        }
+    }
+    return pieces
+}
+
 /**
  * A long sentence in pieces that can be synthesized one by one. The voice takes about 37 ms of synthesis per character
- * before any of it is heard (a 170-character sentence: over 6 s of silence), and synthesizes faster than it speaks.
- * So the first piece is short, to start soon, and the next ones grow, each made while the one before is playing.
- * Cuts only after a comma, semicolon or colon followed by a space ("1,5" stays whole), never inside a clause; a
- * sentence up to [limits]'s first value stays whole.
+ * before any of it is heard (a 170-character sentence: over 6 s of silence; twice that on a hot phone), and
+ * synthesizes faster than it speaks. So the first piece is short, to start soon, and the next ones grow, each made
+ * while the one before is playing. Cuts after a comma, semicolon or colon followed by a space ("1,5" stays whole), and
+ * in a long clause before a connecting word ("ma", "e", "perché"…); a piece cut there ends with a comma, so the voice
+ * goes on in the tone of a pause, not of a full stop. A sentence up to [limits]'s first value stays whole.
  */
 internal fun spokenChunks(sentence: String, limits: List<Int> = CHUNK_LIMITS): List<String> {
     if (sentence.length <= limits.first()) return listOf(sentence)
-    val clauses = sentence.split(clauseBreak).filter { it.isNotBlank() }
-    if (clauses.size < 2) return listOf(sentence)
+    val pieces = sentence.split(clauseBreak).filter { it.isNotBlank() }.flatMap(::breathPieces)
+    if (pieces.size < 2) return listOf(sentence)
     val chunks = mutableListOf<String>()
     var current = ""
-    for (clause in clauses) {
+    for (piece in pieces) {
         val limit = limits[minOf(chunks.size, limits.lastIndex)]
-        val joined = if (current.isEmpty()) clause else "$current $clause"
+        val joined = if (current.isEmpty()) piece else "$current $piece"
         if (current.isNotEmpty() && joined.length > limit) {
             chunks += current
-            current = clause
+            current = piece
         } else {
             current = joined
         }
     }
     if (current.isNotEmpty()) chunks += current
-    return chunks
+    return chunks.mapIndexed { i, chunk -> if (i < chunks.lastIndex && chunk.last().isLetterOrDigit()) "$chunk," else chunk }
 }
 
+private const val MIN_PIECE = 20
 private val CHUNK_LIMITS = listOf(60, 100, 160)
