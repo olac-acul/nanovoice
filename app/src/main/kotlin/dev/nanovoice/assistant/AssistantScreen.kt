@@ -145,6 +145,7 @@ fun AssistantScreen(
                     if (working && workingText.isNotEmpty() && !voice.listening && voice.error == null) WorkingStatus(workingText) else if ((showTyping || working) && !voice.listening && voice.error == null) TypingDots() else Text(
                         text = when {
                             voice.error != null -> stringResource(sttErrorText(voice.error!!))
+                            voice.listening && voice.finishing -> stringResource(R.string.voice_transcribing)
                             voice.listening -> voice.partial.ifEmpty { stringResource(R.string.voice_listening) }
                             speaking -> stringResource(R.string.voice_speaking)
                             else -> stringResource(R.string.assistant_tap_to_speak)

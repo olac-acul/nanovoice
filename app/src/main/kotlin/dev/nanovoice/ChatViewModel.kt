@@ -223,8 +223,12 @@ class ChatViewModel(
 
     /** "Correggi e reinvia": the words of a message back in the field, to fix a misheard name or number and send again. */
     fun editAndResend(message: ChatMessage) {
-        if (!message.fromUser) return
-        _draft.value = message.text
+        if (message.fromUser) putInDraft(message.text)
+    }
+
+    /** An example from the help, in the field to send or change: some of them act ("imposta un timer"), so not sent. */
+    fun putInDraft(text: String) {
+        _draft.value = text
         _composeRequests.update { it + 1 }
     }
 
@@ -487,6 +491,10 @@ private const val NOT_UNDERSTOOD = "Non ho capito."
  * The draft with shared [text] added on a line of its own (after its [subject], a page's title, unless the text already
  * has it), ready for the person's question below; null when nothing was shared.
  */
+/** The first phrase in typographic quotes (“…”) of a help text, the example to try; null when it has none. */
+internal fun firstQuoted(text: String): String? =
+    Regex("“([^”]{1,80})”").find(text)?.groupValues?.get(1)?.trim()?.takeIf { it.isNotEmpty() }
+
 internal fun sharedDraft(draft: String, text: String, subject: String?): String? {
     val body = text.trim().take(MAX_SHARED_CHARS)
     if (body.isEmpty()) return null

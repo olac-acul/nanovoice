@@ -74,6 +74,8 @@ import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -251,7 +253,12 @@ fun ChatScreen(
         else -> OrbState.Idle
     }
 
-    if (showHelp) HelpDialog(onDismiss = { showHelp = false })
+    if (showHelp) {
+        HelpDialog(onDismiss = { showHelp = false }, onTry = { example ->
+            showHelp = false
+            viewModel.putInDraft(example)
+        })
+    }
     val consentRequest by viewModel.consentRequest.collectAsState()
     val replyingTo by viewModel.replyingTo.collectAsState()
     if (confirmNew) {
@@ -272,7 +279,7 @@ fun ChatScreen(
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Wordmark()
-                    StatusLine(status)
+                    StatusLine(status, onCheck = onOpenSettings)
                 }
                 Box(
                     modifier = Modifier
@@ -403,7 +410,7 @@ fun ChatScreen(
 
 /** What can be asked: the local requests work offline, everything else goes to NanoClaw. */
 @Composable
-private fun HelpDialog(onDismiss: () -> Unit) {
+private fun HelpDialog(onDismiss: () -> Unit, onTry: (String) -> Unit) {
     val examples = listOf(
         R.string.help_time to R.string.help_time_ex,
         R.string.help_date to R.string.help_date_ex,
@@ -428,13 +435,9 @@ private fun HelpDialog(onDismiss: () -> Unit) {
             Column(modifier = Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(stringResource(R.string.help_local_intro), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 for ((title, example) in examples) {
-                    Column {
-                        Text(stringResource(title), style = MaterialTheme.typography.titleMedium)
-                        Text(stringResource(example), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
+                    HelpEntry(stringResource(title), stringResource(example), onTry)
                 }
-                Text(stringResource(R.string.help_agent_title), style = MaterialTheme.typography.titleMedium)
-                Text(stringResource(R.string.help_agent_body), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                HelpEntry(stringResource(R.string.help_agent_title), stringResource(R.string.help_agent_body), onTry)
                 for ((title, body) in withAgent) {
                     Column {
                         Text(stringResource(title), style = MaterialTheme.typography.titleMedium)
@@ -447,8 +450,23 @@ private fun HelpDialog(onDismiss: () -> Unit) {
     )
 }
 
+/** A help entry; its first quoted example can be tried: it goes into the field, ready to send or change. */
 @Composable
-private fun StatusLine(status: AgentStatus) {
+private fun HelpEntry(title: String, body: String, onTry: (String) -> Unit) {
+    val example = remember(body) { firstQuoted(body) }
+    Column {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(title, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+            if (example != null) {
+                TextButton(onClick = { onTry(example) }) { Text(stringResource(R.string.help_try)) }
+            }
+        }
+        Text(body, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+@Composable
+private fun StatusLine(status: AgentStatus, onCheck: () -> Unit) {
     val color = when (status) {
         AgentStatus.Connected -> MaterialTheme.extra.success
         AgentStatus.NeedsVpn -> MaterialTheme.extra.warning
@@ -457,7 +475,22 @@ private fun StatusLine(status: AgentStatus) {
     }
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         Box(Modifier.size(8.dp).background(color, CircleShape))
-        Text(statusLabel(status), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        // Said by a screen reader when it changes: losing the server is news.
+        Text(
+            statusLabel(status),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+        )
+    }
+    // Not connected: the way to the server settings right where the problem shows, not only behind the settings button.
+    if (status == AgentStatus.Disconnected || status == AgentStatus.NeedsVpn || status == AgentStatus.NotConfigured) {
+        Text(
+            stringResource(R.string.status_check),
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable(role = Role.Button, onClick = onCheck).padding(vertical = 4.dp),
+        )
     }
 }
 
@@ -476,19 +509,23 @@ private fun EmptyHint(modifier: Modifier = Modifier) {
 
 @Composable
 private fun VoiceCaption(voice: VoiceUiState, speaking: Boolean, action: OrbAction) {
+    // Each step says what is going on: listening, working out the words, waiting for the answer, reading it out.
     val text = when {
         voice.error != null && action == OrbAction.Listen -> stringResource(sttErrorText(voice.error))
         action == OrbAction.Finish -> voice.partial.ifEmpty { stringResource(R.string.voice_listening_tap) }
+        voice.listening && voice.finishing -> stringResource(R.string.voice_transcribing)
         action == OrbAction.Cancel && speaking -> stringResource(R.string.voice_speaking_tap)
-        action == OrbAction.Cancel -> stringResource(R.string.voice_cancel)
+        action == OrbAction.Cancel -> stringResource(R.string.voice_waiting_tap)
         else -> stringResource(R.string.voice_hold)
     }
+    // A screen reader says each new step by itself, but not every word of the live transcript.
+    val announce = !(action == OrbAction.Finish && voice.partial.isNotEmpty())
     Text(
         text,
         style = MaterialTheme.typography.bodyMedium,
         color = if (voice.error != null && action == OrbAction.Listen) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
         textAlign = TextAlign.Center,
-        modifier = Modifier.padding(horizontal = 16.dp),
+        modifier = Modifier.padding(horizontal = 16.dp).semantics { if (announce) liveRegion = LiveRegionMode.Polite },
     )
 }
 

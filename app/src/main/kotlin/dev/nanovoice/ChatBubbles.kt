@@ -55,6 +55,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -270,6 +272,20 @@ private fun MessageBubble(
     val user = message.fromUser
     var menu by remember { mutableStateOf(false) }
     var selecting by remember { mutableStateOf(false) }
+    // The long-press menu's main entries, also as actions a screen reader offers on the message.
+    val replyLabel = stringResource(R.string.msg_reply)
+    val listenLabel = stringResource(R.string.msg_read_aloud)
+    val editLabel = stringResource(R.string.msg_edit)
+    val retryLabel = stringResource(R.string.msg_retry)
+    val moreLabel = stringResource(R.string.msg_more)
+    val a11yActions = remember(message, canRetry, actions) {
+        buildList {
+            add(CustomAccessibilityAction(replyLabel) { actions.reply(message); true })
+            if (!user && message.text.isNotEmpty()) add(CustomAccessibilityAction(listenLabel) { actions.readAloud(message); true })
+            if (user && message.text.isNotEmpty()) add(CustomAccessibilityAction(editLabel) { actions.edit(message); true })
+            if (canRetry) add(CustomAccessibilityAction(retryLabel) { actions.retry(message); true })
+        }
+    }
     val maxWidth = (LocalConfiguration.current.screenWidthDp * 0.84f).dp
     val time = remember(message.time) { Instant.ofEpochMilli(message.time).atZone(ZoneId.systemDefault()).format(TIME) }
     // Grouped bubbles: on the sender's side the corners are tight between messages of a group and only the first one
@@ -291,7 +307,8 @@ private fun MessageBubble(
                 modifier = Modifier
                     .widthIn(max = maxWidth)
                     .clip(shape)
-                    .combinedClickable(onClick = {}, onLongClick = { menu = true }),
+                    .semantics { customActions = a11yActions }
+                    .combinedClickable(onClick = {}, onLongClickLabel = moreLabel, onLongClick = { menu = true }),
             ) {
                 Column {
                     message.quote?.let { QuoteLine(it, content, Modifier.padding(start = 10.dp, end = 10.dp, top = 8.dp)) }

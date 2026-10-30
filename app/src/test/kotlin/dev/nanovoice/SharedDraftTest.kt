@@ -28,3 +28,11 @@ class SharedDraftTest {
         assertEquals(4_001, sharedDraft("", "x".repeat(10_000), null)!!.length)
     }
 }
+
+class FirstQuotedTest {
+    @Test fun theFirstQuotedExampleOfAHelpText() {
+        assertEquals("Svegliami alle sette e mezza", firstQuoted("“Svegliami alle sette e mezza”, “metti una sveglia domani alle sei”"))
+        assertEquals("Chiama Mario", firstQuoted("“Chiama Mario”: cerco il numero in rubrica."))
+        assertNull(firstQuoted("Tocca la fotocamera accanto al cerchio."))
+    }
+}

@@ -6,7 +6,6 @@
     <string name="keyboard_open">Scrivi</string>
     <string name="orb_listen">Parla</string>
     <string name="orb_finish">Ho finito di parlare</string>
-    <string name="voice_cancel">Tocca il cerchio per annullare</string>
     <string name="photo_attach">Allega una foto</string>
     <string name="photo_take">Scatta una foto</string>
     <string name="photo_pick">Scegli dalla galleria</string>
@@ -85,11 +84,14 @@
     <string name="status_disconnected">Server non raggiungibile: solo funzioni locali</string>
     <string name="status_connecting">Connessione al server…</string>
     <string name="status_connected">Connesso a NanoClaw</string>
+    <string name="status_check">Controlla il collegamento</string>
     <string name="preview_show">Anteprima di %1$s</string>
     <string name="status_needs_vpn">Server in chiaro (ws://): mi collego solo con la VPN attiva</string>
     <string name="token_invalid">Il token può contenere solo lettere, cifre e simboli, senza spazi.</string>
     <string name="voice_hold">Tocca il cerchio per parlare</string>
     <string name="voice_listening_tap">Ti ascolto…</string>
+    <string name="voice_transcribing">Sto trascrivendo…</string>
+    <string name="voice_waiting_tap">Preparo la risposta… tocca il cerchio per annullare</string>
     <string name="voice_speaking_tap">Parlo… tocca il cerchio per fermarmi</string>
     <string name="voice_release">Rilascia per inviare</string>
     <string name="voice_listening">Ascolto…</string>
@@ -171,6 +173,7 @@
     <string name="dynamic_hint">Usa i colori presi dallo sfondo del telefono (Material You) al posto di quelli di NanoVoice.</string>
     <string name="assistant_tap_to_speak">Tocca il cerchio per parlare</string>
     <string name="help_title">Cosa puoi chiedermi</string>
+    <string name="help_try">Prova</string>
     <string name="help_local_intro">Queste richieste le gestisco direttamente sul telefono, senza passare dall\'agente (se in Impostazioni i comandi semplici sono attivi): quasi tutte anche senza connessione.</string>
     <string name="help_time">Ora</string>
     <string name="help_time_ex">“Che ore sono?”</string>
@@ -212,6 +215,7 @@
     <string name="msg_retry">Riprova</string>
     <string name="reply_listen">Ascolta</string>
     <string name="msg_edit">Correggi e reinvia</string>
+    <string name="msg_more">Altre azioni</string>
     <string name="msg_copy_link">Copia link</string>
     <string name="msg_open_link">Apri %1$s</string>
     <string name="msg_copied">Copiato</string>
