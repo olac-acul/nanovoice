@@ -17,7 +17,7 @@ class FreshStartTest {
 
     @Test fun itVariesAndIsShort() {
         val lines = (0 until 400).map { ItalianPhrases.freshStart(15, Random(it)) }.toSet()
-        assertEquals(8, lines.size)
+        assertEquals(12, lines.size)
         assertTrue(lines.all { it.length <= 40 && '\n' !in it })
     }
 }

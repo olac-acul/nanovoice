@@ -163,6 +163,10 @@ object ItalianPhrases : SpokenPhrases {
         "Nuovo giro, nuova corsa.",
         "Che bello risentirti.",
         "Ripartiamo con calma.",
+        "Eccoci qua.",
+        "Si ricomincia.",
+        "Un nuovo inizio.",
+        "Di nuovo insieme.",
     )
 
     override fun freshStart(hour: Int, random: kotlin.random.Random): String {

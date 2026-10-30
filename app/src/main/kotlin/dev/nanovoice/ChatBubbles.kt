@@ -55,6 +55,12 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
+import dev.nanovoice.ui.OrbState
+import dev.nanovoice.ui.VoiceOrb
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.Animatable
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.Modifier
@@ -86,21 +92,33 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
-/** A line of the app's own between messages, centred and quieter than a bubble. */
+/**
+ * The opening of a conversation the server started over: a small orb like the big one, the headline ("Rieccoci.") as
+ * large as the empty chat's, and the day under it, coming in softly.
+ */
 @Composable
-private fun NoticeLine(text: String) {
-    // The first line is the headline ("Pagina nuova."); any further line says what it means, smaller.
-    val headline = text.substringBefore('\n')
-    val detail = text.substringAfter('\n', "").ifEmpty { null }
+private fun OpeningHeader(text: String, day: LocalDate) {
+    val shown = remember { Animatable(0f) }
+    LaunchedEffect(Unit) { shown.animateTo(1f, tween(durationMillis = 320, easing = FastOutSlowInEasing)) }
     Column(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 14.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 28.dp, bottom = 18.dp)
+            .graphicsLayer {
+                alpha = shown.value
+                translationY = (1f - shown.value) * 16.dp.toPx()
+            },
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(2.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        Text(headline, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurface, textAlign = TextAlign.Center)
-        detail?.let {
-            Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
-        }
+        VoiceOrb(OrbState.Idle, size = 40.dp)
+        Text(text, style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface, textAlign = TextAlign.Center)
+        Text(
+            day.format(DAY),
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+        )
     }
 }
 
@@ -172,11 +190,12 @@ fun ChatList(
             messages.forEachIndexed { index, message ->
                 val previous = messages.getOrNull(index - 1)
                 val day = day(message.time, zone)
-                if (previous == null || day(previous.time, zone) != day) {
+                // The opening of a restarted conversation carries its own day, so no chip above it.
+                if (!message.notice && (previous == null || day(previous.time, zone) != day)) {
                     item(key = "day-${message.id}") { DayChip(day) }
                 }
                 if (message.notice) {
-                    item(key = message.id) { NoticeLine(message.text) }
+                    item(key = message.id) { OpeningHeader(message.text, day) }
                     return@forEachIndexed
                 }
                 val startsGroup = previous == null || previous.fromUser != message.fromUser || previous.notice ||
@@ -232,7 +251,11 @@ fun ChatList(
 
 private fun day(time: Long, zone: ZoneId): LocalDate = Instant.ofEpochMilli(time).atZone(zone).toLocalDate()
 
-private fun dayCount(messages: List<ChatMessage>, zone: ZoneId) = messages.map { day(it.time, zone) }.distinct().size
+/** How many day chips the list shows: one where the day changes, none over an opening (it shows its day itself). */
+private fun dayCount(messages: List<ChatMessage>, zone: ZoneId) = messages.indices.count { i ->
+    val message = messages[i]
+    !message.notice && (i == 0 || day(messages[i - 1].time, zone) != day(message.time, zone))
+}
 
 private val TIME = DateTimeFormatter.ofPattern("HH:mm")
 private val DAY = DateTimeFormatter.ofPattern("EEEE d MMMM", Locale.ITALIAN)
