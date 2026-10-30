@@ -261,7 +261,7 @@ fun ChatList(
                     ReplyActions(
                         onListen = if (lastReply.failed) null else { { actions.readAloud(lastReply) } },
                         onRetry = lastRequest?.takeIf { lastReply.failed }?.let { request -> { actions.retry(request) } },
-                        onEdit = lastRequest?.takeIf { it.text.isNotBlank() }?.let { request -> { actions.edit(request) } },
+                        onEdit = lastRequest?.takeIf { it.text.isNotBlank() && answers(messages, lastReply, it) }?.let { request -> { actions.edit(request) } },
                         onCheck = onCheckConnection?.takeIf { lastReply.failed },
                     )
                 }
@@ -294,6 +294,13 @@ fun ChatList(
         }
     }
 }
+
+/**
+ * The [reply] comes right after the [request]: its answer, not a message the agent sent by itself later (a reminder),
+ * under which "Correggi" would reopen a request it has nothing to do with.
+ */
+internal fun answers(messages: List<ChatMessage>, reply: ChatMessage, request: ChatMessage): Boolean =
+    messages.indexOfFirst { it.id == reply.id } == messages.indexOfFirst { it.id == request.id } + 1
 
 private fun day(time: Long, zone: ZoneId): LocalDate = Instant.ofEpochMilli(time).atZone(zone).toLocalDate()
 
