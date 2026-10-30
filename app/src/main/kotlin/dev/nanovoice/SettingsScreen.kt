@@ -8,6 +8,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -19,6 +20,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -200,8 +202,8 @@ fun SettingsScreen(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 when (page) {
-                    null -> {
-                        CategoryRow(R.string.cat_replies, VoiceCatalog.byId(voiceId)?.displayName ?: "-") { pageName = SettingsPage.Replies.name }
+                    null -> CategoryGroup {
+                        CategoryRow(R.string.cat_replies, VoiceCatalog.byId(voiceId)?.displayName ?: "-", first = true) { pageName = SettingsPage.Replies.name }
                         CategoryRow(
                             R.string.cat_listening,
                             stringResource(if (modelState == ModelState.Installed) R.string.sum_listening_ready else R.string.sum_listening_missing),
@@ -549,21 +551,29 @@ private fun SwitchRow(
     }
 }
 
+/** The settings by goal as one block, rows split by thin lines: a list to pick from, not eight cards. */
 @Composable
-private fun CategoryRow(title: Int, summary: String, onClick: () -> Unit) {
+private fun CategoryGroup(content: @Composable ColumnScope.() -> Unit) {
     Surface(
         shape = MaterialTheme.shapes.large,
         color = MaterialTheme.colorScheme.surfaceContainer,
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-        modifier = Modifier.fillMaxWidth().clickable(role = Role.Button, onClick = onClick),
+        modifier = Modifier.fillMaxWidth(),
+    ) { Column(content = content) }
+}
+
+@Composable
+private fun CategoryRow(title: Int, summary: String, first: Boolean = false, onClick: () -> Unit) {
+    if (!first) HorizontalDivider(Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant)
+    Row(
+        modifier = Modifier.fillMaxWidth().clickable(role = Role.Button, onClick = onClick).padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Row(modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
-            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(stringResource(title), style = MaterialTheme.typography.titleMedium)
-                Text(summary, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-            Icons.Chevron(MaterialTheme.colorScheme.outline)
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(stringResource(title), style = MaterialTheme.typography.titleMedium)
+            Text(summary, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
+        Icons.Chevron(MaterialTheme.colorScheme.outline)
     }
 }
 
