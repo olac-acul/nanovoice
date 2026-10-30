@@ -69,13 +69,14 @@
             </intent-filter>
         </activity>
 
-        <!-- "Condividi": passes a shared photo to the chat already open, without a second chat. -->
+        <!-- "Condividi": passes a shared photo, text or link to the chat already open, without a second chat. -->
         <activity android:name=".ShareActivity" android:exported="true" android:theme="@android:style/Theme.NoDisplay"
             android:excludeFromRecents="true" android:noHistory="true">
             <intent-filter android:label="@string/share_label">
                 <action android:name="android.intent.action.SEND" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:mimeType="image/*" />
+                <data android:mimeType="text/plain" />
             </intent-filter>
         </activity>
 

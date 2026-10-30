@@ -39,6 +39,8 @@ data class ChatMessage(
     val barcode: String? = null,
     /** A reply that is no answer (an error, an interrupted request): the request is worth sending again. */
     val failed: Boolean = false,
+    /** Not a message but a line of the app's own, between messages ("Conversazione ricominciata"). */
+    val notice: Boolean = false,
 )
 
 class ChatViewModel(
@@ -214,6 +216,28 @@ class ChatViewModel(
         _draft.value = text
     }
 
+    private val _composeRequests = MutableStateFlow(0)
+
+    /** Counts the times something put text in the draft for the person to finish: the screen opens the text field. */
+    val composeRequests: StateFlow<Int> = _composeRequests
+
+    /** "Correggi e reinvia": the words of a message back in the field, to fix a misheard name or number and send again. */
+    fun editAndResend(message: ChatMessage) {
+        if (!message.fromUser) return
+        _draft.value = message.text
+        _composeRequests.update { it + 1 }
+    }
+
+    /**
+     * Text or a link shared from another app: added to the draft, never sent by itself, so the person says what to do
+     * with it ("riassumilo"). A page shared from a browser comes as its title and its address.
+     */
+    fun receiveShared(text: String, subject: String?) {
+        val next = sharedDraft(_draft.value, text, subject) ?: return
+        _draft.value = next
+        _composeRequests.update { it + 1 }
+    }
+
     private val _replyingTo = MutableStateFlow<ChatMessage?>(null)
 
     /** The message the next one answers ("Rispondi" in its menu), shown above the input until sent or dismissed. */
@@ -281,7 +305,7 @@ class ChatViewModel(
         // One request at a time: a new one replaces the one still being answered (the server drops the rest of it).
         if (busy.value) stopReplies()
         spokenRequest = spoken
-        add(trimmed, fromUser = true, image = preview, photo = sent, quote = quote, barcode = barcode)
+        val requestId = add(trimmed, fromUser = true, image = preview, photo = sent, quote = quote, barcode = barcode)
         // The barcode read on the phone goes to the agent (for the product databases), not into the bubble. Scanned or found
         // in a photo, it takes the line the agent's instructions know. A reply carries the start of the message it
         // answers, so the agent knows what "questo" refers to.
@@ -295,6 +319,10 @@ class ChatViewModel(
             val presenter = ReplyPresenter()
             try {
                 engine.respond(trimmed, localOnly = isLocked(), image = sent, forAgent = forAgent).collect { snap ->
+                    if (snap.contextRestarted) {
+                        noteBefore(requestId, phrases.contextRestarted)
+                        return@collect
+                    }
                     _thinking.value = false
                     _working.value = snap.working
                     val step = presenter.next(snap, hasBubble = replyId != null)
@@ -385,7 +413,7 @@ class ChatViewModel(
     private var lastReplyAt = 0L
 
     private fun repeatsLastReply(text: String): Boolean {
-        val last = _messages.value.lastOrNull { !it.fromUser } ?: return false
+        val last = _messages.value.lastOrNull { !it.fromUser && !it.notice } ?: return false
         return last.text.trim() == text.trim() && android.os.SystemClock.elapsedRealtime() - lastReplyAt < REPEAT_WINDOW_MS
     }
 
@@ -410,6 +438,15 @@ class ChatViewModel(
     }
 
     private fun remove(id: Long) = _messages.update { list -> list.filter { it.id != id } }
+
+    /** A line of the app's own, just above the message [before]: where the conversation started over, say. */
+    private fun noteBefore(before: Long, text: String) {
+        val id = nextId++
+        _messages.update { list ->
+            val at = list.indexOfFirst { it.id == before }.takeIf { it >= 0 } ?: list.size
+            list.take(at) + ChatMessage(id, text, fromUser = false, notice = true) + list.drop(at)
+        }
+    }
 
     private fun replace(id: Long, text: String, failed: Boolean = false) {
         lastReplyAt = android.os.SystemClock.elapsedRealtime()
@@ -442,6 +479,20 @@ private const val REPEAT_WINDOW_MS = 60_000L
 /** How long a question may take to start being spoken before listening for the answer anyway. */
 private const val SPEECH_START_MS = 2_000L
 private const val NOT_UNDERSTOOD = "Non ho capito."
+
+/**
+ * The draft with shared [text] added on a line of its own (after its [subject], a page's title, unless the text already
+ * has it), ready for the person's question below; null when nothing was shared.
+ */
+internal fun sharedDraft(draft: String, text: String, subject: String?): String? {
+    val body = text.trim().take(MAX_SHARED_CHARS)
+    if (body.isEmpty()) return null
+    val title = subject?.trim()?.takeIf { it.isNotEmpty() && !body.contains(it) }
+    val shared = listOfNotNull(title, body).joinToString("\n")
+    return if (draft.isBlank()) "$shared\n" else "${draft.trimEnd()}\n$shared\n"
+}
+/** More than any page title and address, or a passage worth asking about: a whole article is cut there. */
+private const val MAX_SHARED_CHARS = 4_000
 
 
 /** The reply without the line the agent said before it started working. */

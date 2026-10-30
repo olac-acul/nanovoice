@@ -67,11 +67,15 @@ class MainActivity : ComponentActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        receiveSharedPhoto(intent)
+        receiveShared(intent)
     }
 
-    /** "Condividi → Chiedi a NanoVoice" from another app: the photo is attached to the next message. */
-    private fun receiveSharedPhoto(intent: Intent?) {
+    /** "Condividi → Chiedi a NanoVoice" from another app: the photo is attached to the next message, text goes in the draft. */
+    private fun receiveShared(intent: Intent?) {
+        if (intent?.action == Intent.ACTION_SEND && intent.type == "text/plain") {
+            intent.getStringExtra(Intent.EXTRA_TEXT)?.let { chatViewModel().receiveShared(it, intent.getStringExtra(Intent.EXTRA_SUBJECT)) }
+            return
+        }
         if (intent?.action != Intent.ACTION_SEND || intent.type?.startsWith("image/") != true) return
         @Suppress("DEPRECATION")
         val uri = (if (Build.VERSION.SDK_INT >= 33) intent.getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java) else intent.getParcelableExtra(Intent.EXTRA_STREAM))
@@ -87,7 +91,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val container = (application as NanoVoiceApp).container
-        if (savedInstanceState == null) receiveSharedPhoto(intent)
+        if (savedInstanceState == null) receiveShared(intent)
         setContent {
             val themeMode by container.settingsStore.settings.collectAsState()
             NanoTheme(themeMode.themeMode, themeMode.dynamicColors) {

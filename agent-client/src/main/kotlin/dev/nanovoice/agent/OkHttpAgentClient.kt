@@ -234,6 +234,7 @@ class OkHttpAgentClient(
                 if (open != null) open.trySend(AgentEvent.Delta(msg.text)) else if (msg.replyTo !in abandoned) _notifications.tryEmit(msg.text)
             }
             is Protocol.ServerMessage.Working -> pending[msg.replyTo]?.trySend(AgentEvent.Working)
+            is Protocol.ServerMessage.ContextRestarted -> pending[msg.replyTo]?.trySend(AgentEvent.ContextRestarted)
             is Protocol.ServerMessage.Done -> if (abandoned.remove(msg.replyTo)) Unit else pending[msg.replyTo]?.trySend(AgentEvent.Done)
             is Protocol.ServerMessage.Error -> {
                 if (msg.replyTo != null && abandoned.remove(msg.replyTo)) return

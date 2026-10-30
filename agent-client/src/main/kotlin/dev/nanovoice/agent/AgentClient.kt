@@ -14,6 +14,8 @@ sealed interface AgentEvent {
     /** The agent is still working (a web search, say): more text will follow in this reply. */
     data object Working : AgentEvent
     data object Done : AgentEvent
+    /** The server started the conversation over before this request (after a long pause): earlier messages are gone. */
+    data object ContextRestarted : AgentEvent
     data class Error(val message: String) : AgentEvent
 }
 

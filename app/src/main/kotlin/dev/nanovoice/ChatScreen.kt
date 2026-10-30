@@ -77,6 +77,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -227,6 +228,16 @@ fun ChatScreen(
             closedWithText = false
         }
     }
+    // A message to fix, or text shared from another app, is in the draft: the field opens on it. Only for requests made
+    // while this screen shows, not again when it comes back from the settings.
+    val composeRequests by viewModel.composeRequests.collectAsState()
+    var composeSeen by remember { mutableIntStateOf(composeRequests) }
+    LaunchedEffect(composeRequests) {
+        if (composeRequests == composeSeen) return@LaunchedEffect
+        composeSeen = composeRequests
+        closedWithText = false
+        if (typing) openKeyboard() else typing = true
+    }
     // The orb gives way as soon as the keyboard is asked for, not when it has opened: both move together.
     val showOrb = !typing || closedWithText
     val orbAction by viewModel.orbAction.collectAsState()
@@ -300,7 +311,12 @@ fun ChatScreen(
                         showTyping = showTyping,
                         workingText = workingText.takeIf { showStatus },
                         actions = remember(viewModel) {
-                            MessageActions(reply = viewModel::replyTo, retry = viewModel::retry, readAloud = viewModel::readAloud)
+                            MessageActions(
+                                reply = viewModel::replyTo,
+                                retry = viewModel::retry,
+                                readAloud = viewModel::readAloud,
+                                edit = viewModel::editAndResend,
+                            )
                         },
                         modifier = Modifier.fillMaxSize(),
                     )
@@ -326,7 +342,7 @@ fun ChatScreen(
                     onPick = { viewModel.pickChoice(request.id, it) },
                 )
             }
-            photo?.let { AttachedPhoto(it.preview, onRemove = { viewModel.attachPhoto(null) }, onSend = sendAttachment.takeIf { barcode == null }) }
+            photo?.let { AttachedPhoto(it.preview, it.detail, onRemove = { viewModel.attachPhoto(null) }, onSend = sendAttachment.takeIf { barcode == null }) }
             barcode?.let { AttachedBarcode(it, onRemove = { viewModel.attachBarcode(null) }, onSend = sendAttachment) }
             AnimatedVisibility(
                 visible = showOrb,
@@ -600,15 +616,23 @@ private fun AttachedBarcode(scanned: ScannedProduct, onRemove: () -> Unit, onSen
 
 /** The photo waiting to go with the next message. */
 @Composable
-private fun AttachedPhoto(preview: ImageBitmap, onRemove: () -> Unit, onSend: (() -> Unit)?) {
+private fun AttachedPhoto(preview: ImageBitmap, full: AgentImage, onRemove: () -> Unit, onSend: (() -> Unit)?) {
     val colors = MaterialTheme.colorScheme
     val removeLabel = stringResource(R.string.photo_remove)
+    val viewLabel = stringResource(R.string.photo_view)
+    var viewing by remember { mutableStateOf(false) }
+    if (viewing) PhotoViewer(preview, full, onSearch = null, onDismiss = { viewing = false })
     Row(
         modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Image(preview, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.size(56.dp).clip(RoundedCornerShape(12.dp)))
+        Image(
+            preview,
+            contentDescription = viewLabel,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier.size(56.dp).clip(RoundedCornerShape(12.dp)).clickable(role = Role.Button) { viewing = true },
+        )
         Text(stringResource(R.string.photo_attached), style = MaterialTheme.typography.bodyMedium, color = colors.onSurfaceVariant, modifier = Modifier.weight(1f))
         Box(
             modifier = Modifier

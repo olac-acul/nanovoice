@@ -92,6 +92,8 @@ interface SpokenPhrases {
 
     /** Shown in place of a reply the user interrupted. */
     val requestInterrupted: String
+    /** Shown where the server started the conversation over after a long pause: the agent no longer has what is above. */
+    val contextRestarted: String
 
     /** Every phrase that never changes, to be synthesized in advance. */
     val fixedPhrases: List<String>

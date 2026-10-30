@@ -150,6 +150,22 @@ class OkHttpAgentClientTest {
         )
     }
 
+    @Test fun aRestartAfterAPauseReachesTheRequestItCameWith() {
+        val c = client()
+        val ws = serverSocket()
+        next() // hello
+        waitConnected(c)
+        val events = scope.async { c.ask("dopo la pausa").toList() }
+        val id = next()["id"]!!.jsonPrimitive.content
+        ws.send("""{"type":"context_restarted","reply_to":"$id"}""")
+        ws.send("""{"type":"delta","reply_to":"$id","text":"Eccomi."}""")
+        ws.send("""{"type":"done","reply_to":"$id"}""")
+        assertEquals(
+            listOf(AgentEvent.ContextRestarted, AgentEvent.Delta("Eccomi."), AgentEvent.Done),
+            runBlocking { events.await() },
+        )
+    }
+
     @Test fun newConversationWaitsForTheServer() {
         val c = client()
         val ws = serverSocket()

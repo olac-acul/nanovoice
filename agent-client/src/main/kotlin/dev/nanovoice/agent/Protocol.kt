@@ -71,6 +71,7 @@ internal object Protocol {
         data class Error(val replyTo: String?, val message: String) : ServerMessage
         data class Notify(val text: String) : ServerMessage
         data class ConversationReset(val ok: Boolean) : ServerMessage
+        data class ContextRestarted(val replyTo: String) : ServerMessage
     }
 
     /** Returns null for malformed or unknown messages, which the client ignores. */
@@ -90,6 +91,7 @@ internal object Protocol {
             "error" -> ServerMessage.Error(str("reply_to"), str("message") ?: "errore sconosciuto")
             "notify" -> ServerMessage.Notify(str("text") ?: return null)
             "conversation_reset" -> ServerMessage.ConversationReset((obj["ok"] as? JsonPrimitive)?.contentOrNull == "true")
+            "context_restarted" -> ServerMessage.ContextRestarted(str("reply_to") ?: return null)
             else -> null
         }
     }

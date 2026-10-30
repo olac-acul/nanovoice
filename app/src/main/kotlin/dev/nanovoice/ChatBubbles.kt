@@ -44,6 +44,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
@@ -83,12 +84,24 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
-/** "Ascolta" (and "Riprova" for a reply that is no answer) under the latest reply: the long press stays a shortcut. */
+/** A line of the app's own between messages, centred and quieter than a bubble. */
 @Composable
-private fun ReplyActions(onListen: () -> Unit, onRetry: (() -> Unit)?) {
+private fun NoticeLine(text: String) {
+    Text(
+        text,
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        textAlign = TextAlign.Center,
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 12.dp),
+    )
+}
+
+/** "Ascolta" under the latest reply, or "Riprova" when it is no answer: the long press stays a shortcut. */
+@Composable
+private fun ReplyActions(onListen: (() -> Unit)?, onRetry: (() -> Unit)?) {
     val color = MaterialTheme.colorScheme.onSurfaceVariant
     Row(modifier = Modifier.padding(start = 4.dp, top = 4.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-        TextButton(onClick = onListen) {
+        if (onListen != null) TextButton(onClick = onListen) {
             Icons.Speaker(color, size = 18.dp)
             Spacer(Modifier.width(6.dp))
             Text(stringResource(R.string.reply_listen), color = color)
@@ -102,6 +115,7 @@ class MessageActions(
     val reply: (ChatMessage) -> Unit,
     val retry: (ChatMessage) -> Unit,
     val readAloud: (ChatMessage) -> Unit,
+    val edit: (ChatMessage) -> Unit,
 )
 
 /**
@@ -122,7 +136,7 @@ fun ChatList(
     val zone = remember { ZoneId.systemDefault() }
     val lastUserId = messages.lastOrNull { it.fromUser }?.id
     // Under the latest reply, once it is complete: "Ascolta", and "Riprova" when it is no answer.
-    val lastReply = messages.lastOrNull()?.takeIf { !it.fromUser && !showTyping && workingText == null }
+    val lastReply = messages.lastOrNull()?.takeIf { !it.fromUser && !it.notice && !showTyping && workingText == null }
     val lastRequest = messages.lastOrNull { it.fromUser }
     val scope = rememberCoroutineScope()
     // Following the conversation unless the person scrolled up to read: then new text does not pull them down.
@@ -153,7 +167,12 @@ fun ChatList(
                 if (previous == null || day(previous.time, zone) != day) {
                     item(key = "day-${message.id}") { DayChip(day) }
                 }
-                val startsGroup = previous == null || previous.fromUser != message.fromUser || day(previous.time, zone) != day
+                if (message.notice) {
+                    item(key = message.id) { NoticeLine(message.text) }
+                    return@forEachIndexed
+                }
+                val startsGroup = previous == null || previous.fromUser != message.fromUser || previous.notice ||
+                    day(previous.time, zone) != day
                 item(key = message.id) {
                     MessageBubble(
                         message,
@@ -169,7 +188,7 @@ fun ChatList(
             if (lastReply != null) {
                 item(key = "after-${lastReply.id}") {
                     ReplyActions(
-                        onListen = { actions.readAloud(lastReply) },
+                        onListen = if (lastReply.failed) null else { { actions.readAloud(lastReply) } },
                         onRetry = lastRequest?.takeIf { lastReply.failed }?.let { request -> { actions.retry(request) } },
                     )
                 }
@@ -379,6 +398,9 @@ private fun MessageMenu(
             NanoMenuItem(stringResource(R.string.msg_open_link, host), { Icons.Link(color) }) { onDismiss(); runCatching { uriHandler.openUri(link) } }
             NanoMenuItem(stringResource(R.string.msg_copy_link), { Icons.Copy(color) }) { onDismiss(); copy(context, link) }
         }
+        if (message.fromUser && shown.isNotEmpty()) {
+            NanoMenuItem(stringResource(R.string.msg_edit), { Icons.Keyboard(color) }) { onDismiss(); actions.edit(message) }
+        }
         if (canRetry) NanoMenuItem(stringResource(R.string.msg_retry), { Icons.Retry(color) }) { onDismiss(); actions.retry(message) }
     }
 }
@@ -405,12 +427,12 @@ private fun share(context: Context, text: String) {
     runCatching { context.startActivity(Intent.createChooser(send, null).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
 }
 
-/** A photo in the chat; a tap offers a reverse image search on it (TinEye), a long press the message's menu. */
+/** A photo in the chat; a tap shows it on the whole screen (with the reverse image search there), a long press the menu. */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun SentPhoto(preview: ImageBitmap, photo: AgentImage?, onLongPress: () -> Unit) {
     val context = LocalContext.current
-    var menu by remember { mutableStateOf(false) }
+    var viewing by remember { mutableStateOf(false) }
     Box {
         Image(
             preview,
@@ -421,17 +443,16 @@ private fun SentPhoto(preview: ImageBitmap, photo: AgentImage?, onLongPress: () 
                 .widthIn(max = 260.dp)
                 .heightIn(max = 260.dp)
                 .clip(RoundedCornerShape(14.dp))
-                .combinedClickable(enabled = true, onClick = { if (photo != null) menu = true }, onLongClick = onLongPress),
+                .combinedClickable(enabled = true, onClick = { viewing = true }, onLongClick = onLongPress),
         )
-        if (photo != null) {
-            val color = MaterialTheme.colorScheme.onSurface
-            NanoMenu(expanded = menu, onDismiss = { menu = false }) {
-                NanoMenuItem(stringResource(R.string.search_tineye), { Icons.Search(color, size = 20.dp) }) {
-                    menu = false
-                    ImageSearchActivity.open(context, photo, ImageSearchActivity.Engine.TinEye)
-                }
-            }
-        }
+    }
+    if (viewing) {
+        PhotoViewer(
+            preview,
+            full = photo,
+            onSearch = photo?.let { { viewing = false; ImageSearchActivity.open(context, it, ImageSearchActivity.Engine.TinEye) } },
+            onDismiss = { viewing = false },
+        )
     }
 }
 
