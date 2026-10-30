@@ -7,7 +7,6 @@ import android.inputmethodservice.InputMethodService
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
-import android.util.Log
 import android.view.View
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
@@ -87,7 +86,6 @@ class VoiceInputMethod : InputMethodService(), LifecycleOwner, SavedStateRegistr
             // The keyboard's window lies under that bar, and its insets do not reach Compose: read them on the window.
             ViewCompat.setOnApplyWindowInsetsListener(it) { view, insets ->
                 navigationBar = insets.getInsets(WindowInsetsCompat.Type.navigationBars()).bottom
-                Log.d(TAG, "navigation bar under the keyboard: $navigationBar px")
                 ViewCompat.onApplyWindowInsets(view, insets)
             }
         }
@@ -97,7 +95,8 @@ class VoiceInputMethod : InputMethodService(), LifecycleOwner, SavedStateRegistr
             setContent {
                 val settings by container.settingsStore.settings.collectAsState()
                 val state by voice.state.collectAsState()
-                val bottom = with(LocalDensity.current) { navigationBar.toDp() }
+                // A gap above the bar's buttons, so the panel does not look as if it sat on them.
+                val bottom = with(LocalDensity.current) { navigationBar.toDp() } + 16.dp
                 NanoTheme(settings.themeMode, settings.dynamicColors) {
                     Box(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface).padding(bottom = bottom).padding(8.dp)) {
                         DictationPanel(
@@ -171,5 +170,3 @@ class VoiceInputMethod : InputMethodService(), LifecycleOwner, SavedStateRegistr
         back()
     }
 }
-
-private const val TAG = "VoiceInputMethod"
