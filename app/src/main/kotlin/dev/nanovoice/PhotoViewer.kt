@@ -8,6 +8,7 @@ import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
@@ -107,6 +108,19 @@ fun PhotoViewer(
                     .align(Alignment.TopStart),
                 contentAlignment = Alignment.Center,
             ) { Icons.Close(Color.White) }
+            // Zoom without two fingers (a screen reader, one hand): the photo grows around its centre.
+            Row(
+                modifier = Modifier.safeDrawingPadding().padding(12.dp).align(Alignment.TopEnd),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                ZoomButton(stringResource(R.string.photo_zoom_out), "−") {
+                    scale = (scale / ZOOM_STEP).coerceAtLeast(1f)
+                    offset = if (scale == 1f) Offset.Zero else offset / ZOOM_STEP
+                }
+                ZoomButton(stringResource(R.string.photo_zoom_in), "+") {
+                    scale = (scale * ZOOM_STEP).coerceAtMost(MAX_ZOOM)
+                }
+            }
             if (onSearch != null) {
                 Button(
                     onClick = onSearch,
@@ -131,4 +145,17 @@ fun PhotoViewer(
     }
 }
 
+@Composable
+private fun ZoomButton(label: String, sign: String, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .size(44.dp)
+            .background(Color.Black.copy(alpha = 0.55f), CircleShape)
+            .semantics { contentDescription = label }
+            .clickable(role = Role.Button, onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) { Text(sign, color = Color.White, style = androidx.compose.material3.MaterialTheme.typography.titleLarge) }
+}
+
 private const val MAX_ZOOM = 6f
+private const val ZOOM_STEP = 1.5f

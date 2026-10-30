@@ -348,6 +348,7 @@ fun ChatScreen(
                             )
                         },
                         modifier = Modifier.fillMaxSize(),
+                        onCheckConnection = onOpenSettings.takeIf { status != AgentStatus.Connected },
                     )
                 }
             }
@@ -722,7 +723,11 @@ private fun AttachedBarcode(
             else -> stringResource(R.string.barcode_attached, scanned.code, stringResource(scanned.kind.label))
         }
         Box(Modifier.weight(1f)) {
-            Text(text, style = MaterialTheme.typography.bodyMedium, color = colors.onSurfaceVariant)
+            // The whole row opens the menu; the line says so, not only to a screen reader.
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(text, style = MaterialTheme.typography.bodyMedium, color = colors.onSurfaceVariant)
+                Text(changeLabel, style = MaterialTheme.typography.labelLarge, color = colors.primary)
+            }
             NanoMenu(expanded = menu, onDismiss = { menu = false }) {
                 for (kind in ProductKind.entries) {
                     NanoMenuItem(stringResource(kind.label), { Icons.Barcode(colors.onSurface, size = 20.dp) }) {

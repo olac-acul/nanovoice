@@ -164,11 +164,11 @@ object ItalianPhrases : SpokenPhrases {
     )
 
     private fun forTheHour(hour: Int): List<String> = when (hour) {
-        in 5..7 -> listOf("Buongiorno! Caffè già fatto?", "Sveglia presto, eh.")
+        in 5..7 -> listOf("Buongiorno! Prima il caffè.", "Sveglia presto, eh.")
         in 8..11 -> listOf("Buongiorno, si parte.")
         in 12..14 -> listOf("Pausa pranzo, eccomi.")
         in 15..18 -> listOf("Buon pomeriggio, sono qui.")
-        in 19..22 -> listOf("Buonasera, giornata lunga?", "Si fa sera, eccomi.")
+        in 19..22 -> listOf("Buonasera, eccomi.", "Si fa sera, eccomi.")
         else -> listOf("Ore piccole, eh.", "La notte porta consiglio.")
     }
 

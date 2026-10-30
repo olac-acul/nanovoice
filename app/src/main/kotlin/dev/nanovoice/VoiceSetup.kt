@@ -77,14 +77,20 @@ fun AccurateSttSection(
     onDelete: () -> Unit,
 ) {
     val size = mb(ParakeetModels.V3_INT8.sizeBytes)
+    var details by rememberSaveable { mutableStateOf(false) }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(stringResource(R.string.accurate_stt_label), style = MaterialTheme.typography.titleMedium)
-                Text(stringResource(R.string.accurate_stt_hint, size), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                // What it changes for the person first; the engine, its license and its memory on request.
+                Text(stringResource(R.string.accurate_stt_hint), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                if (details) {
+                    Text(stringResource(R.string.accurate_stt_details, size), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
             }
             if (state == ModelState.Installed) Switch(checked = enabled, onCheckedChange = onEnabled)
         }
+        TextButton(onClick = { details = !details }) { Text(stringResource(if (details) R.string.details_hide else R.string.details_show)) }
         when (state) {
             ModelState.NotInstalled -> Button(onClick = onDownload) { Text(stringResource(R.string.download)) }
             is ModelState.Downloading -> {

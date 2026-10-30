@@ -116,7 +116,12 @@
     <string name="vosk_not_installed">Modello italiano non installato (circa %1$d MB).</string>
     <string name="vosk_installed">Modello italiano installato.</string>
     <string name="accurate_stt_label">Riconoscimento accurato</string>
-    <string name="accurate_stt_hint">Quando hai finito di parlare, la frase viene ritrascritta con Parakeet (NVIDIA, CC BY 4.0): sbaglia molto meno nomi e comandi brevi. Tutto sul telefono, circa mezzo secondo in più; scaricamento di circa %1$d MB, usa circa 700 MB di memoria mentre ascolta.</string>
+    <string name="accurate_stt_hint">Più preciso con nomi e comandi brevi, un po\' più lento. Tutto sul telefono.</string>
+    <string name="accurate_stt_details">Quando hai finito di parlare, la frase viene ritrascritta con Parakeet (NVIDIA, CC BY 4.0): circa mezzo secondo in più. Scaricamento di circa %1$d MB; usa circa 700 MB di memoria mentre ascolta.</string>
+    <string name="details_show">Dettagli</string>
+    <string name="details_hide">Nascondi i dettagli</string>
+    <string name="photo_zoom_in">Ingrandisci</string>
+    <string name="photo_zoom_out">Rimpicciolisci</string>
     <string name="accurate_stt_delete">Elimina il modello (libera %1$d MB)</string>
     <string name="download">Scarica</string>
     <string name="delete">Elimina</string>

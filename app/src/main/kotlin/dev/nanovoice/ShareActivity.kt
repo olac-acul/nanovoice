@@ -38,7 +38,15 @@ class ShareActivity : Activity() {
                 )
             // The read grant comes with the photo, so the chat can open it.
             forward.clipData = ClipData.newRawUri(null, uri)
-            startActivity(forward)
+            try {
+                startActivity(forward)
+            } catch (_: SecurityException) {
+                // The sending app gave no permission to read it, so there is none to pass on: the chat tries anyway and
+                // says the photo could not be opened, instead of the app closing.
+                forward.clipData = null
+                forward.removeFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                startActivity(forward)
+            }
         }
         finish()
     }

@@ -34,6 +34,11 @@ class FreshStartTest {
         assertTrue("Lunedì: si riparte." in draws(LocalDateTime.of(2026, 11, 2, 9, 0)))
     }
 
+    @Test fun neverAQuestionThatInvitesAnAnswer() {
+        val all = (0..23).flatMap { draws(LocalDateTime.of(2026, 10, 26, it, 0).plusDays((it % 7).toLong())) }
+        assertTrue(all.none { '?' in it }, all.filter { '?' in it }.toString())
+    }
+
     @Test fun shortAndOnOneLine() {
         val all = listOf(0, 6, 9, 13, 16, 20, 23).flatMap { draws(LocalDateTime.of(2026, 10, 30, it, 0)) }
         assertTrue(all.all { it.length <= 40 && '\n' !in it })

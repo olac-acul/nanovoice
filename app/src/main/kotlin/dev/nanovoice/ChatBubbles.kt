@@ -44,6 +44,8 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.runtime.Composable
@@ -143,17 +145,23 @@ private fun EarlierToggle(count: Int, shown: Boolean, onToggle: () -> Unit) {
     }
 }
 
-/** "Ascolta" under the latest reply, or "Riprova" when it is no answer: the long press stays a shortcut. */
+/**
+ * Under the latest reply: "Ascolta", or "Riprova" when it is no answer (with "Controlla il collegamento" when the server
+ * is not reached), and "Correggi" for a request that was misheard or mistyped. The long press stays a shortcut.
+ */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun ReplyActions(onListen: (() -> Unit)?, onRetry: (() -> Unit)?) {
+private fun ReplyActions(onListen: (() -> Unit)?, onRetry: (() -> Unit)?, onEdit: (() -> Unit)?, onCheck: (() -> Unit)?) {
     val color = MaterialTheme.colorScheme.onSurfaceVariant
-    Row(modifier = Modifier.padding(start = 4.dp, top = 4.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+    FlowRow(modifier = Modifier.padding(start = 4.dp, top = 4.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
         if (onListen != null) TextButton(onClick = onListen) {
             Icons.Speaker(color, size = 18.dp)
             Spacer(Modifier.width(6.dp))
             Text(stringResource(R.string.reply_listen), color = color)
         }
         if (onRetry != null) TextButton(onClick = onRetry) { Text(stringResource(R.string.msg_retry), color = color) }
+        if (onEdit != null) TextButton(onClick = onEdit) { Text(stringResource(R.string.msg_edit), color = color) }
+        if (onCheck != null) TextButton(onClick = onCheck) { Text(stringResource(R.string.status_check), color = color) }
     }
 }
 
@@ -181,6 +189,8 @@ fun ChatList(
     workingText: String?,
     actions: MessageActions,
     modifier: Modifier = Modifier,
+    /** The server is not reached: a failed reply offers the way to the connection settings. */
+    onCheckConnection: (() -> Unit)? = null,
 ) {
     val zone = remember { ZoneId.systemDefault() }
     // What came before the server started over stays, folded at the top until asked for.
@@ -251,6 +261,8 @@ fun ChatList(
                     ReplyActions(
                         onListen = if (lastReply.failed) null else { { actions.readAloud(lastReply) } },
                         onRetry = lastRequest?.takeIf { lastReply.failed }?.let { request -> { actions.retry(request) } },
+                        onEdit = lastRequest?.takeIf { it.text.isNotBlank() }?.let { request -> { actions.edit(request) } },
+                        onCheck = onCheckConnection?.takeIf { lastReply.failed },
                     )
                 }
             }
