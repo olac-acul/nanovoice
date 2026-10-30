@@ -123,8 +123,8 @@ private fun OpeningHeader(text: String, day: LocalDate) {
 }
 
 /**
- * The conversation from before the server started over, folded: a tap shows it again, to read. A bubble drawn like the
- * long-press menu, so it reads as something to tap.
+ * The conversation from before the server started over, folded: a tap shows it again, to read. A small bubble shaped
+ * like the long-press menu, so it reads as something to tap.
  */
 @Composable
 private fun EarlierToggle(count: Int, shown: Boolean, onToggle: () -> Unit) {
@@ -132,16 +132,16 @@ private fun EarlierToggle(count: Int, shown: Boolean, onToggle: () -> Unit) {
     Box(Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 4.dp), contentAlignment = Alignment.Center) {
         Surface(
             onClick = onToggle,
-            shape = RoundedCornerShape(20.dp),
-            color = colors.surfaceContainer,
-            border = BorderStroke(1.dp, colors.outlineVariant),
-            shadowElevation = 6.dp,
+            shape = RoundedCornerShape(16.dp),
+            // Translucent and small: a way back to old messages, not one of them.
+            color = colors.surfaceContainer.copy(alpha = 0.6f),
+            border = BorderStroke(1.dp, colors.outlineVariant.copy(alpha = 0.6f)),
         ) {
             Text(
                 if (shown) stringResource(R.string.earlier_hide) else stringResource(R.string.earlier_show, count),
-                style = MaterialTheme.typography.bodyLarge,
-                color = colors.onSurface,
-                modifier = Modifier.padding(horizontal = 18.dp, vertical = 12.dp),
+                style = MaterialTheme.typography.bodySmall,
+                color = colors.onSurfaceVariant.copy(alpha = 0.85f),
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
             )
         }
     }
