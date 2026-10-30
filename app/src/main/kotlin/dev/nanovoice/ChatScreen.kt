@@ -92,6 +92,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import dev.nanovoice.ui.Icons
@@ -660,14 +662,20 @@ private fun Composer(
     val colors = MaterialTheme.colorScheme
     val stopLabel = stringResource(R.string.interrupt)
     val sendLabel = stringResource(R.string.send)
+    // The cursor too: text put in from outside (a shared link, a message to fix) leaves it at the end, ready for more.
+    var field by remember { mutableStateOf(TextFieldValue(value, TextRange(value.length))) }
+    if (field.text != value) field = TextFieldValue(value, TextRange(value.length))
     Row(
         modifier = Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         TextField(
-            value = value,
-            onValueChange = onChange,
+            value = field,
+            onValueChange = {
+                field = it
+                if (it.text != value) onChange(it.text)
+            },
             modifier = Modifier.weight(1f).focusRequester(focus),
             placeholder = { Text(stringResource(if (hasPhoto) R.string.input_hint_photo else R.string.input_hint)) },
             shape = RoundedCornerShape(28.dp),
