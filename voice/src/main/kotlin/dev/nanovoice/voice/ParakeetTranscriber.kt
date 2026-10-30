@@ -16,12 +16,11 @@ import java.util.concurrent.TimeUnit
  * takes about 700 MB of RAM, so it is loaded when listening starts and freed after a few idle minutes.
  */
 class ParakeetTranscriber(private val installer: ModelInstaller) {
-    // Low priority: loading the model takes seconds of CPU and disk, and must not starve the microphone's thread.
+    // Normal priority. A background one put the loading and the model's own threads (they inherit it) on the slow
+    // cores only: 21 s to load and the text late after the person stopped speaking. The microphone's reader runs at
+    // audio priority, so it is not starved.
     private val worker = Executors.newSingleThreadScheduledExecutor { task ->
-        Thread({
-            android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_BACKGROUND)
-            task.run()
-        }, "parakeet").apply { isDaemon = true }
+        Thread(task, "parakeet").apply { isDaemon = true }
     }
     private var recognizer: Pair<File, OfflineRecognizer>? = null
     private var unloadTask: ScheduledFuture<*>? = null

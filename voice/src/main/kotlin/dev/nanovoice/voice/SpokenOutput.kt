@@ -9,7 +9,7 @@ enum class TtsStatus { Initializing, Ready, NeedsVoice, Failed }
 interface SpokenOutput {
     val status: StateFlow<TtsStatus>
 
-    /** True from the first queued sentence until the queue is empty again. */
+    /** True from the first queued sentence until the queue is empty again, or [stop]. */
     val speaking: StateFlow<Boolean>
 
     fun speak(text: String)

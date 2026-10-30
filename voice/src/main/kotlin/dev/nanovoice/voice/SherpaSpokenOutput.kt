@@ -109,8 +109,7 @@ class SherpaSpokenOutput(
 
     override fun speak(text: String) {
         if (text.isBlank()) return
-        begin()
-        texts.trySend(Item(epoch.get(), text.trim()))
+        texts.trySend(Item(begin(), text.trim()))
     }
 
     /**
@@ -121,8 +120,7 @@ class SherpaSpokenOutput(
         val spec = library.spec(voiceId) ?: return
         val dir = library.modelDir(voiceId) ?: return
         stop()
-        begin()
-        val myEpoch = epoch.get()
+        val myEpoch = begin()
         scope.launch(Dispatchers.Default) {
             val previewStart = System.nanoTime()
             val audioOut = runCatching {
@@ -136,27 +134,36 @@ class SherpaSpokenOutput(
                     }
                 }
             }.onFailure { Log.w(TAG, "preview of $voiceId failed", it) }.getOrNull()
-            if (audioOut == null || audioOut.samples.isEmpty() || myEpoch != epoch.get()) return@launch done()
+            if (audioOut == null || audioOut.samples.isEmpty() || myEpoch != epoch.get()) return@launch done(myEpoch)
             Log.d(TAG, "preview $voiceId: ${audioOut.samples.size} samples at ${audioOut.sampleRate} Hz in ${(System.nanoTime() - previewStart) / 1_000_000} ms")
             Loudness.normalize(audioOut.samples)
             clips.send(Clip(myEpoch, audioOut.samples, audioOut.sampleRate))
         }
     }
 
-    private fun begin() {
-        synchronized(focusLock) {
-            if (pending.getAndIncrement() == 0) {
-                audio.requestAudioFocus(focusRequest)
-                _speaking.value = true
-            }
+    /** One more sentence to say: counted, with the audio focus taken for the first one. Returns its epoch. */
+    private fun begin(): Int = synchronized(focusLock) {
+        if (pending.getAndIncrement() == 0) {
+            audio.requestAudioFocus(focusRequest)
+            _speaking.value = true
         }
+        epoch.get()
     }
 
     override fun stop() {
-        epoch.incrementAndGet()
-        while (texts.tryReceive().getOrNull() != null) done()
-        while (clips.tryReceive().getOrNull() != null) done()
+        synchronized(focusLock) {
+            epoch.incrementAndGet()
+            // Silent now, also for the screen: a sentence still being synthesized (seconds, for a long one) ends by
+            // itself later and no longer counts, so the orb does not go on "speaking" after the stop.
+            if (pending.getAndSet(0) > 0) {
+                audio.abandonAudioFocusRequest(focusRequest)
+                _speaking.value = false
+            }
+        }
+        while (texts.tryReceive().getOrNull() != null) Unit
+        while (clips.tryReceive().getOrNull() != null) Unit
         track?.runCatching { pause(); flush() }
+        idle.trySend(Unit)
     }
 
     override fun shutdown() {
@@ -233,7 +240,7 @@ class SherpaSpokenOutput(
     }
 
     private suspend fun synthesize(item: Item) {
-        if (item.epoch != epoch.get()) return done()
+        if (item.epoch != epoch.get()) return done(item.epoch)
         // A voice may still be loading (first sentence right after startup): wait for it, but not forever.
         if (_status.value == TtsStatus.Initializing) {
             kotlinx.coroutines.withTimeoutOrNull(LOAD_WAIT_MS) { _status.first { it != TtsStatus.Initializing } }
@@ -257,14 +264,14 @@ class SherpaSpokenOutput(
             }
         }
         Log.d(TAG, "voice=$voice ${item.text.length} chars -> ${audioOut?.samples?.size} samples in ${(System.nanoTime() - startedAt) / 1_000_000} ms")
-        if (audioOut == null || audioOut.samples.isEmpty() || item.epoch != epoch.get()) return done()
+        if (audioOut == null || audioOut.samples.isEmpty() || item.epoch != epoch.get()) return done(item.epoch)
         Loudness.normalize(audioOut.samples)
         if (spokenBy != null) cache.put(spokenBy, item.text, PhraseCache.Audio(audioOut.samples, audioOut.sampleRate))
         clips.send(Clip(item.epoch, audioOut.samples, audioOut.sampleRate))
     }
 
     private suspend fun play(clip: Clip) {
-        if (clip.epoch != epoch.get()) return done()
+        if (clip.epoch != epoch.get()) return done(clip.epoch)
         val audioTrack = outputTrack(clip)
         try {
             var offset = 0
@@ -284,7 +291,7 @@ class SherpaSpokenOutput(
                 while (clip.epoch == epoch.get() && audioTrack.playbackHeadPosition.toLong() < heard) delay(15)
             }
         } finally {
-            done()
+            done(clip.epoch)
             // Kept for the next sentence of this reply; released when the reply is over or was stopped.
             if (pending.get() == 0 || clip.epoch != epoch.get()) releaseTrack()
         }
@@ -321,11 +328,14 @@ class SherpaSpokenOutput(
         audioTrack.release()
     }
 
-    private fun done() {
+    /** A sentence of [epoch] is over (played, dropped or failed). One from before a [stop] was uncounted by it. */
+    private fun done(epoch: Int) {
         synchronized(focusLock) {
-            if (pending.updateAndGet { (it - 1).coerceAtLeast(0) } != 0) return
-            audio.abandonAudioFocusRequest(focusRequest)
-            _speaking.value = false
+            if (epoch == this.epoch.get()) {
+                if (pending.updateAndGet { (it - 1).coerceAtLeast(0) } != 0) return
+                audio.abandonAudioFocusRequest(focusRequest)
+                _speaking.value = false
+            }
         }
         // The last sentence may have ended without playing (failed or empty synthesis): the track is not kept for it.
         idle.trySend(Unit)
