@@ -165,7 +165,11 @@ class ChatViewModel(
         send(text, spoken = true)
     }
 
-    /** True while the microphone was opened from the text field: what is heard goes into the field, not out. */
+    /**
+     * True while the microphone was opened from the text field: what is heard goes into the field, not out. Every other
+     * opening of the microphone clears it (a tap on the orb, an answer to the agent's question), so a dictation that
+     * ended in silence does not catch the next words said for something else.
+     */
     private var dictating = false
 
     /** The microphone of the text field: speech into the draft, alongside what is typed and attached. */
@@ -180,7 +184,10 @@ class ChatViewModel(
         spokenOutput.speak(text)
         withTimeoutOrNull(SPEECH_START_MS) { spokenOutput.speaking.first { it } }
         spokenOutput.speaking.first { !it }
-        if (consent.pending.value?.id == question.id && !voice.state.value.listening) voice.listen()
+        if (consent.pending.value?.id == question.id && !voice.state.value.listening) {
+            dictating = false // an answer to the agent's question, not words for the text field
+            voice.listen()
+        }
     }
 
     /** What a tap on the orb does now. */
@@ -212,9 +219,6 @@ class ChatViewModel(
     private var conversation = Job(viewModelScope.coroutineContext[Job])
 
     init {
-        // A dictation that ends without words (silence, an error, cancelled) is over: the next answer said aloud (to a
-        // question of the agent, say) must not land in the text field. With words, heard() has already taken them.
-        viewModelScope.launch { voice.state.collect { if (!it.listening) dictating = false } }
         // Kept a moment after each change, off the main thread: a burst of a streamed reply is written once.
         chatStore?.let { store ->
             viewModelScope.launch {
@@ -325,7 +329,12 @@ class ChatViewModel(
             if (spoken && askedAgain != question.id && unclearShortAnswer(trimmed)) {
                 askedAgain = question.id
                 viewModelScope.launch(conversation) {
-                    if (settings.value.speakReplies) askAloud(question, "$NOT_UNDERSTOOD ${question.spoken}") else voice.listen()
+                    if (settings.value.speakReplies) {
+                        askAloud(question, "$NOT_UNDERSTOOD ${question.spoken}")
+                    } else {
+                        dictating = false
+                        voice.listen()
+                    }
                 }
                 return
             }
