@@ -475,41 +475,29 @@ fun ChatScreen(
     }
 }
 
-/** What can be asked: the local requests work offline, everything else goes to NanoClaw. */
+/** What can be asked, in short: a few requests to try, photos and codes, and what goes to NanoClaw. */
 @Composable
 private fun HelpDialog(onDismiss: () -> Unit, onTry: (String) -> Unit) {
-    val examples = listOf(
-        R.string.help_time to R.string.help_time_ex,
-        R.string.help_date to R.string.help_date_ex,
-        R.string.help_timer to R.string.help_timer_ex,
-        R.string.help_alarm to R.string.help_alarm_ex,
-        R.string.help_clock to R.string.help_clock_ex,
-        R.string.help_apps to R.string.help_apps_ex,
-        R.string.help_call to R.string.help_call_ex,
-        R.string.help_note to R.string.help_note_ex,
-        R.string.help_music to R.string.help_music_ex,
-    )
-    // Sent to the agent, but started from the app's own buttons.
-    val withAgent = listOf(
-        R.string.help_photo to R.string.help_photo_ex,
-        R.string.help_product to R.string.help_product_ex,
-        R.string.help_new_chat to R.string.help_new_chat_ex,
-    )
+    val tries = listOf(R.string.help_try_time, R.string.help_try_timer, R.string.help_try_alarm, R.string.help_try_app)
+    val muted = MaterialTheme.colorScheme.onSurfaceVariant
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.help_title)) },
         text = {
-            Column(modifier = Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text(stringResource(R.string.help_local_intro), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                for ((title, example) in examples) {
-                    HelpEntry(stringResource(title), stringResource(example), onTry)
+            Column(modifier = Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                Column {
+                    Text(stringResource(R.string.help_phone_title), style = MaterialTheme.typography.titleMedium)
+                    Text(stringResource(R.string.help_phone_body), style = MaterialTheme.typography.bodyMedium, color = muted)
+                    for (example in tries) TryRow(stringResource(example), onTry)
                 }
-                HelpEntry(stringResource(R.string.help_agent_title), stringResource(R.string.help_agent_body), onTry)
-                for ((title, body) in withAgent) {
-                    Column {
-                        Text(stringResource(title), style = MaterialTheme.typography.titleMedium)
-                        Text(stringResource(body), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
+                Column {
+                    Text(stringResource(R.string.help_photo_title), style = MaterialTheme.typography.titleMedium)
+                    Text(stringResource(R.string.help_photo_body), style = MaterialTheme.typography.bodyMedium, color = muted)
+                }
+                Column {
+                    Text(stringResource(R.string.help_agent_title), style = MaterialTheme.typography.titleMedium)
+                    Text(stringResource(R.string.help_agent_body), style = MaterialTheme.typography.bodyMedium, color = muted)
+                    TryRow(stringResource(R.string.help_try_agent), onTry)
                 }
             }
         },
@@ -517,18 +505,12 @@ private fun HelpDialog(onDismiss: () -> Unit, onTry: (String) -> Unit) {
     )
 }
 
-/** A help entry; its first quoted example can be tried: it goes into the field, ready to send or change. */
+/** A request to try: "Prova" puts it in the field, ready to send or change. */
 @Composable
-private fun HelpEntry(title: String, body: String, onTry: (String) -> Unit) {
-    val example = remember(body) { firstQuoted(body) }
-    Column {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(title, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-            if (example != null) {
-                TextButton(onClick = { onTry(example) }) { Text(stringResource(R.string.help_try)) }
-            }
-        }
-        Text(body, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+private fun TryRow(example: String, onTry: (String) -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text("“$example”", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+        TextButton(onClick = { onTry(example) }) { Text(stringResource(R.string.help_try)) }
     }
 }
 
