@@ -154,7 +154,28 @@ object ItalianPhrases : SpokenPhrases {
     override val noteWritten = "Ho scritto la nota in Notes."
     override val noNotesApp = "Nextcloud Notes non è installato."
     override val requestInterrupted = "Risposta interrotta."
-    override val contextRestarted = "Conversazione ricominciata dopo la pausa: l'assistente non ricorda i messaggi qui sopra."
+    override val contextRestarted = "I messaggi qui sopra non li ricordo più."
+
+    // Neither masculine nor feminine: the app does not know who is using it.
+    private val freshStarts = listOf(
+        "Pagina nuova.",
+        "Si riparte da qui.",
+        "Foglio bianco, idee fresche.",
+        "Rieccoci.",
+        "Nuovo giro, nuova corsa.",
+        "Che bello risentirti.",
+        "Ripartiamo con calma.",
+    )
+
+    override fun freshStart(hour: Int, random: kotlin.random.Random): String {
+        val greeting = when (hour) {
+            in 5..11 -> "Buongiorno, si riparte."
+            in 12..17 -> "Buon pomeriggio, si riparte."
+            in 18..22 -> "Buonasera, si riparte."
+            else -> "Si fa tardi: ripartiamo da qui."
+        }
+        return (freshStarts + greeting).random(random)
+    }
     override val unlockNeeded = "Per questo sblocca il telefono. Da bloccato posso dirti l'ora e la data, e impostare timer e sveglie."
     override val newConversationFailed = "Non sono riuscito ad avviare una nuova conversazione sul server: la chat è vuota, ma l'agente ricorda ancora la precedente. Riprova quando sei connesso."
 

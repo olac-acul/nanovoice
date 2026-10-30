@@ -87,13 +87,19 @@ import java.util.Locale
 /** A line of the app's own between messages, centred and quieter than a bubble. */
 @Composable
 private fun NoticeLine(text: String) {
-    Text(
-        text,
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        textAlign = TextAlign.Center,
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 12.dp),
-    )
+    // The first line is the headline ("Pagina nuova."), the rest says what it means, smaller.
+    val headline = text.substringBefore('\n')
+    val detail = text.substringAfter('\n', "").ifEmpty { null }
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 14.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
+        Text(headline, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurface, textAlign = TextAlign.Center)
+        detail?.let {
+            Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
+        }
+    }
 }
 
 /** "Ascolta" under the latest reply, or "Riprova" when it is no answer: the long press stays a shortcut. */

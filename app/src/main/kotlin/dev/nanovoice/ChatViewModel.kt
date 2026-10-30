@@ -320,7 +320,8 @@ class ChatViewModel(
             try {
                 engine.respond(trimmed, localOnly = isLocked(), image = sent, forAgent = forAgent).collect { snap ->
                     if (snap.contextRestarted) {
-                        noteBefore(requestId, phrases.contextRestarted)
+                        val hour = java.time.LocalTime.now().hour
+                        noteBefore(requestId, "${phrases.freshStart(hour)}\n${phrases.contextRestarted}")
                         return@collect
                     }
                     _thinking.value = false
