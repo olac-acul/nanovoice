@@ -20,6 +20,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -161,9 +162,46 @@ fun VoiceList(
     }
 }
 
-/** First run: choose the voice to download (the recognition model comes with it), or skip and use text only. */
+/**
+ * First run, in two steps. First the assistant: pairing with the panel's QR code (skipped when the app already knows
+ * its server, or for later). Then speaking or writing: the voice to download, with how much that is, or text only.
+ */
 @Composable
 fun SetupScreen(
+    voices: List<VoiceSpec>,
+    voiceStates: Map<String, ModelState>,
+    modelState: ModelState,
+    initialVoiceId: String,
+    paired: Boolean,
+    onPair: suspend (dev.nanovoice.agent.PairingLinkResult.Valid) -> dev.nanovoice.agent.PairingResult,
+    onPaired: (server: String, token: String) -> Unit,
+    onStart: (voiceId: String) -> Unit,
+    onFinish: (voiceId: String) -> Unit,
+    onSkip: () -> Unit,
+) {
+    var pairingStep by rememberSaveable { mutableStateOf(!paired) }
+    // Paired here: on to the voice.
+    LaunchedEffect(paired) { if (paired) pairingStep = false }
+    Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+        Column(
+            modifier = Modifier.safeDrawingPadding().padding(16.dp).verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            if (pairingStep) {
+                Text(stringResource(R.string.setup_welcome_title), style = MaterialTheme.typography.headlineSmall)
+                Text(stringResource(R.string.setup_welcome_intro))
+                PairingSection(onPair = onPair, onPaired = onPaired, primary = true)
+                TextButton(onClick = { pairingStep = false }, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.setup_pair_later)) }
+            } else {
+                VoiceStep(voices, voiceStates, modelState, initialVoiceId, onStart, onFinish, onSkip)
+            }
+        }
+    }
+}
+
+/** The second step: the voice that reads the replies (the recognition model comes with it), or text only. */
+@Composable
+private fun VoiceStep(
     voices: List<VoiceSpec>,
     voiceStates: Map<String, ModelState>,
     modelState: ModelState,
@@ -177,38 +215,41 @@ fun SetupScreen(
     val voiceState = voiceStates[selected] ?: ModelState.NotInstalled
     val allDone = modelState == ModelState.Installed && voiceState == ModelState.Installed
     val failed = modelState is ModelState.Failed || voiceState is ModelState.Failed
+    // What the button will download, said before it starts: the recognition model and the chosen voice, if missing.
+    val toDownload = (if (modelState == ModelState.Installed) 0L else VoskModels.ITALIAN_SMALL.sizeBytes) +
+        (if (voiceState == ModelState.Installed) 0L else voices.firstOrNull { it.id == selected }?.sizeBytes ?: 0L)
 
     LaunchedEffect(allDone, started) { if (started && allDone) onFinish(selected) }
 
-    Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-        Column(
-            modifier = Modifier.safeDrawingPadding().padding(16.dp).verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            Text(stringResource(R.string.setup_title), style = MaterialTheme.typography.headlineSmall)
-            Text(stringResource(R.string.setup_intro))
+    Text(stringResource(R.string.setup_title), style = MaterialTheme.typography.headlineSmall)
+    Text(stringResource(R.string.setup_intro))
 
-            Text(stringResource(R.string.setup_recognition), style = MaterialTheme.typography.titleMedium)
-            VoskModelSection(modelState, onDownload = {}, showActions = false)
+    Text(stringResource(R.string.setup_voice), style = MaterialTheme.typography.titleMedium)
+    VoiceList(
+        voices = voices,
+        states = voiceStates,
+        selectedId = selected,
+        selectUninstalled = !started,
+        onSelect = { selected = it },
+        onDownload = {},
+        onDelete = {},
+        showActions = false,
+    )
+    Text(stringResource(R.string.setup_recognition), style = MaterialTheme.typography.titleMedium)
+    VoskModelSection(modelState, onDownload = {}, showActions = false)
 
-            Text(stringResource(R.string.setup_voice), style = MaterialTheme.typography.titleMedium)
-            VoiceList(
-                voices = voices,
-                states = voiceStates,
-                selectedId = selected,
-                selectUninstalled = !started,
-                onSelect = { selected = it },
-                onDownload = {},
-                onDelete = {},
-                showActions = false,
-            )
-
-            Button(
-                onClick = { started = true; onStart(selected) },
-                enabled = !started || failed,
-                modifier = Modifier.fillMaxWidth(),
-            ) { Text(stringResource(if (failed) R.string.retry else R.string.setup_download)) }
-            TextButton(onClick = onSkip, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.setup_skip)) }
-        }
+    Button(
+        onClick = { started = true; onStart(selected) },
+        enabled = !started || failed,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Text(
+            when {
+                failed -> stringResource(R.string.retry)
+                toDownload > 0 -> stringResource(R.string.setup_download_size, mb(toDownload))
+                else -> stringResource(R.string.setup_download)
+            },
+        )
     }
+    TextButton(onClick = onSkip, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.setup_skip)) }
 }

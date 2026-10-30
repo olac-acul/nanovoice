@@ -117,6 +117,11 @@ class MainActivity : ComponentActivity() {
                         voiceStates = voiceStates,
                         modelState = modelState,
                         initialVoiceId = settings.voiceId,
+                        paired = settings.serverUrl.isNotBlank() && dev.nanovoice.agent.ServerUrl.tokenIsValid(settings.token),
+                        onPair = container::pair,
+                        onPaired = { server, token ->
+                            container.settingsStore.save(container.settingsStore.settings.value.copy(serverUrl = server, token = token))
+                        },
                         onStart = { id ->
                             container.settingsStore.save(settings.copy(voiceId = id))
                             container.installVoskModel()

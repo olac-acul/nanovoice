@@ -25,6 +25,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -52,14 +53,16 @@ import dev.nanovoice.voice.ModelState
 import dev.nanovoice.voice.TtsStatus
 import dev.nanovoice.voice.VoiceCatalog
 
+/** Pages by what the person wants done, not by component: the technical parts sit in "Dettagli avanzati". */
 private enum class SettingsPage(val title: Int) {
-    Appearance(R.string.cat_appearance),
-    Voice(R.string.cat_voice),
+    Replies(R.string.cat_replies),
+    Listening(R.string.cat_listening),
     Server(R.string.cat_server),
-    Music(R.string.cat_music),
-    Photos(R.string.cat_photos),
-    Notifications(R.string.cat_notifications),
     Permissions(R.string.cat_permissions),
+    Photos(R.string.cat_photos),
+    Music(R.string.cat_music),
+    Notifications(R.string.cat_notifications),
+    Appearance(R.string.cat_appearance),
 }
 
 /** Settings as a list of categories; each opens its own page. Changes are saved when a page is left. */
@@ -137,26 +140,6 @@ fun SettingsScreen(
     val urlError = (urlCheck as? ServerUrlCheck.Invalid)?.reason
 
     // Pairing with the panel's QR code: scan, say which server, trade the one-time code for the token.
-    val settingsContext = androidx.compose.ui.platform.LocalContext.current
-    var pendingPair by remember { mutableStateOf<dev.nanovoice.agent.PairingLinkResult.Valid?>(null) }
-    var pairMessage by remember { mutableStateOf<Int?>(null) }
-    var pairBusy by remember { mutableStateOf(false) }
-    val pairScanner = androidx.activity.compose.rememberLauncherForActivityResult(BarcodeScanActivity.ScanQr()) { text ->
-        if (text != null) when (val link = dev.nanovoice.agent.PairingLink.parse(text)) {
-            is dev.nanovoice.agent.PairingLinkResult.Valid -> { pairMessage = null; pendingPair = link }
-            is dev.nanovoice.agent.PairingLinkResult.NotPairing -> pairMessage = R.string.pair_not_qr
-            is dev.nanovoice.agent.PairingLinkResult.UnsupportedVersion -> pairMessage = R.string.pair_unsupported
-            is dev.nanovoice.agent.PairingLinkResult.BadServer -> pairMessage = R.string.pair_bad_server
-        }
-    }
-    val cameraPermission = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.RequestPermission()) { granted ->
-        if (granted) pairScanner.launch(Unit) else pairMessage = R.string.camera_denied
-    }
-    fun startPairScan() {
-        if (settingsContext.checkSelfPermission(android.Manifest.permission.CAMERA) == android.content.pm.PackageManager.PERMISSION_GRANTED) pairScanner.launch(Unit)
-        else cameraPermission.launch(android.Manifest.permission.CAMERA)
-    }
-
     fun commit() {
         // An invalid address is not saved: the previous one stays until it is fixed. Only what was changed here is
         // written, on top of the settings as they are now.
@@ -215,32 +198,29 @@ fun SettingsScreen(
             ) {
                 when (page) {
                     null -> {
-                        CategoryRow(R.string.cat_appearance, stringResource(themeLabel(theme))) { pageName = SettingsPage.Appearance.name }
+                        CategoryRow(R.string.cat_replies, VoiceCatalog.byId(voiceId)?.displayName ?: "-") { pageName = SettingsPage.Replies.name }
                         CategoryRow(
-                            R.string.cat_voice,
-                            stringResource(
-                                R.string.sum_voice,
-                                VoiceCatalog.byId(voiceId)?.displayName ?: "-",
-                                stringResource(if (modelState == ModelState.Installed) R.string.sum_installed else R.string.sum_missing),
-                            ),
-                        ) { pageName = SettingsPage.Voice.name }
+                            R.string.cat_listening,
+                            stringResource(if (modelState == ModelState.Installed) R.string.sum_listening_ready else R.string.sum_listening_missing),
+                        ) { pageName = SettingsPage.Listening.name }
                         CategoryRow(R.string.cat_server, statusLabel(status)) { pageName = SettingsPage.Server.name }
+                        CategoryRow(
+                            R.string.cat_permissions,
+                            stringResource(if (contactsGranted) R.string.sum_contacts_granted else R.string.sum_contacts_missing),
+                        ) { pageName = SettingsPage.Permissions.name }
+                        CategoryRow(
+                            R.string.cat_photos,
+                            stringResource(if (photoServices) R.string.sum_photos_on else R.string.sum_photos_off),
+                        ) { pageName = SettingsPage.Photos.name }
                         CategoryRow(
                             R.string.cat_music,
                             stringResource(if (initial.musicAccount() != null) R.string.music_connected else R.string.music_not_configured),
                         ) { pageName = SettingsPage.Music.name }
                         CategoryRow(
-                            R.string.cat_photos,
-                            stringResource(if (initial.plantNetKey.isNotBlank()) R.string.photos_plantnet_on else R.string.photos_plantnet_off),
-                        ) { pageName = SettingsPage.Photos.name }
-                        CategoryRow(
                             R.string.cat_notifications,
                             stringResource(if (pushActive) R.string.sum_on else R.string.sum_off),
                         ) { pageName = SettingsPage.Notifications.name }
-                        CategoryRow(
-                            R.string.cat_permissions,
-                            stringResource(if (contactsGranted) R.string.sum_contacts_granted else R.string.sum_contacts_missing),
-                        ) { pageName = SettingsPage.Permissions.name }
+                        CategoryRow(R.string.cat_appearance, stringResource(themeLabel(theme))) { pageName = SettingsPage.Appearance.name }
                     }
                     SettingsPage.Appearance -> Card {
                         Text(stringResource(R.string.theme_label), style = MaterialTheme.typography.titleMedium)
@@ -262,7 +242,7 @@ fun SettingsScreen(
                             SwitchRow(R.string.dynamic_label, dynamic, hint = R.string.dynamic_hint, style = MaterialTheme.typography.titleMedium) { dynamic = it; commit() }
                         }
                     }
-                    SettingsPage.Voice -> {
+                    SettingsPage.Replies -> {
                         Card {
                             SwitchRow(R.string.speak_replies, speakReplies) { speakReplies = it; commit() }
                         }
@@ -285,6 +265,8 @@ fun SettingsScreen(
                                 },
                             )
                         }
+                    }
+                    SettingsPage.Listening -> {
                         Card {
                             Text(stringResource(R.string.stt_engine), style = MaterialTheme.typography.titleMedium)
                             VoskModelSection(modelState, onDownloadModel)
@@ -311,45 +293,17 @@ fun SettingsScreen(
                                     }
                                 }
                             }
-                            Card { WakeWordTest(vosk, micGranted, onRequestMic) }
+                            Advanced { Card { WakeWordTest(vosk, micGranted, onRequestMic) } }
                         }
                     }
                     SettingsPage.Server -> {
                         Card {
-                            OutlinedButton(onClick = ::startPairScan, enabled = !pairBusy, modifier = Modifier.fillMaxWidth()) {
-                                Text(stringResource(if (pairBusy) R.string.pair_working else R.string.pair_scan))
-                            }
-                            pairMessage?.let { Text(stringResource(it), color = MaterialTheme.colorScheme.onSurfaceVariant) } ?: Hint(R.string.pair_hint)
+                            Text(statusLabel(status), style = MaterialTheme.typography.titleMedium)
+                            PairingSection(onPair = onPair, onPaired = { server, newToken -> url = server; token = newToken; commit() })
                         }
-                        // Which server the code belongs to is shown before anything is replaced: a QR alone does not confirm.
-                        pendingPair?.let { link ->
-                            androidx.compose.material3.AlertDialog(
-                                onDismissRequest = { pendingPair = null },
-                                title = { Text(stringResource(R.string.pair_confirm_title)) },
-                                text = { Text(stringResource(R.string.pair_confirm_body, link.server)) },
-                                confirmButton = {
-                                    androidx.compose.material3.TextButton(onClick = {
-                                        pendingPair = null
-                                        pairBusy = true
-                                        pairMessage = null
-                                        scope.launch {
-                                            val result = onPair(link)
-                                            pairBusy = false
-                                            when (result) {
-                                                is dev.nanovoice.agent.PairingResult.Paired -> { url = link.server; token = result.token; commit(); pairMessage = R.string.pair_done }
-                                                is dev.nanovoice.agent.PairingResult.InvalidCode -> pairMessage = R.string.pair_invalid_code
-                                                is dev.nanovoice.agent.PairingResult.TooManyAttempts -> pairMessage = R.string.pair_too_many
-                                                is dev.nanovoice.agent.PairingResult.Unreachable -> pairMessage = R.string.pair_unreachable
-                                                is dev.nanovoice.agent.PairingResult.NeedsVpn -> pairMessage = R.string.pair_needs_vpn
-                                            }
-                                        }
-                                    }) { Text(stringResource(R.string.pair_confirm_yes)) }
-                                },
-                                dismissButton = { androidx.compose.material3.TextButton(onClick = { pendingPair = null }) { Text(stringResource(R.string.pair_confirm_no)) } },
-                            )
-                        }
+                        // Typing the address and the token is for who set the server up: the QR code does it for everyone else.
+                        Advanced {
                         Card {
-                            Text(statusLabel(status), color = MaterialTheme.colorScheme.onSurfaceVariant)
                             OutlinedTextField(
                                 value = url,
                                 onValueChange = { url = it },
@@ -374,8 +328,6 @@ fun SettingsScreen(
                                 modifier = Modifier.fillMaxWidth(),
                             )
                         }
-                        Card {
-                            SwitchRow(R.string.local_commands, localCommands, hint = R.string.local_commands_hint, style = MaterialTheme.typography.titleMedium) { localCommands = it; commit() }
                         }
                     }
                     SettingsPage.Music -> Card {
@@ -429,17 +381,19 @@ fun SettingsScreen(
                         Text(stringResource(R.string.photos_title), style = MaterialTheme.typography.titleMedium)
                         Hint(R.string.photos_hint)
                         SwitchRow(R.string.photos_services_label, photoServices, hint = R.string.photos_services_hint, style = MaterialTheme.typography.titleSmall) { photoServices = it; commit() }
-                        Text(stringResource(R.string.photos_plantnet_title), style = MaterialTheme.typography.titleSmall)
-                        Hint(R.string.photos_plantnet_hint)
-                        OutlinedTextField(
-                            value = plantNetKey,
-                            onValueChange = { plantNetKey = it },
-                            label = { Text(stringResource(R.string.photos_plantnet_key)) },
-                            singleLine = true,
-                            visualTransformation = PasswordVisualTransformation(),
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                            modifier = Modifier.fillMaxWidth(),
-                        )
+                        Advanced {
+                            Text(stringResource(R.string.photos_plantnet_title), style = MaterialTheme.typography.titleSmall)
+                            Hint(R.string.photos_plantnet_hint)
+                            OutlinedTextField(
+                                value = plantNetKey,
+                                onValueChange = { plantNetKey = it },
+                                label = { Text(stringResource(R.string.photos_plantnet_key)) },
+                                singleLine = true,
+                                visualTransformation = PasswordVisualTransformation(),
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                        }
                         Text(stringResource(R.string.photos_off_title), style = MaterialTheme.typography.titleSmall)
                         Hint(R.string.photos_off_hint)
                         Text(stringResource(R.string.photos_search_title), style = MaterialTheme.typography.titleSmall)
@@ -467,6 +421,9 @@ fun SettingsScreen(
                         }
                     }
                     SettingsPage.Permissions -> {
+                        Card {
+                            SwitchRow(R.string.local_commands, localCommands, hint = R.string.local_commands_hint, style = MaterialTheme.typography.titleMedium) { localCommands = it; commit() }
+                        }
                         Card {
                             Text(stringResource(R.string.agent_phone_title), style = MaterialTheme.typography.titleMedium)
                             Hint(R.string.agent_phone_hint)
@@ -543,6 +500,18 @@ private fun Card(content: @Composable () -> Unit) {
         modifier = Modifier.fillMaxWidth(),
     ) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) { content() }
+    }
+}
+
+/** "Dettagli avanzati": what only who set things up needs (engines, keys, typed addresses, measurements), folded. */
+@Composable
+private fun Advanced(content: @Composable () -> Unit) {
+    var open by rememberSaveable { mutableStateOf(false) }
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        TextButton(onClick = { open = !open }) {
+            Text(stringResource(if (open) R.string.advanced_hide else R.string.advanced_show))
+        }
+        if (open) content()
     }
 }
 
