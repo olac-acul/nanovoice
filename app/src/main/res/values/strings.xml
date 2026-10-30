@@ -200,7 +200,7 @@
     <string name="help_product">Prodotti e libri</string>
     <string name="help_product_ex">Tocca la fotocamera, poi “Scansiona un prodotto”: scegli se è un alimento, un cosmetico, cibo per animali, un libro (ISBN) o altro, e inquadra il codice a barre. Al database aperto di quel tipo va solo il numero; per gli alimenti i dati sono i più completi.</string>
     <string name="help_new_chat">Nuova conversazione</string>
-    <string name="help_new_chat_ex">La fiamma in alto fa ricominciare da capo. Dopo mezz\'ora senza messaggi, di solito il server ricomincia da solo e la chat riparte pulita dalla nuova richiesta: le risposte restano veloci. Quello che l\'agente ha salvato in memoria resta.</string>
+    <string name="help_new_chat_ex">La conversazione resta anche se chiudi l\'app, solo su questo telefono. La fiamma in alto fa ricominciare da capo. Dopo mezz\'ora senza messaggi, di solito il server ricomincia da solo e la chat riparte pulita dalla nuova richiesta: le risposte restano veloci. Quello che l\'agente ha salvato in memoria resta.</string>
     <string name="previews_label">Anteprime dei link</string>
     <string name="previews_hint">Sotto un messaggio con un link mostra titolo, immagine e descrizione del primo; per i link dell\'agente solo dopo un tocco. Per farlo il telefono scarica la pagina dal sito, che vede il tuo indirizzo di rete. Solo siti https pubblici.</string>
     <string name="new_chat_title">Nuova conversazione?</string>

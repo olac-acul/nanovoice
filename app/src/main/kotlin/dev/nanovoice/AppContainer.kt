@@ -81,6 +81,9 @@ class AppContainer(context: Context) {
     )
 
     val voices = VoiceLibrary(File(context.filesDir, "tts")).also { it.removeUnknownVoices() }
+
+    /** The conversation on screen, kept across restarts of the app (private files, no backup). */
+    val chatStore = ChatStore(File(context.filesDir, "chat/conversation.json"))
     private val sherpa = SherpaSpokenOutput(context, voices, settingsStore.settings.map { it.voiceId }, scope, phrases.fixedPhrases)
     val spokenOutput: SpokenOutput = sherpa
     val voskModels = ModelManager(File(context.filesDir, "vosk"), VoskModels.ITALIAN_SMALL)

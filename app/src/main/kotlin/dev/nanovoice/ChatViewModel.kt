@@ -22,6 +22,10 @@ import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.Dispatchers
 
 /**
  * [photo] is what was sent, for a reverse image search from the bubble; [image] its preview. [time] is when it was
@@ -54,11 +58,14 @@ class ChatViewModel(
     private val consent: ActionConsent,
     /** Saves a change of the settings this screen makes itself (the kind of product scanned last). */
     private val saveSettings: (AppSettings) -> Unit = {},
+    /** Where the conversation on screen is kept across restarts of the app; none in tests. */
+    private val chatStore: ChatStore? = null,
 ) : ViewModel() {
     /** The settings, for the screens that depend on them (link previews). */
     val appSettings: StateFlow<AppSettings> get() = settings
 
-    private val _messages = MutableStateFlow<List<ChatMessage>>(emptyList())
+    // The conversation shown before the app was last ended comes back (a small file, read once here).
+    private val _messages = MutableStateFlow(chatStore?.load().orEmpty())
     val messages: StateFlow<List<ChatMessage>> = _messages
 
     val status: StateFlow<AgentStatus> = connection.status
@@ -180,7 +187,7 @@ class ChatViewModel(
         }
     }
 
-    private var nextId = 0L
+    private var nextId = (_messages.value.maxOfOrNull { it.id } ?: -1L) + 1
 
     /** Set by the assistant sheet: true while the phone is locked, so only local requests are answered. */
     var isLocked: () -> Boolean = { false }
@@ -189,6 +196,15 @@ class ChatViewModel(
     private var conversation = Job(viewModelScope.coroutineContext[Job])
 
     init {
+        // Kept a moment after each change, off the main thread: a burst of a streamed reply is written once.
+        chatStore?.let { store ->
+            viewModelScope.launch {
+                _messages.drop(1).collectLatest { list ->
+                    delay(SAVE_DELAY_MS)
+                    withContext(Dispatchers.IO) { store.save(list) }
+                }
+            }
+        }
         // On the lock screen the sheet must not show what the agent sends: the system notification still arrives.
         viewModelScope.launch { connection.notifications.collect { if (!isLocked() && !repeatsLastReply(it)) add(it, fromUser = false) } }
         // Only the screen whose spoken request is open asks aloud; the other one just shows the question.
@@ -473,6 +489,7 @@ internal fun orbActionFor(voice: VoiceUiState, busy: Boolean, speaking: Boolean)
 }
 
 private const val MAX_PHOTOS_KEPT = 5
+private const val SAVE_DELAY_MS = 500L
 
 /** How much of the answered message goes with a reply: enough to recognise it, one line on screen. */
 private const val QUOTE_CHARS = 160
