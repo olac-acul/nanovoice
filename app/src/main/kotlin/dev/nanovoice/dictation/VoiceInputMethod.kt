@@ -7,22 +7,26 @@ import android.inputmethodservice.InputMethodService
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
+import android.util.Log
 import android.view.View
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.LifecycleRegistry
@@ -72,11 +76,20 @@ class VoiceInputMethod : InputMethodService(), LifecycleOwner, SavedStateRegistr
         voice = VoiceController(scope, { container.stt }, container.spokenOutput, ::type)
     }
 
+    /** The height of Android's bar under the keyboard (hide and switch keyboard buttons), in pixels. */
+    private var navigationBar by mutableIntStateOf(0)
+
     override fun onCreateInputView(): View {
         // Compose finds its lifecycle on the window's views; a keyboard's window has none of its own.
         window.window?.decorView?.let {
             it.setViewTreeLifecycleOwner(this)
             it.setViewTreeSavedStateRegistryOwner(this)
+            // The keyboard's window lies under that bar, and its insets do not reach Compose: read them on the window.
+            ViewCompat.setOnApplyWindowInsetsListener(it) { view, insets ->
+                navigationBar = insets.getInsets(WindowInsetsCompat.Type.navigationBars()).bottom
+                Log.d(TAG, "navigation bar under the keyboard: $navigationBar px")
+                ViewCompat.onApplyWindowInsets(view, insets)
+            }
         }
         return ComposeView(this).apply {
             setViewTreeLifecycleOwner(this@VoiceInputMethod)
@@ -84,8 +97,9 @@ class VoiceInputMethod : InputMethodService(), LifecycleOwner, SavedStateRegistr
             setContent {
                 val settings by container.settingsStore.settings.collectAsState()
                 val state by voice.state.collectAsState()
+                val bottom = with(LocalDensity.current) { navigationBar.toDp() }
                 NanoTheme(settings.themeMode, settings.dynamicColors) {
-                    Box(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface).navigationBarsPadding().padding(8.dp)) {
+                    Box(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface).padding(bottom = bottom).padding(8.dp)) {
                         DictationPanel(
                             state,
                             onFinish = voice::finish,
@@ -114,15 +128,16 @@ class VoiceInputMethod : InputMethodService(), LifecycleOwner, SavedStateRegistr
 
     override fun onFinishInputView(finishingInput: Boolean) {
         voice.cancel()
-        lifecycleRegistry.currentState = Lifecycle.State.CREATED
+        // Also called while the keyboard is being destroyed, after which it can move no more.
+        if (lifecycleRegistry.currentState != Lifecycle.State.DESTROYED) lifecycleRegistry.currentState = Lifecycle.State.CREATED
         super.onFinishInputView(finishingInput)
     }
 
     override fun onDestroy() {
         voice.cancel()
         scope.cancel()
-        lifecycleRegistry.currentState = Lifecycle.State.DESTROYED
         super.onDestroy()
+        lifecycleRegistry.currentState = Lifecycle.State.DESTROYED
     }
 
     /** The sentence into the field: a space from the word before, a capital where the field wants one. */
@@ -156,3 +171,5 @@ class VoiceInputMethod : InputMethodService(), LifecycleOwner, SavedStateRegistr
         back()
     }
 }
+
+private const val TAG = "VoiceInputMethod"

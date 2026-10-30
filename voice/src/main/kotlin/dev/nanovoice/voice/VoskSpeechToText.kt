@@ -144,7 +144,8 @@ class VoskSpeechToText(
                 val secondPass = audio != null && (quick.isNotEmpty() || heardSomething)
                 val text = if (secondPass) {
                     // Interruptible: a cancelled request does not wait for Parakeet to finish.
-                    runInterruptible { refiner?.transcribe(pcmToFloats(audio.toByteArray())) }?.takeIf { it.isNotBlank() } ?: quick
+                    runInterruptible { refiner?.transcribe(pcmToFloats(audio.toByteArray())) }
+                        ?.takeIf { it.isNotBlank() && inLatinScript(it) } ?: quick
                 } else {
                     quick
                 }
@@ -281,3 +282,9 @@ class VoskSpeechToText(
         const val USAGE_EVERY_MS = 2_000L
     }
 }
+
+/**
+ * Parakeet finds the language by itself and, on a short or unclear utterance, now and then takes Italian for a language
+ * written in Cyrillic (or another script). Vosk knows only Italian: such a text is dropped for Vosk's.
+ */
+internal fun inLatinScript(text: String): Boolean = text.all { !it.isLetter() || Character.UnicodeScript.of(it.code) == Character.UnicodeScript.LATIN }
