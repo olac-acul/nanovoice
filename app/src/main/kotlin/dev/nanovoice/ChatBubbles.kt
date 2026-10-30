@@ -58,8 +58,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
-import dev.nanovoice.ui.OrbState
-import dev.nanovoice.ui.VoiceOrb
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
@@ -96,11 +94,11 @@ import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 /**
- * The opening of a conversation the server started over: a small orb like the big one, the headline ("Rieccoci.") as
- * large as the empty chat's, and the day under it, coming in softly.
+ * The opening of a conversation the server started over: the headline ("Rieccoci.") as large as the empty chat's, and
+ * the day under it, coming in softly.
  */
 @Composable
-private fun OpeningHeader(text: String, day: LocalDate, note: String?) {
+private fun OpeningHeader(text: String, day: LocalDate) {
     val shown = remember { Animatable(0f) }
     LaunchedEffect(Unit) { shown.animateTo(1f, tween(durationMillis = 320, easing = FastOutSlowInEasing)) }
     Column(
@@ -114,7 +112,6 @@ private fun OpeningHeader(text: String, day: LocalDate, note: String?) {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        VoiceOrb(OrbState.Idle, size = 40.dp)
         Text(text, style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface, textAlign = TextAlign.Center)
         Text(
             day.format(DAY),
@@ -122,25 +119,30 @@ private fun OpeningHeader(text: String, day: LocalDate, note: String?) {
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
         )
-        // The headline changes with the hour and the pause; this says, always the same way, what happened.
-        if (note != null) {
-            Text(
-                note,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.padding(horizontal = 24.dp),
-            )
-        }
     }
 }
 
-/** The conversation from before the server started over, folded: a tap shows it again, to read. */
+/**
+ * The conversation from before the server started over, folded: a tap shows it again, to read. A bubble drawn like the
+ * long-press menu, so it reads as something to tap.
+ */
 @Composable
 private fun EarlierToggle(count: Int, shown: Boolean, onToggle: () -> Unit) {
-    Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-        TextButton(onClick = onToggle) {
-            Text(if (shown) stringResource(R.string.earlier_hide) else stringResource(R.string.earlier_show, count))
+    val colors = MaterialTheme.colorScheme
+    Box(Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 4.dp), contentAlignment = Alignment.Center) {
+        Surface(
+            onClick = onToggle,
+            shape = RoundedCornerShape(20.dp),
+            color = colors.surfaceContainer,
+            border = BorderStroke(1.dp, colors.outlineVariant),
+            shadowElevation = 6.dp,
+        ) {
+            Text(
+                if (shown) stringResource(R.string.earlier_hide) else stringResource(R.string.earlier_show, count),
+                style = MaterialTheme.typography.bodyLarge,
+                color = colors.onSurface,
+                modifier = Modifier.padding(horizontal = 18.dp, vertical = 12.dp),
+            )
         }
     }
 }
@@ -207,7 +209,6 @@ fun ChatList(
     @Suppress("NAME_SHADOWING")
     val messages = if (showEarlier) all else all.filterNot { it.earlier }
     val lastUserId = messages.lastOrNull { it.fromUser }?.id
-    val freshStartNote = stringResource(if (earlierCount > 0) R.string.fresh_start_note_earlier else R.string.fresh_start_note)
     // Under the latest reply, once it is complete: "Ascolta", and "Riprova" when it is no answer.
     val lastReply = messages.lastOrNull()?.takeIf { !it.fromUser && !it.notice && !showTyping && workingText == null }
     val lastRequest = messages.lastOrNull { it.fromUser }
@@ -248,7 +249,7 @@ fun ChatList(
                     item(key = "day-${message.id}") { DayChip(day) }
                 }
                 if (message.notice) {
-                    item(key = message.id) { OpeningHeader(message.text, day, freshStartNote.takeIf { !message.earlier }) }
+                    item(key = message.id) { OpeningHeader(message.text, day) }
                     return@forEachIndexed
                 }
                 val startsGroup = previous == null || previous.fromUser != message.fromUser || previous.notice ||

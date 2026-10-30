@@ -236,8 +236,6 @@
     <string name="dictate">Detta nel campo</string>
     <string name="earlier_show">Mostra la conversazione precedente (%1$d)</string>
     <string name="earlier_hide">Nascondi la conversazione precedente</string>
-    <string name="fresh_start_note">L\'assistente ha ricominciato da capo e non ricorda i messaggi di prima.</string>
-    <string name="fresh_start_note_earlier">L\'assistente ha ricominciato da capo e non ricorda i messaggi di prima: restano qui sopra, da rileggere.</string>
     <string name="draft_replaced">La bozza di prima è stata sostituita.</string>
     <string name="draft_restore">Ripristina</string>
     <string name="draft_cut">Del testo condiviso sono arrivati solo i primi %1$s caratteri.</string>
