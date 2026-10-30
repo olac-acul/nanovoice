@@ -154,29 +154,43 @@ object ItalianPhrases : SpokenPhrases {
     override val noteWritten = "Ho scritto la nota in Notes."
     override val noNotesApp = "Nextcloud Notes non è installato."
     override val requestInterrupted = "Risposta interrotta."
-    // Neither masculine nor feminine: the app does not know who is using it.
-    private val freshStarts = listOf(
-        "Pagina nuova.",
-        "Si riparte da qui.",
-        "Foglio bianco, idee fresche.",
-        "Rieccoci.",
-        "Nuovo giro, nuova corsa.",
-        "Che bello risentirti.",
-        "Ripartiamo con calma.",
-        "Eccoci qua.",
-        "Si ricomincia.",
-        "Un nuovo inizio.",
-        "Di nuovo insieme.",
+    // None masculine or feminine: the app does not know who is using it. Statements, not questions to answer: the line
+    // sits above the request just made. Mostly the time of day; now and then the weekday, a lighter line, or the pause.
+    private val withCharacter = listOf(
+        "Ricominciamo da tre.",
+        "Mente sgombra, orecchie aperte.",
+        "Foglio bianco, matita temperata.",
+        "Ho fatto spazio: dimmi tutto.",
     )
 
-    override fun freshStart(hour: Int, random: kotlin.random.Random): String {
-        val greeting = when (hour) {
-            in 5..11 -> "Buongiorno, si riparte."
-            in 12..17 -> "Buon pomeriggio, si riparte."
-            in 18..22 -> "Buonasera, si riparte."
-            else -> "Si fa tardi: ripartiamo da qui."
+    private fun forTheHour(hour: Int): List<String> = when (hour) {
+        in 5..7 -> listOf("Buongiorno! Caffè già fatto?", "Sveglia presto, eh.")
+        in 8..11 -> listOf("Buongiorno, si parte.")
+        in 12..14 -> listOf("Pausa pranzo, eccomi.")
+        in 15..18 -> listOf("Buon pomeriggio, sono qui.")
+        in 19..22 -> listOf("Buonasera, giornata lunga?", "Si fa sera, eccomi.")
+        else -> listOf("Ore piccole, eh.", "La notte porta consiglio.")
+    }
+
+    private fun forTheDay(day: java.time.DayOfWeek): String? = when (day) {
+        java.time.DayOfWeek.MONDAY -> "Lunedì: si riparte."
+        java.time.DayOfWeek.FRIDAY -> "Buon venerdì!"
+        java.time.DayOfWeek.SATURDAY -> "Finalmente weekend."
+        java.time.DayOfWeek.SUNDAY -> "Domenica tranquilla, eccomi."
+        else -> null
+    }
+
+    override fun freshStart(now: java.time.LocalDateTime, lastMessage: java.time.LocalDateTime?, random: kotlin.random.Random): String {
+        // From yesterday or earlier: that is the news.
+        if (lastMessage != null && lastMessage.toLocalDate() < now.toLocalDate()) return "Quanto tempo! Eccomi."
+        val roll = random.nextInt(100)
+        val day = forTheDay(now.dayOfWeek)
+        return when {
+            roll < 20 && day != null -> day
+            roll in 20 until 35 -> withCharacter.random(random)
+            roll in 35 until 42 -> "Rieccoci, dopo una pausa."
+            else -> forTheHour(now.hour).random(random)
         }
-        return (freshStarts + greeting).random(random)
     }
     override val unlockNeeded = "Per questo sblocca il telefono. Da bloccato posso dirti l'ora e la data, e impostare timer e sveglie."
     override val newConversationFailed = "Non sono riuscito ad avviare una nuova conversazione sul server: la chat è vuota, ma l'agente ricorda ancora la precedente. Riprova quando sei connesso."

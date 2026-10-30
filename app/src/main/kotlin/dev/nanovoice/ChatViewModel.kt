@@ -324,7 +324,10 @@ class ChatViewModel(
             try {
                 engine.respond(trimmed, localOnly = isLocked(), image = sent, forAgent = forAgent).collect { snap ->
                     if (snap.contextRestarted) {
-                        startOverAt(requestId, phrases.freshStart(java.time.LocalTime.now().hour))
+                        val zone = java.time.ZoneId.systemDefault()
+                        val before = _messages.value.takeWhile { it.id != requestId }.lastOrNull { !it.notice }?.time
+                        val last = before?.let { java.time.LocalDateTime.ofInstant(java.time.Instant.ofEpochMilli(it), zone) }
+                        startOverAt(requestId, phrases.freshStart(java.time.LocalDateTime.now(zone), last))
                         return@collect
                     }
                     _thinking.value = false

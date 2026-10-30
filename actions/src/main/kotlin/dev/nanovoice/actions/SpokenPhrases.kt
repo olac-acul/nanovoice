@@ -93,10 +93,14 @@ interface SpokenPhrases {
     /** Shown in place of a reply the user interrupted. */
     val requestInterrupted: String
     /**
-     * The line that opens the chat again when the server started the conversation over after a long pause, picked at
-     * random (sometimes a greeting for the [hour], 0-23).
+     * The line that opens the chat again when the server started the conversation over after a long pause, for [now]
+     * and the time of the last message before it ([lastMessage], null when the chat had none), picked at random.
      */
-    fun freshStart(hour: Int, random: kotlin.random.Random = kotlin.random.Random.Default): String
+    fun freshStart(
+        now: java.time.LocalDateTime,
+        lastMessage: java.time.LocalDateTime?,
+        random: kotlin.random.Random = kotlin.random.Random.Default,
+    ): String
 
     /** Every phrase that never changes, to be synthesized in advance. */
     val fixedPhrases: List<String>
