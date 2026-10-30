@@ -45,6 +45,12 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Alignment
+import androidx.compose.material3.Button
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
@@ -72,12 +78,16 @@ class BarcodeScanActivity : ComponentActivity() {
     private val torch = mutableStateOf(false)
     /** Reads a QR code (the pairing code of the panel) instead of a product barcode. */
     private val qr by lazy { intent.getBooleanExtra(EXTRA_QR, false) }
-    /** The kind of product the person chose: the title and the database named in the hint. */
-    private val kind by lazy { ProductKind.byId(intent.getStringExtra(EXTRA_KIND)) ?: ProductKind.Food }
+    /** The kind of product: chosen before, changeable here; the title and the database named in the hint. */
+    private val kind = mutableStateOf(ProductKind.Food)
+    /** The camera could not be opened: the number can still be typed. */
+    private val cameraFailed = mutableStateOf(false)
+    private val typing = mutableStateOf(false)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         analysis = Executors.newSingleThreadExecutor()
+        kind.value = ProductKind.byId(intent.getStringExtra(EXTRA_KIND)) ?: ProductKind.Food
         val container = (application as NanoVoiceApp).container
         setContent {
             val settings by container.settingsStore.settings.collectAsState()
@@ -101,7 +111,7 @@ class BarcodeScanActivity : ComponentActivity() {
                                     contentAlignment = Alignment.Center,
                                 ) { Icons.Close(Color.White) }
                                 Text(
-                                    if (qr) stringResource(R.string.scan_qr_title) else stringResource(R.string.scan_title_kind, stringResource(kind.label)),
+                                    if (qr) stringResource(R.string.scan_qr_title) else stringResource(R.string.scan_title),
                                     style = MaterialTheme.typography.titleMedium,
                                     color = Color.White,
                                     modifier = Modifier.weight(1f),
@@ -110,7 +120,21 @@ class BarcodeScanActivity : ComponentActivity() {
                                     Text(stringResource(if (torch.value) R.string.scan_torch_off else R.string.scan_torch_on), color = Color.White)
                                 }
                             }
+                            // The kind can be changed here, where the code is in view, without going back to the chat.
+                            if (!qr) KindChips(kind.value) { kind.value = it }
+                            if (typing.value) {
+                                BarcodeNumberDialog(
+                                    onDone = { code -> typing.value = false; if (found.compareAndSet(false, true)) deliver(code) },
+                                    onDismiss = { typing.value = false },
+                                )
+                            }
                             Box(modifier = Modifier.weight(1f))
+                            if (!qr) {
+                                Button(
+                                    onClick = { typing.value = true },
+                                    modifier = Modifier.align(Alignment.CenterHorizontally).padding(bottom = 12.dp),
+                                ) { Text(stringResource(R.string.scan_type_number)) }
+                            }
                             // Over the camera image: light text on a dark veil, like the buttons above, in any theme.
                             Surface(
                                 shape = MaterialTheme.shapes.extraLarge,
@@ -119,7 +143,11 @@ class BarcodeScanActivity : ComponentActivity() {
                                 modifier = Modifier.fillMaxWidth(),
                             ) {
                                 Text(
-                                    if (qr) stringResource(R.string.scan_qr_hint) else scanHint(),
+                                    when {
+                                        cameraFailed.value -> stringResource(R.string.scan_camera_failed)
+                                        qr -> stringResource(R.string.scan_qr_hint)
+                                        else -> scanHint()
+                                    },
                                     style = MaterialTheme.typography.bodyMedium,
                                     textAlign = TextAlign.Center,
                                     modifier = Modifier.padding(16.dp),
@@ -135,15 +163,38 @@ class BarcodeScanActivity : ComponentActivity() {
     /** Where the number goes, and for the smaller databases that some products are missing. */
     @Composable
     private fun scanHint(): String {
+        val kind = kind.value
         val hint = stringResource(R.string.scan_hint, kind.service)
         val small = kind != ProductKind.Food && kind != ProductKind.Book
         return if (small) hint + " " + stringResource(R.string.scan_hint_small, kind.service) else hint
     }
 
+    /** The kinds of product as chips over the camera image; the chosen one is filled. */
+    @Composable
+    private fun KindChips(selected: ProductKind, onSelect: (ProductKind) -> Unit) {
+        Row(
+            modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(top = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            for (option in ProductKind.entries) {
+                val on = option == selected
+                Surface(
+                    shape = CircleShape,
+                    color = if (on) Color.White else Color.Black.copy(alpha = 0.5f),
+                    contentColor = if (on) Color.Black else Color.White,
+                    modifier = Modifier.clip(CircleShape).selectable(selected = on, role = Role.RadioButton) { onSelect(option) },
+                ) {
+                    Text(stringResource(option.label), style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp))
+                }
+            }
+        }
+    }
+
     private fun start(view: PreviewView) {
         val future = ProcessCameraProvider.getInstance(this)
         future.addListener({
-            val provider = runCatching { future.get() }.getOrElse { finish(); return@addListener }
+            // No camera: say so and leave the typed number as the way on, instead of closing without a word.
+            val provider = runCatching { future.get() }.getOrElse { cameraFailed.value = true; return@addListener }
             val preview = Preview.Builder().build().also { it.setSurfaceProvider(view.surfaceProvider) }
             // Thin bars need pixels: about 720p, the newest frame only.
             val selector = ResolutionSelector.Builder()
@@ -167,7 +218,7 @@ class BarcodeScanActivity : ComponentActivity() {
             runCatching {
                 provider.unbindAll()
                 camera = provider.bindToLifecycle(this, CameraSelector.DEFAULT_BACK_CAMERA, preview, reader)
-            }.onFailure { finish() }
+            }.onFailure { cameraFailed.value = true }
         }, ContextCompat.getMainExecutor(this))
     }
 
@@ -184,7 +235,7 @@ class BarcodeScanActivity : ComponentActivity() {
             (getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator)?.vibrate(VibrationEffect.createOneShot(40, VibrationEffect.DEFAULT_AMPLITUDE))
         }
         // The kind goes back with the code: the chat may have been recreated meanwhile (rotation, theme) and lost it.
-        setResult(Activity.RESULT_OK, Intent().putExtra(EXTRA_CODE, code).putExtra(EXTRA_KIND, kind.id))
+        setResult(Activity.RESULT_OK, Intent().putExtra(EXTRA_CODE, code).putExtra(EXTRA_KIND, kind.value.id))
         finish()
     }
 

@@ -352,7 +352,14 @@ fun ChatScreen(
                 )
             }
             photo?.let { AttachedPhoto(it.preview, it.detail, onRemove = { viewModel.attachPhoto(null) }, onSend = sendAttachment.takeIf { barcode == null }) }
-            barcode?.let { AttachedBarcode(it, onRemove = { viewModel.attachBarcode(null) }, onSend = sendAttachment) }
+            barcode?.let {
+                AttachedBarcode(
+                    it,
+                    onRemove = { viewModel.attachBarcode(null) },
+                    onSend = sendAttachment,
+                    onChange = { code, kind -> viewModel.attachBarcode(code, kind) },
+                )
+            }
             AnimatedVisibility(
                 visible = showOrb,
                 enter = fadeIn(tween(TRANSITION_MS)) + expandVertically(tween(TRANSITION_MS), expandFrom = Alignment.Top),
@@ -624,11 +631,27 @@ private fun AttachmentSend(onSend: () -> Unit) {
 
 /** The scanned barcode waiting to go with the next message, with the kind of product it will be looked up as. */
 @Composable
-private fun AttachedBarcode(scanned: ScannedProduct, onRemove: () -> Unit, onSend: (() -> Unit)?) {
+private fun AttachedBarcode(
+    scanned: ScannedProduct,
+    onRemove: () -> Unit,
+    onSend: (() -> Unit)?,
+    /** A misread number or a wrong kind is fixed here, before anything is sent. */
+    onChange: (code: String, kind: ProductKind) -> Unit,
+) {
     val colors = MaterialTheme.colorScheme
     val removeLabel = stringResource(R.string.barcode_remove)
+    val changeLabel = stringResource(R.string.barcode_change)
+    var menu by remember { mutableStateOf(false) }
+    var typing by remember { mutableStateOf(false) }
+    if (typing) {
+        BarcodeNumberDialog(initial = scanned.code, onDone = { typing = false; onChange(it, scanned.kind) }, onDismiss = { typing = false })
+    }
     Row(
-        modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 6.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .clickable(onClickLabel = changeLabel, role = Role.Button) { menu = true },
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
@@ -640,7 +663,21 @@ private fun AttachedBarcode(scanned: ScannedProduct, onRemove: () -> Unit, onSen
             scanned.kind == ProductKind.Book -> stringResource(R.string.barcode_attached_book, scanned.code)
             else -> stringResource(R.string.barcode_attached, scanned.code, stringResource(scanned.kind.label))
         }
-        Text(text, style = MaterialTheme.typography.bodyMedium, color = colors.onSurfaceVariant, modifier = Modifier.weight(1f))
+        Box(Modifier.weight(1f)) {
+            Text(text, style = MaterialTheme.typography.bodyMedium, color = colors.onSurfaceVariant)
+            NanoMenu(expanded = menu, onDismiss = { menu = false }) {
+                for (kind in ProductKind.entries) {
+                    NanoMenuItem(stringResource(kind.label), { Icons.Barcode(colors.onSurface, size = 20.dp) }) {
+                        menu = false
+                        onChange(scanned.code, kind)
+                    }
+                }
+                NanoMenuItem(stringResource(R.string.scan_type_number), { Icons.Keyboard(colors.onSurface, size = 20.dp) }) {
+                    menu = false
+                    typing = true
+                }
+            }
+        }
         Box(
             modifier = Modifier
                 .size(40.dp)

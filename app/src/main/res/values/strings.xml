@@ -43,11 +43,17 @@
     <string name="pair_not_qr">Questo non è un QR di NanoVoice.</string>
     <string name="pair_unsupported">Questo QR è di una versione che l\'app non conosce: aggiorna l\'app o il server.</string>
     <string name="scan_title">Codice a barre</string>
-    <string name="scan_title_kind">Codice a barre · %1$s</string>
     <string name="scan_hint">Inquadra il codice a barre nel riquadro: si chiude da solo appena lo legge. Le immagini restano sul telefono, a %1$s va solo il numero.</string>
     <string name="scan_hint_small">%1$s ha meno prodotti del database degli alimenti: alcuni mancano.</string>
     <string name="scan_torch_on">Torcia</string>
     <string name="scan_torch_off">Spegni torcia</string>
+    <string name="scan_type_number">Inserisci il numero</string>
+    <string name="scan_camera_failed">La fotocamera non si apre: puoi inserire a mano il numero sotto le barre.</string>
+    <string name="barcode_number_title">Numero del codice a barre</string>
+    <string name="barcode_number_hint">Le cifre sotto le barre</string>
+    <string name="barcode_number_invalid">Servono da 8 a 14 cifre</string>
+    <string name="barcode_number_use">Usa questo numero</string>
+    <string name="barcode_change">Cambia tipo o numero</string>
     <string name="photo_sent">Foto inviata</string>
     <string name="photo_view">Guarda la foto</string>
     <string name="photo_failed">Non riesco ad aprire questa foto.</string>
@@ -198,7 +204,7 @@
     <string name="help_agent_title">Tutto il resto</string>
     <string name="help_agent_body">Le altre domande e richieste vanno al tuo agente NanoClaw, che risponde a voce o per iscritto. Per esempio “cerca su internet le spiagge più belle della Puglia”: cerca, ti dice cosa ha trovato e mette le fonti in fondo; se non cerca, te lo dice. Serve il server raggiunto: lo stato è sotto il titolo.</string>
     <string name="help_product">Prodotti e libri</string>
-    <string name="help_product_ex">Tocca la fotocamera, poi “Scansiona un prodotto”: scegli se è un alimento, un cosmetico, cibo per animali, un libro (ISBN) o altro, e inquadra il codice a barre. Al database aperto di quel tipo va solo il numero; per gli alimenti i dati sono i più completi.</string>
+    <string name="help_product_ex">Tocca la fotocamera, poi “Scansiona un prodotto”: scegli se è un alimento, un cosmetico, cibo per animali, un libro (ISBN) o altro, e inquadra il codice a barre. Se non si legge, “Inserisci il numero” nello scanner; il tipo si cambia anche lì, o toccando il codice allegato. Al database aperto di quel tipo va solo il numero; per gli alimenti i dati sono i più completi.</string>
     <string name="help_new_chat">Nuova conversazione</string>
     <string name="help_new_chat_ex">La conversazione resta anche se chiudi l\'app, solo su questo telefono. La fiamma in alto fa ricominciare da capo. Dopo mezz\'ora senza messaggi, di solito il server ricomincia da solo e la chat riparte pulita dalla nuova richiesta: le risposte restano veloci. Quello che l\'agente ha salvato in memoria resta.</string>
     <string name="previews_label">Anteprime dei link</string>
