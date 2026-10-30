@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- "NanoVoice voce": a voice-only keyboard. The voice subtype is what a keyboard's microphone key looks for; auxiliary,
+     so it is not among the keyboards cycled through by the globe key. -->
+<input-method xmlns:android="http://schemas.android.com/apk/res/android"
+    android:settingsActivity="dev.nanovoice.MainActivity"
+    android:supportsSwitchingToNextInputMethod="false">
+    <subtype
+        android:label="@string/voice_ime_subtype"
+        android:languageTag="it-IT"
+        android:imeSubtypeLocale="it_IT"
+        android:imeSubtypeMode="voice"
+        android:isAuxiliary="true"
+        android:overridesImplicitlyEnabledSubtype="true" />
+</input-method>

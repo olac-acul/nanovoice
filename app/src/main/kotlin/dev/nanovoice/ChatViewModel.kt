@@ -121,7 +121,7 @@ class ChatViewModel(
 
     /** Listens for a request, and lets the server start the agent meanwhile (the local router may not need it). */
     fun startListening() {
-        dictating = false
+        _dictating.value = false
         if (!isLocked()) connection.warmUp()
         voice.listen()
     }
@@ -157,8 +157,8 @@ class ChatViewModel(
     private fun heard(text: String) {
         askedAloud = null
         // Dictated from the text field: the words join the draft, to send with the rest when the person is ready.
-        if (dictating) {
-            dictating = false
+        if (_dictating.value) {
+            _dictating.value = false
             putInDraft(listOf(_draft.value.trimEnd(), text.trim()).filter { it.isNotEmpty() }.joinToString(" "))
             return
         }
@@ -170,12 +170,20 @@ class ChatViewModel(
      * opening of the microphone clears it (a tap on the orb, an answer to the agent's question), so a dictation that
      * ended in silence does not catch the next words said for something else.
      */
-    private var dictating = false
+    private val _dictating = MutableStateFlow(false)
+    val dictating: StateFlow<Boolean> = _dictating
 
     /** The microphone of the text field: speech into the draft, alongside what is typed and attached. */
     fun dictate() {
-        dictating = true
+        _dictating.value = true
         voice.listen()
+    }
+
+    /** The dictation is dropped ("Annulla", the keyboard opened again) or ended without words: nothing goes in the field. */
+    fun endDictation() {
+        if (!_dictating.value) return
+        _dictating.value = false
+        voice.cancel()
     }
 
     /** Says the question and then listens for the answer, once the voice has finished. */
@@ -185,7 +193,7 @@ class ChatViewModel(
         withTimeoutOrNull(SPEECH_START_MS) { spokenOutput.speaking.first { it } }
         spokenOutput.speaking.first { !it }
         if (consent.pending.value?.id == question.id && !voice.state.value.listening) {
-            dictating = false // an answer to the agent's question, not words for the text field
+            _dictating.value = false // an answer to the agent's question, not words for the text field
             voice.listen()
         }
     }
@@ -332,7 +340,7 @@ class ChatViewModel(
                     if (settings.value.speakReplies) {
                         askAloud(question, "$NOT_UNDERSTOOD ${question.spoken}")
                     } else {
-                        dictating = false
+                        _dictating.value = false
                         voice.listen()
                     }
                 }

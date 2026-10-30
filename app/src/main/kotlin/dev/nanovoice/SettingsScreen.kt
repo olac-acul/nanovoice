@@ -48,6 +48,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import dev.nanovoice.agent.ServerUrl
 import dev.nanovoice.agent.ServerUrlCheck
+import dev.nanovoice.dictation.DictationEverywhere
 import dev.nanovoice.ui.Icons
 import dev.nanovoice.voice.ModelState
 import dev.nanovoice.voice.TtsStatus
@@ -295,6 +296,7 @@ fun SettingsScreen(
                             }
                             Advanced { Card { WakeWordTest(vosk, micGranted, onRequestMic) } }
                         }
+                        if (modelState == ModelState.Installed) Card { DictationEverywhere() }
                     }
                     SettingsPage.Server -> {
                         Card {

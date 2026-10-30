@@ -65,6 +65,30 @@
             </intent-filter>
         </service>
 
+        <!-- "NanoVoice voce": dictation in any app, from the keyboard's microphone key (enabled by the user in Android). -->
+        <service android:name=".dictation.VoiceInputMethod"
+            android:exported="true"
+            android:label="@string/voice_ime_label"
+            android:permission="android.permission.BIND_INPUT_METHOD">
+            <intent-filter>
+                <action android:name="android.view.InputMethod" />
+            </intent-filter>
+            <meta-data android:name="android.view.im" android:resource="@xml/voice_ime" />
+        </service>
+
+        <!-- An app's own microphone button asking Android for speech as text. -->
+        <activity android:name=".dictation.DictationActivity"
+            android:exported="true"
+            android:theme="@style/Theme.NanoVoice.Assistant"
+            android:excludeFromRecents="true"
+            android:windowSoftInputMode="stateAlwaysHidden"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden">
+            <intent-filter>
+                <action android:name="android.speech.action.RECOGNIZE_SPEECH" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
         <activity android:name=".MainActivity" android:exported="true" android:windowSoftInputMode="adjustResize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

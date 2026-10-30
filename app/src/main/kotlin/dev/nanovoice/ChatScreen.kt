@@ -103,6 +103,7 @@ import dev.nanovoice.ui.Icons
 import dev.nanovoice.ui.Wordmark
 import dev.nanovoice.ui.LinkPreviewCard
 import dev.nanovoice.ui.firstUrl
+import dev.nanovoice.dictation.DictationPanel
 import dev.nanovoice.ui.OrbState
 import dev.nanovoice.ui.VoiceOrb
 import dev.nanovoice.ui.extra
@@ -212,18 +213,35 @@ fun ChatScreen(
     var imeShown by remember { mutableStateOf(false) }
     // The keyboard was closed with something typed: the field stays, and the orb comes back above it.
     var closedWithText by remember { mutableStateOf(draftOnReturn) }
+    // Dictating into the field: the dictation panel stands where the keyboard was, under the field, as the voice keyboard
+    // does in other apps. The keyboard comes back with the words, or when the dictation is dropped.
+    val dictating by viewModel.dictating.collectAsState()
     LaunchedEffect(keyboardOpen) {
         if (keyboardOpen) {
             imeShown = true
             closedWithText = false
+            viewModel.endDictation() // the field tapped to type instead
         } else if (imeShown) {
             imeShown = false
-            if (input.isBlank()) typing = false else closedWithText = true
+            if (dictating) Unit else if (input.isBlank()) typing = false else closedWithText = true
         }
     }
     fun openKeyboard() {
         focus.requestFocus()
         keyboard?.show()
+    }
+    // A dictation that ended without words, once it had started: the keyboard comes back. With words, the keyboard opens
+    // on the draft through composeRequests.
+    var dictationStarted by remember { mutableStateOf(false) }
+    LaunchedEffect(dictating, voice.listening, voice.error) {
+        when {
+            !dictating -> dictationStarted = false
+            voice.listening || voice.error != null -> dictationStarted = true
+            dictationStarted -> {
+                viewModel.endDictation()
+                openKeyboard()
+            }
+        }
     }
     LaunchedEffect(typing) {
         if (typing && !(draftOnReturn && closedWithText)) {
@@ -244,7 +262,7 @@ fun ChatScreen(
         if (typing) openKeyboard() else typing = true
     }
     // The orb gives way as soon as the keyboard is asked for, not when it has opened: both move together.
-    val showOrb = !typing || closedWithText
+    val showOrb = (!typing || closedWithText) && !dictating
     val orbAction by viewModel.orbAction.collectAsState()
 
     val orbState = when {
@@ -419,10 +437,22 @@ fun ChatScreen(
                             requestMicPermission()
                         } else {
                             keyboard?.hide()
-                            closedWithText = true // the orb comes back over the field, with "Ti ascolto…" and the words
                             viewModel.dictate()
                         }
                     },
+                )
+            }
+            AnimatedVisibility(
+                visible = typing && dictating,
+                enter = fadeIn(tween(TRANSITION_MS)) + expandVertically(tween(TRANSITION_MS), expandFrom = Alignment.Top),
+                exit = fadeOut(tween(TRANSITION_MS / 2)) + shrinkVertically(tween(TRANSITION_MS), shrinkTowards = Alignment.Top),
+            ) {
+                DictationPanel(
+                    voice,
+                    onFinish = viewModel.voice::finish,
+                    onCancel = { viewModel.endDictation(); openKeyboard() },
+                    onRetry = viewModel::dictate,
+                    modifier = Modifier.padding(top = 8.dp, bottom = 12.dp),
                 )
             }
         }
