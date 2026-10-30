@@ -87,7 +87,7 @@ import java.util.Locale
 /** A line of the app's own between messages, centred and quieter than a bubble. */
 @Composable
 private fun NoticeLine(text: String) {
-    // The first line is the headline ("Pagina nuova."), the rest says what it means, smaller.
+    // The first line is the headline ("Pagina nuova."); any further line says what it means, smaller.
     val headline = text.substringBefore('\n')
     val detail = text.substringAfter('\n', "").ifEmpty { null }
     Column(

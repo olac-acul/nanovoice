@@ -320,8 +320,7 @@ class ChatViewModel(
             try {
                 engine.respond(trimmed, localOnly = isLocked(), image = sent, forAgent = forAgent).collect { snap ->
                     if (snap.contextRestarted) {
-                        val hour = java.time.LocalTime.now().hour
-                        noteBefore(requestId, "${phrases.freshStart(hour)}\n${phrases.contextRestarted}")
+                        startOverAt(requestId, phrases.freshStart(java.time.LocalTime.now().hour))
                         return@collect
                     }
                     _thinking.value = false
@@ -440,12 +439,15 @@ class ChatViewModel(
 
     private fun remove(id: Long) = _messages.update { list -> list.filter { it.id != id } }
 
-    /** A line of the app's own, just above the message [before]: where the conversation started over, say. */
-    private fun noteBefore(before: Long, text: String) {
+    /**
+     * The server started the conversation over before the request [from] (after a long pause): what came before goes
+     * from the screen too, so the chat shows what the agent knows, under a [headline] of the app's own.
+     */
+    private fun startOverAt(from: Long, headline: String) {
         val id = nextId++
         _messages.update { list ->
-            val at = list.indexOfFirst { it.id == before }.takeIf { it >= 0 } ?: list.size
-            list.take(at) + ChatMessage(id, text, fromUser = false, notice = true) + list.drop(at)
+            val at = list.indexOfFirst { it.id == from }.takeIf { it >= 0 } ?: list.size
+            listOf(ChatMessage(id, headline, fromUser = false, notice = true)) + list.drop(at)
         }
     }
 

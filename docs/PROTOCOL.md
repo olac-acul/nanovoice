@@ -69,8 +69,8 @@ Autenticazione: header `Authorization: Bearer <token>` nell'upgrade WebSocket (4
 - `new_conversation`: l'adattatore scrive `/clear` nella sessione dell'app, se può azzerarla senza coinvolgere altre chat;
   restituisce `conversation_reset` con `ok: false` se non può farlo. La memoria dell'agente resta.
 - `context_restarted`: dopo una lunga pausa il server ha ricominciato la conversazione da solo prima della richiesta
-  `reply_to`. L'app mette una riga sopra quella richiesta: i messaggi più in alto restano sullo schermo ma l'agente
-  non li ha più. Un'app più vecchia ignora il frame.
+  `reply_to`. L'app toglie dallo schermo i messaggi precedenti, che l'agente non ha più, e apre la chat con una riga
+  di benvenuto sopra quella richiesta. Un'app più vecchia ignora il frame.
 - `warm`: la persona ha toccato l'orb, aperto il foglio dell'assistente o la tastiera. Il server avvia subito il
   contenitore dell'agente della sessione voce, se esiste e non è già attivo, così il suo avvio si sovrappone alla frase.
   Nessuna risposta; al massimo uno ogni 30 secondi (lo limitano sia l'app sia il server). Non con il telefono bloccato.

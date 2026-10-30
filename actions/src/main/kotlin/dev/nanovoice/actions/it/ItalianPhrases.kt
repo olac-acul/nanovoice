@@ -154,8 +154,6 @@ object ItalianPhrases : SpokenPhrases {
     override val noteWritten = "Ho scritto la nota in Notes."
     override val noNotesApp = "Nextcloud Notes non è installato."
     override val requestInterrupted = "Risposta interrotta."
-    override val contextRestarted = "I messaggi qui sopra non li ricordo più."
-
     // Neither masculine nor feminine: the app does not know who is using it.
     private val freshStarts = listOf(
         "Pagina nuova.",

@@ -117,6 +117,15 @@ class ChatEngineTest {
         assertEquals(emptyList(), executed)
     }
 
+    @Test fun aRestartAfterAPauseIsPassedOnBeforeTheAnswer() {
+        agentReply = flowOf(AgentEvent.ContextRestarted, AgentEvent.Delta("Eccomi."), AgentEvent.Done)
+        val seen = runBlocking { engine.respond("ci sei?").toList() }
+        assertEquals(
+            listOf(ReplySnapshot("", contextRestarted = true), ReplySnapshot("Eccomi.", messageEnd = true)),
+            seen,
+        )
+    }
+
     @Test fun workingIsSetWhileTheAgentWorksAndClearedByTheAnswer() {
         agentReply = flowOf(
             AgentEvent.Delta("Cerco sul Web..."),
