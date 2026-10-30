@@ -75,7 +75,9 @@ fun VoiceOrb(state: OrbState, modifier: Modifier = Modifier, size: Dp = 88.dp) {
             }
         }
         drawCircle(orb, radius = core, center = c, alpha = if (state == OrbState.Idle) 0.9f else 1f)
-        // Soft highlight, like light on glass.
-        drawCircle(Color.White.copy(alpha = 0.22f), radius = core * 0.28f, center = Offset(c.x - core * 0.35f, c.y - core * 0.4f))
+        // Soft highlight, like light on glass: it fades out instead of sitting on the orb as a spot.
+        val glow = Offset(c.x - core * 0.35f, c.y - core * 0.4f)
+        val glowR = core * 0.45f
+        drawCircle(Brush.radialGradient(0f to Color.White.copy(alpha = 0.32f), 1f to Color.Transparent, center = glow, radius = glowR), radius = glowR, center = glow)
     }
 }

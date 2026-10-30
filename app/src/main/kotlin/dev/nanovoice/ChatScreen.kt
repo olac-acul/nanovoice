@@ -319,7 +319,7 @@ fun ChatScreen(
                         .semantics { contentDescription = helpLabel }
                         .clickable { showHelp = true },
                     contentAlignment = Alignment.Center,
-                ) { Text("?", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface) }
+                ) { Icons.Help(MaterialTheme.colorScheme.onSurface) }
                 Spacer(Modifier.width(8.dp))
                 Box(
                     modifier = Modifier

@@ -258,6 +258,19 @@ object Icons {
         line(color, w, 0.36f, 0.82f, 0.64f, 0.82f)
     }
 
+    /** A question mark drawn with the same stroke as the other icons: what can be asked. */
+    @Composable
+    fun Help(color: Color, modifier: Modifier = Modifier, size: Dp = 24.dp) = Canvas(modifier.size(size)) {
+        val w = this.size.width
+        val p = Path().apply {
+            arcTo(androidx.compose.ui.geometry.Rect(w * 0.35f, w * 0.18f, w * 0.65f, w * 0.48f), 180f, 225f, true)
+            lineTo(w * 0.5f, w * 0.56f)
+            lineTo(w * 0.5f, w * 0.63f)
+        }
+        drawPath(p, color, style = Stroke(w * 0.085f, cap = StrokeCap.Round, join = StrokeJoin.Round))
+        drawCircle(color, radius = w * 0.06f, center = Offset(w * 0.5f, w * 0.79f))
+    }
+
     /** A phone: what the app does on it by itself. */
     @Composable
     fun Phone(color: Color, modifier: Modifier = Modifier, size: Dp = 22.dp) = Canvas(modifier.size(size)) {
