@@ -132,16 +132,16 @@ private fun EarlierToggle(count: Int, shown: Boolean, onToggle: () -> Unit) {
     Box(Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 4.dp), contentAlignment = Alignment.Center) {
         Surface(
             onClick = onToggle,
-            shape = RoundedCornerShape(16.dp),
+            shape = RoundedCornerShape(18.dp),
             // Translucent and small: a way back to old messages, not one of them.
             color = colors.surfaceContainer.copy(alpha = 0.6f),
             border = BorderStroke(1.dp, colors.outlineVariant.copy(alpha = 0.6f)),
         ) {
             Text(
                 if (shown) stringResource(R.string.earlier_hide) else stringResource(R.string.earlier_show, count),
-                style = MaterialTheme.typography.bodySmall,
+                style = MaterialTheme.typography.bodyMedium,
                 color = colors.onSurfaceVariant.copy(alpha = 0.85f),
-                modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 9.dp),
             )
         }
     }
