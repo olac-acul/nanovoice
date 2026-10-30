@@ -258,6 +258,37 @@ object Icons {
         line(color, w, 0.36f, 0.82f, 0.64f, 0.82f)
     }
 
+    /** A phone: what the app does on it by itself. */
+    @Composable
+    fun Phone(color: Color, modifier: Modifier = Modifier, size: Dp = 22.dp) = Canvas(modifier.size(size)) {
+        val w = this.size.width
+        val stroke = Stroke(w * 0.085f, cap = StrokeCap.Round, join = StrokeJoin.Round)
+        drawRoundRect(
+            color,
+            topLeft = Offset(w * 0.28f, w * 0.12f),
+            size = androidx.compose.ui.geometry.Size(w * 0.44f, w * 0.76f),
+            cornerRadius = androidx.compose.ui.geometry.CornerRadius(w * 0.1f),
+            style = stroke,
+        )
+        line(color, w, 0.44f, 0.76f, 0.56f, 0.76f)
+    }
+
+    /** A cloud: what goes to the server. */
+    @Composable
+    fun Cloud(color: Color, modifier: Modifier = Modifier, size: Dp = 22.dp) = Canvas(modifier.size(size)) {
+        val w = this.size.width
+        fun box(cx: Float, cy: Float, r: Float) = androidx.compose.ui.geometry.Rect(w * (cx - r), w * (cy - r), w * (cx + r), w * (cy + r))
+        val p = Path().apply {
+            moveTo(w * 0.28f, w * 0.72f)
+            lineTo(w * 0.74f, w * 0.72f)
+            arcTo(box(0.74f, 0.58f, 0.14f), 90f, -180f, false)
+            arcTo(box(0.5f, 0.47f, 0.22f), -5f, -170f, false)
+            arcTo(box(0.28f, 0.6f, 0.12f), -90f, -180f, false)
+            close()
+        }
+        drawPath(p, color, style = Stroke(w * 0.085f, cap = StrokeCap.Round, join = StrokeJoin.Round))
+    }
+
     /** An arrow down: to the latest message. */
     @Composable
     fun Down(color: Color, modifier: Modifier = Modifier, size: Dp = 22.dp) = Canvas(modifier.size(size)) {

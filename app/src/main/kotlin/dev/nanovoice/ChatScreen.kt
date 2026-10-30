@@ -49,6 +49,8 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
@@ -68,6 +70,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
@@ -479,38 +482,39 @@ fun ChatScreen(
 @Composable
 private fun HelpDialog(onDismiss: () -> Unit, onTry: (String) -> Unit) {
     val tries = listOf(R.string.help_try_time, R.string.help_try_timer, R.string.help_try_alarm, R.string.help_try_app)
-    val muted = MaterialTheme.colorScheme.onSurfaceVariant
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.help_title)) },
         text = {
-            Column(modifier = Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                Column {
-                    Text(stringResource(R.string.help_phone_title), style = MaterialTheme.typography.titleMedium)
-                    Text(stringResource(R.string.help_phone_body), style = MaterialTheme.typography.bodyMedium, color = muted)
-                    for (example in tries) TryRow(stringResource(example), onTry)
-                }
-                Column {
-                    Text(stringResource(R.string.help_photo_title), style = MaterialTheme.typography.titleMedium)
-                    Text(stringResource(R.string.help_photo_body), style = MaterialTheme.typography.bodyMedium, color = muted)
-                }
-                Column {
-                    Text(stringResource(R.string.help_agent_title), style = MaterialTheme.typography.titleMedium)
-                    Text(stringResource(R.string.help_agent_body), style = MaterialTheme.typography.bodyMedium, color = muted)
-                    TryRow(stringResource(R.string.help_try_agent), onTry)
-                }
+            Column(modifier = Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                HelpSection({ Icons.Phone(it) }, R.string.help_phone_title, R.string.help_phone_body, tries.map { stringResource(it) }, onTry)
+                HelpSection({ Icons.Camera(it) }, R.string.help_photo_title, R.string.help_photo_body, emptyList(), onTry)
+                HelpSection({ Icons.Cloud(it) }, R.string.help_agent_title, R.string.help_agent_body, listOf(stringResource(R.string.help_try_agent)), onTry)
             }
         },
         confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.assistant_close)) } },
     )
 }
 
-/** A request to try: "Prova" puts it in the field, ready to send or change. */
+/** One part of the help on a card of its own: icon and title, a line or two, and requests to try as chips. */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun TryRow(example: String, onTry: (String) -> Unit) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Text("“$example”", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
-        TextButton(onClick = { onTry(example) }) { Text(stringResource(R.string.help_try)) }
+private fun HelpSection(icon: @Composable (Color) -> Unit, title: Int, body: Int, tries: List<String>, onTry: (String) -> Unit) {
+    val colors = MaterialTheme.colorScheme
+    Surface(shape = MaterialTheme.shapes.large, color = colors.surfaceContainerLow, modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                icon(colors.primary)
+                Text(stringResource(title), style = MaterialTheme.typography.titleMedium)
+            }
+            Text(stringResource(body), style = MaterialTheme.typography.bodyMedium, color = colors.onSurfaceVariant)
+            // A chip puts its request in the field, ready to send or change.
+            if (tries.isNotEmpty()) {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    for (example in tries) SuggestionChip(onClick = { onTry(example) }, label = { Text(example) })
+                }
+            }
+        }
     }
 }
 
