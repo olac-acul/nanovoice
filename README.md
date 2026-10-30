@@ -156,8 +156,8 @@ su GrapheneOS è spesso solo inglese (Transcribro include `whisper tiny.en`).
   (Material You, Android 12+), che valgono anche per l'orb del microfono.
 - **Microfono:** un orb con quattro stati (pronto, ascolto, penso, parlo); si tocca per parlare e la richiesta parte da
   sola alla pausa. Il microfono dentro il campo di testo invece detta nella bozza, che si invia quando si è pronti.
-- **Correggere:** sotto l'ultima risposta "Correggi" riporta nel campo la richiesta con foto e codice; la bozza che
-  sostituisce si recupera con "Ripristina". Dopo un errore ci sono anche "Riprova" e "Controlla il collegamento".
+- **Correggere:** sotto l'ultima richiesta "Correggi" la riporta nel campo con foto e codice; la bozza che sostituisce
+  si recupera con "Ripristina". Sotto una risposta fallita ci sono "Riprova" e "Controlla il collegamento".
 - **Impostazioni** divise per obiettivo: Come risponde, Ascolto, Collegamento, Cosa può fare sul telefono, Foto e codici,
   Musica, Notifiche, Aspetto; i dettagli tecnici stanno in "Dettagli avanzati".
 - **Anteprime dei link:** sotto un messaggio compare una scheda per il primo link. La pagina viene scaricata dal telefono,

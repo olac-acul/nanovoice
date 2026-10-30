@@ -147,11 +147,11 @@ private fun EarlierToggle(count: Int, shown: Boolean, onToggle: () -> Unit) {
 
 /**
  * Under the latest reply: "Ascolta", or "Riprova" when it is no answer (with "Controlla il collegamento" when the server
- * is not reached), and "Correggi" for a request that was misheard or mistyped. The long press stays a shortcut.
+ * is not reached). The long press stays a shortcut.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun ReplyActions(onListen: (() -> Unit)?, onRetry: (() -> Unit)?, onEdit: (() -> Unit)?, onCheck: (() -> Unit)?) {
+private fun ReplyActions(onListen: (() -> Unit)?, onRetry: (() -> Unit)?, onCheck: (() -> Unit)?) {
     val color = MaterialTheme.colorScheme.onSurfaceVariant
     FlowRow(modifier = Modifier.padding(start = 4.dp, top = 4.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
         if (onListen != null) TextButton(onClick = onListen) {
@@ -160,8 +160,15 @@ private fun ReplyActions(onListen: (() -> Unit)?, onRetry: (() -> Unit)?, onEdit
             Text(stringResource(R.string.reply_listen), color = color)
         }
         if (onRetry != null) TextButton(onClick = onRetry) { Text(stringResource(R.string.msg_retry), color = color) }
-        if (onEdit != null) TextButton(onClick = onEdit) { Text(stringResource(R.string.msg_edit), color = color) }
         if (onCheck != null) TextButton(onClick = onCheck) { Text(stringResource(R.string.status_check), color = color) }
+    }
+}
+
+/** Under the person's latest request, on their side: "Correggi", for words misheard or mistyped. */
+@Composable
+private fun EditAction(onEdit: () -> Unit) {
+    Box(Modifier.fillMaxWidth().padding(end = 4.dp, top = 2.dp), contentAlignment = Alignment.CenterEnd) {
+        TextButton(onClick = onEdit) { Text(stringResource(R.string.msg_edit), color = MaterialTheme.colorScheme.onSurfaceVariant) }
     }
 }
 
@@ -204,6 +211,8 @@ fun ChatList(
     // Under the latest reply, once it is complete: "Ascolta", and "Riprova" when it is no answer.
     val lastReply = messages.lastOrNull()?.takeIf { !it.fromUser && !it.notice && !showTyping && workingText == null }
     val lastRequest = messages.lastOrNull { it.fromUser }
+    // "Correggi" under it once the turn is over, not while the answer is still coming.
+    val editable = lastRequest?.takeIf { it.text.isNotBlank() && !showTyping && workingText == null }
     val scope = rememberCoroutineScope()
     // Following the conversation unless the person scrolled up to read: then new text does not pull them down.
     var followLatest by remember { mutableStateOf(true) }
@@ -215,7 +224,7 @@ fun ChatList(
     LaunchedEffect(messages.size, showTyping, workingText != null) {
         // Every message, one chip per day, and the dots or the status line after them.
         val last = messages.size + dayCount(messages, zone) + (if (earlierCount > 0) 1 else 0) +
-            (if (showTyping || workingText != null || lastReply != null) 1 else 0) - 1
+            (if (showTyping || workingText != null || lastReply != null) 1 else 0) + (if (editable != null) 1 else 0) - 1
         if (last >= 0 && (followLatest || messages.lastOrNull()?.fromUser == true)) {
             followLatest = true
             listState.animateScrollToItem(last)
@@ -255,13 +264,15 @@ fun ChatList(
                         modifier = Modifier.padding(top = if (startsGroup) 10.dp else 3.dp),
                     )
                 }
+                if (message.id == editable?.id) {
+                    item(key = "edit-${message.id}") { EditAction { actions.edit(message) } }
+                }
             }
             if (lastReply != null) {
                 item(key = "after-${lastReply.id}") {
                     ReplyActions(
                         onListen = if (lastReply.failed) null else { { actions.readAloud(lastReply) } },
                         onRetry = lastRequest?.takeIf { lastReply.failed }?.let { request -> { actions.retry(request) } },
-                        onEdit = lastRequest?.takeIf { it.text.isNotBlank() && answers(messages, lastReply, it) }?.let { request -> { actions.edit(request) } },
                         onCheck = onCheckConnection?.takeIf { lastReply.failed },
                     )
                 }
@@ -294,13 +305,6 @@ fun ChatList(
         }
     }
 }
-
-/**
- * The [reply] comes right after the [request]: its answer, not a message the agent sent by itself later (a reminder),
- * under which "Correggi" would reopen a request it has nothing to do with.
- */
-internal fun answers(messages: List<ChatMessage>, reply: ChatMessage, request: ChatMessage): Boolean =
-    messages.indexOfFirst { it.id == reply.id } == messages.indexOfFirst { it.id == request.id } + 1
 
 private fun day(time: Long, zone: ZoneId): LocalDate = Instant.ofEpochMilli(time).atZone(zone).toLocalDate()
 
