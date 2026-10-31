@@ -16,6 +16,16 @@ class WithoutUrlsTest {
     }
 
     @Test
+    fun aSourceInBracketsAtTheEndOfAnItemIsNotReadAtAll() {
+        assertEquals(
+            "Spiaggia dei Conigli, Lampedusa.",
+            withoutUrls("Spiaggia dei Conigli, Lampedusa. ([Corriere](https://example.com/conigli))"),
+        )
+        // Brackets that only hold words stay.
+        assertEquals("Il museo (chiuso il lunedì) apre alle nove.", withoutUrls("Il museo (chiuso il lunedì) apre alle nove."))
+    }
+
+    @Test
     fun plainTextIsUntouched() {
         assertEquals("Sono le dodici e quarantanove.", withoutUrls("Sono le dodici e quarantanove."))
     }

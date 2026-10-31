@@ -47,6 +47,8 @@ class ReplySpeaker(private val spoken: SpokenOutput) {
 
 private val markdownLink = Regex("""\[([^\]]*)]\((?:https?://|www\.)[^)\s]*\)""")
 private val bareUrl = Regex("""(?:https?://|www\.)\S+""")
+/** A source in brackets at the end of a list item, "([Corriere](https://…))": for the eyes only, not even its name. */
+private val sourceInBrackets = Regex("""\s*\(\s*\[[^\]]*]\((?:https?://|www\.)[^)\s]*\)\s*\)""")
 
 private val sourceLabel = Regex("""^(?:fonte|fonti|source|sources)\s*[:.]?$""", RegexOption.IGNORE_CASE)
 
@@ -55,7 +57,7 @@ internal fun isSourceLabel(text: String): Boolean = sourceLabel.matches(text.tri
 
 /** Links are for the eyes: a markdown link is read as its text and a bare address is not read at all. */
 internal fun withoutUrls(text: String): String =
-    text.replace(markdownLink, "$1").replace(bareUrl, "").replace(Regex("\\s+"), " ").trim()
+    text.replace(sourceInBrackets, "").replace(markdownLink, "$1").replace(bareUrl, "").replace(Regex("\\s+"), " ").trim()
 
 private val MONTHS = listOf("gennaio", "febbraio", "marzo", "aprile", "maggio", "giugno", "luglio", "agosto", "settembre", "ottobre", "novembre", "dicembre")
 private val ORDINALS_M = listOf("primo", "secondo", "terzo", "quarto", "quinto", "sesto", "settimo", "ottavo", "nono", "decimo")
