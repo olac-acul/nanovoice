@@ -21,6 +21,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -74,6 +75,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.SuggestionChip
@@ -365,7 +367,7 @@ fun ChatScreen(
                     contentAlignment = Alignment.Center,
                 ) { Icons.Settings(MaterialTheme.colorScheme.onSurface) }
             }
-            Column(Modifier.padding(bottom = 4.dp)) { StatusLine(status, onCheck = onCheckConnection) }
+            StatusBanner(status, onCheck = onCheckConnection)
             Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
                 if (messages.isEmpty() && !showStatus && !showTyping) {
                     EmptyHint(modifier = Modifier.align(Alignment.Center))
@@ -554,32 +556,50 @@ private fun HelpSection(icon: @Composable (Color) -> Unit, title: Int, body: Int
     }
 }
 
+/**
+ * The connection, said only when there is something to know: nothing while connected (the usual case, so the header
+ * stays clean), a thin moving line while connecting, and a card when the server cannot be used, with the way to the
+ * server settings right where the problem shows. No server set yet is a choice, not a fault: a neutral card.
+ */
 @Composable
-private fun StatusLine(status: AgentStatus, onCheck: () -> Unit) {
-    val color = when (status) {
-        AgentStatus.Connected -> MaterialTheme.extra.success
-        AgentStatus.NeedsVpn -> MaterialTheme.extra.warning
-        AgentStatus.Connecting -> MaterialTheme.extra.warning
-        else -> MaterialTheme.colorScheme.outline
-    }
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        Box(Modifier.size(8.dp).background(color, CircleShape))
-        // Said by a screen reader when it changes: losing the server is news.
-        Text(
-            statusLabel(status),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+private fun StatusBanner(status: AgentStatus, onCheck: () -> Unit) {
+    val colors = MaterialTheme.colorScheme
+    if (status == AgentStatus.Connecting) {
+        val connecting = stringResource(R.string.status_connecting)
+        LinearProgressIndicator(
+            modifier = Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 4.dp).height(3.dp).semantics { contentDescription = connecting },
+            color = colors.primary,
+            trackColor = colors.surfaceContainerHigh,
         )
+        return
     }
-    // Not connected: the way to the server settings right where the problem shows, not only behind the settings button.
-    if (status == AgentStatus.Disconnected || status == AgentStatus.NeedsVpn || status == AgentStatus.NotConfigured) {
-        Text(
-            stringResource(R.string.status_check),
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable(role = Role.Button, onClick = onCheck).padding(vertical = 4.dp),
-        )
+    val (title, body, action) = when (status) {
+        AgentStatus.Disconnected -> Triple(R.string.banner_unreachable, R.string.banner_local_only, R.string.banner_check)
+        AgentStatus.NeedsVpn -> Triple(R.string.banner_needs_vpn, R.string.banner_needs_vpn_body, R.string.banner_check)
+        AgentStatus.NotConfigured -> Triple(R.string.banner_not_configured, R.string.banner_local_only, R.string.banner_configure)
+        else -> return
+    }
+    val fault = status != AgentStatus.NotConfigured
+    val warning = MaterialTheme.extra.warning
+    Surface(
+        shape = RoundedCornerShape(18.dp),
+        color = if (fault) warning.copy(alpha = 0.16f) else colors.surfaceContainerHigh,
+        modifier = Modifier.fillMaxWidth().padding(top = 10.dp, bottom = 4.dp),
+    ) {
+        Row(Modifier.padding(start = 14.dp, end = 6.dp, top = 6.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                Modifier.size(32.dp).background(if (fault) warning.copy(alpha = 0.35f) else colors.surfaceContainerHighest, CircleShape),
+                contentAlignment = Alignment.Center,
+            ) {
+                if (fault) Text("!", fontWeight = FontWeight.Bold, color = colors.onSurface) else Icons.Cloud(colors.onSurfaceVariant, size = 18.dp)
+            }
+            // Said by a screen reader when it changes: losing the server is news.
+            Column(Modifier.weight(1f).padding(start = 12.dp, top = 4.dp, bottom = 4.dp).semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite }) {
+                Text(stringResource(title), style = MaterialTheme.typography.titleSmall, color = colors.onSurface)
+                Text(stringResource(body), style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
+            }
+            TextButton(onClick = onCheck) { Text(stringResource(action)) }
+        }
     }
 }
 

@@ -89,6 +89,13 @@
     <string name="status_connecting">Connessione al server…</string>
     <string name="status_connected">Connesso a NanoClaw</string>
     <string name="status_check">Controlla il collegamento</string>
+    <string name="banner_unreachable">Non raggiungo NanoClaw</string>
+    <string name="banner_local_only">Solo funzioni locali</string>
+    <string name="banner_needs_vpn">Accendi la VPN per collegarti</string>
+    <string name="banner_needs_vpn_body">Il server è senza crittografia (ws://): mi collego solo con la VPN</string>
+    <string name="banner_not_configured">Server non configurato</string>
+    <string name="banner_check">Controlla</string>
+    <string name="banner_configure">Configura</string>
     <string name="preview_show">Anteprima di %1$s</string>
     <string name="status_needs_vpn">Server in chiaro (ws://): mi collego solo con la VPN attiva</string>
     <string name="token_invalid">Il token può contenere solo lettere, cifre e simboli, senza spazi.</string>
