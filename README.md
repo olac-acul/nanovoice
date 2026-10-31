@@ -133,6 +133,10 @@ su GrapheneOS è spesso solo inglese (Transcribro include `whisper tiny.en`).
   Riccardo e Miro: Serena è la più pulita (30-48 dB tra voce e rumore, senza guadagno); Miro risultava gracchiante.
   Il file è quello originale di Piper (114 MB, fp32): l'app aggiunge i metadati ONNX che sherpa-onnx richiede e costruisce
   `tokens.txt` dal JSON, togliendo i cinque dittonghi a due caratteri (`RawPiperInstaller`, `PiperFiles`).
+- **Lettura a pezzi:** la risposta si legge mentre arriva, in pezzi preparati uno mentre suona il precedente. Si taglia
+  alle virgole, poi prima di una congiunzione ("ma", "e", "perché"…) e, se il pezzo è ancora lungo, prima di una
+  preposizione o di un articolo; ogni pezzo è al massimo un quinto più lungo del precedente e il silenzio ai bordi è
+  accorciato. Su un telefono caldo o in carica la sintesi può essere più lenta della voce: allora restano brevi pause.
 - **Cosa non viene letto:** gli URL (restano nel testo e diventano link). Le cifre sì, perché `espeak-ng` le legge bene;
   prima della lettura l'app riscrive solo le date con le barre ("21/10/2026") e gli ordinali col simbolo ("il 3° piano").
 - **Audio:** flusso multimediale (`USAGE_MEDIA`), non "assistente": quest'ultimo ha un volume separato, di solito basso.
@@ -156,6 +160,8 @@ su GrapheneOS è spesso solo inglese (Transcribro include `whisper tiny.en`).
   (Material You, Android 12+), che valgono anche per l'orb del microfono.
 - **Microfono:** un orb con quattro stati (pronto, ascolto, penso, parlo); si tocca per parlare e la richiesta parte da
   sola alla pausa. Il microfono dentro il campo di testo invece detta nella bozza, che si invia quando si è pronti.
+- **Aiuto:** "Cosa puoi chiedermi" ha tre schede: richieste da provare sul telefono, foto e codici, e cosa va al server.
+  Un tocco su un esempio lo mette nel campo.
 - **Correggere:** sotto l'ultima richiesta "Correggi" la riporta nel campo con foto e codice; la bozza che sostituisce
   si recupera con "Ripristina". Sotto una risposta fallita ci sono "Riprova" e "Controlla il collegamento".
 - **Impostazioni** divise per obiettivo: Come risponde, Ascolto, Collegamento, Cosa può fare sul telefono, Foto e codici,
