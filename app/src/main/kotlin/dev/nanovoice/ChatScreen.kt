@@ -28,7 +28,10 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.text.PlatformTextStyle
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.unit.sp
 import dev.nanovoice.actions.photo.ProductKind
 import dev.nanovoice.agent.AgentImage
@@ -328,8 +331,7 @@ fun ChatScreen(
                             Text(
                                 if (unread > 9) "9+" else unread.toString(),
                                 color = MaterialTheme.colorScheme.onPrimary,
-                                fontSize = 9.sp,
-                                fontWeight = FontWeight.Bold,
+                                style = BadgeText,
                             )
                         }
                     }
@@ -928,3 +930,12 @@ private const val TYPING_DELAY_MS = 500L
 
 /** Orb and text field swap in about the time the keyboard takes to slide. */
 private const val TRANSITION_MS = 250
+
+/** The number on the bell: a line exactly as tall as the digits, without the font's padding, so it sits in the middle. */
+private val BadgeText = TextStyle(
+    fontSize = 9.sp,
+    lineHeight = 9.sp,
+    fontWeight = FontWeight.Bold,
+    platformStyle = PlatformTextStyle(includeFontPadding = false),
+    lineHeightStyle = LineHeightStyle(LineHeightStyle.Alignment.Center, LineHeightStyle.Trim.Both),
+)
