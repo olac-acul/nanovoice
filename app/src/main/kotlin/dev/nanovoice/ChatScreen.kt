@@ -295,6 +295,7 @@ fun ChatScreen(
     }
     val consentRequest by viewModel.consentRequest.collectAsState()
     val replyingTo by viewModel.replyingTo.collectAsState()
+    val correcting by viewModel.correcting.collectAsState()
     if (confirmNew) {
         AlertDialog(
             onDismissRequest = { confirmNew = false },
@@ -402,6 +403,7 @@ fun ChatScreen(
             // While the text field is closed, the attachment row has its own send button: the photo or the code can go
             // without a word (the agent describes the photo, or is asked "che prodotto è?").
             val sendAttachment = if (typing) null else ::submit
+            correcting?.let { CorrectionBar(it, onCancel = viewModel::cancelCorrection) }
             replyingTo?.let { ReplyBar(it, onCancel = { viewModel.replyTo(null) }) }
             if (typing) {
                 val notes by viewModel.draftNotes.collectAsState()

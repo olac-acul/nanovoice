@@ -449,7 +449,7 @@ private fun MessageBubble(
         buildList {
             add(CustomAccessibilityAction(replyLabel) { actions.reply(message); true })
             if (!user && message.text.isNotEmpty()) add(CustomAccessibilityAction(listenLabel) { actions.readAloud(message); true })
-            if (user && message.text.isNotEmpty()) add(CustomAccessibilityAction(editLabel) { actions.edit(message); true })
+            if (user && canRetry && message.text.isNotEmpty()) add(CustomAccessibilityAction(editLabel) { actions.edit(message); true })
             if (canRetry) add(CustomAccessibilityAction(retryLabel) { actions.retry(message); true })
         }
     }
@@ -540,19 +540,31 @@ fun QuoteLine(text: String, color: Color, modifier: Modifier = Modifier, label: 
 
 /** Above the input while a reply is being written: what it answers, and a cross to drop it. */
 @Composable
-fun ReplyBar(message: ChatMessage, onCancel: () -> Unit) {
+fun ReplyBar(message: ChatMessage, onCancel: () -> Unit) = QuoteBar(
+    message,
+    label = stringResource(if (message.fromUser) R.string.reply_to_self else R.string.reply_to_agent),
+    cancel = stringResource(R.string.reply_cancel),
+    onCancel = onCancel,
+)
+
+/** Above the input while a correction is being written: the request it will replace, and a cross to keep that one. */
+@Composable
+fun CorrectionBar(message: ChatMessage, onCancel: () -> Unit) = QuoteBar(
+    message,
+    label = stringResource(R.string.correction_of),
+    cancel = stringResource(R.string.correction_cancel),
+    onCancel = onCancel,
+)
+
+@Composable
+private fun QuoteBar(message: ChatMessage, label: String, cancel: String, onCancel: () -> Unit) {
     val colors = MaterialTheme.colorScheme
-    val cancel = stringResource(R.string.reply_cancel)
     Row(
         modifier = Modifier.fillMaxWidth().padding(top = 8.dp).background(colors.surfaceContainer, RoundedCornerShape(14.dp)).padding(start = 12.dp, top = 8.dp, bottom = 8.dp, end = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(Modifier.weight(1f)) {
-            QuoteLine(
-                remember(message) { quoteOf(message) },
-                colors.onSurface,
-                label = stringResource(if (message.fromUser) R.string.reply_to_self else R.string.reply_to_agent),
-            )
+            QuoteLine(remember(message) { quoteOf(message) }, colors.onSurface, label = label)
         }
         Box(
             Modifier.size(36.dp).clip(CircleShape).semantics { contentDescription = cancel }.clickable(onClick = onCancel),
@@ -590,7 +602,8 @@ private fun MessageMenu(
             NanoMenuItem(stringResource(R.string.msg_open_link, host), { Icons.Link(color) }) { onDismiss(); runCatching { uriHandler.openUri(link) } }
             NanoMenuItem(stringResource(R.string.msg_copy_link), { Icons.Copy(color) }) { onDismiss(); copy(context, link) }
         }
-        if (message.fromUser && shown.isNotEmpty()) {
+        // Only the latest request: a correction replaces it and its answer, and an older one has more after it.
+        if (message.fromUser && canRetry && shown.isNotEmpty()) {
             NanoMenuItem(stringResource(R.string.msg_edit), { Icons.Keyboard(color) }) { onDismiss(); actions.edit(message) }
         }
         if (canRetry) NanoMenuItem(stringResource(R.string.msg_retry), { Icons.Retry(color) }) { onDismiss(); actions.retry(message) }

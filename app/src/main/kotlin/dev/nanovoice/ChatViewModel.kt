@@ -313,12 +313,23 @@ class ChatViewModel(
         compose(note.text)
     }
 
+    private val _correcting = MutableStateFlow<ChatMessage?>(null)
+
+    /** The request "Correggi" opened, shown above the input: sent, the new words take its place. */
+    val correcting: StateFlow<ChatMessage?> = _correcting
+
+    fun cancelCorrection() {
+        _correcting.value = null
+    }
+
     /**
      * "Correggi": the whole request back in the field to fix and send again, its words and what went with them (the
-     * photo, the scanned code). A photo the app no longer keeps is said, to be attached again.
+     * photo, the scanned code). A photo the app no longer keeps is said, to be attached again. Sent, the correction
+     * replaces the request: see [send].
      */
     fun editAndResend(message: ChatMessage) {
         if (!message.fromUser) return
+        _correcting.value = message
         val photo = message.photo?.let { sent ->
             message.image?.let { PreparedPhoto(sent, it, barcode = message.barcode?.let(::barcodeInPhoto)) }
         }
@@ -421,24 +432,36 @@ class ChatViewModel(
         val sent = photo?.let { if (PhotoDetail.asksAboutText(trimmed)) it.detail else it.image }
         _photo.value = null
         _barcode.value = null
-        val quote = _replyingTo.value?.let { quoteOf(it) }
+        // A correction takes the place of the request it corrects: that one, and what was answered to it, go from the
+        // chat (its answer stopped if still coming), and the agent is told to forget them. It keeps what it answered.
+        val corrected = _correcting.value?.takeIf { c -> _messages.value.any { it.id == c.id } }
+        _correcting.value = null
+        val quote = _replyingTo.value?.let { quoteOf(it) } ?: corrected?.quote
         _replyingTo.value = null
         _draftNotes.value = emptyList()
-        submit(trimmed, sent, photo?.preview, barcode, spoken, quote)
+        if (corrected != null) {
+            if (busy.value) stopReplies()
+            _messages.update { withoutRequest(it, corrected.id) }
+        }
+        submit(trimmed, sent, photo?.preview, barcode, spoken, quote, corrects = corrected?.let(::quoteOf))
     }
 
-    private fun submit(trimmed: String, sent: AgentImage?, preview: ImageBitmap?, barcode: String?, spoken: Boolean, quote: String?) {
+    private fun submit(
+        trimmed: String,
+        sent: AgentImage?,
+        preview: ImageBitmap?,
+        barcode: String?,
+        spoken: Boolean,
+        quote: String?,
+        corrects: String? = null,
+    ) {
         voice.clearError() // a new request: an earlier failed listening is not the news any more
         // One request at a time: a new one replaces the one still being answered (the server drops the rest of it).
         if (busy.value) stopReplies()
         spokenRequest = spoken
         val requestId = add(trimmed, fromUser = true, image = preview, photo = sent, quote = quote, barcode = barcode)
         inbox?.requestSent()
-        // The barcode read on the phone goes to the agent (for the product databases), not into the bubble. Scanned or found
-        // in a photo, it takes the line the agent's instructions know. A reply carries the start of the message it
-        // answers, so the agent knows what "questo" refers to.
-        val withQuote = quote?.let { "[in risposta a: «$it»]\n$trimmed" } ?: trimmed
-        val forAgent = barcode?.let { "$withQuote\n$it".trim() } ?: withQuote
+        val forAgent = agentText(trimmed, quote, barcode, corrects)
         viewModelScope.launch(conversation) {
             val speaker = if (spoken && settings.value.speakReplies) ReplySpeaker(spokenOutput) else null
             active.update { it + 1 }
@@ -549,6 +572,7 @@ class ChatViewModel(
         _photo.value = null
         _barcode.value = null
         _replyingTo.value = null
+        _correcting.value = null
         _draftNotes.value = emptyList()
         _messages.value = emptyList()
         viewModelScope.launch(conversation) {
@@ -626,6 +650,23 @@ private const val SAVE_DELAY_MS = 500L
 private const val QUOTE_CHARS = 160
 
 /** The start of [message] as plain text, for "Rispondi": Markdown symbols, link addresses and line breaks out. */
+/**
+ * The request as the agent gets it. The barcode read on the phone goes to the agent (for the product databases), not
+ * into the bubble: scanned or found in a photo, it takes the line the agent's instructions know. A reply carries the
+ * start of the message it answers, so the agent knows what "questo" refers to; a correction, the start of the request
+ * it replaces, which the agent's instructions say to forget with its answer.
+ */
+internal fun agentText(text: String, quote: String?, barcode: String?, corrects: String? = null): String =
+    listOfNotNull(corrects?.let { "[corregge: «$it»]" }, quote?.let { "[in risposta a: «$it»]" }, text.ifEmpty { null }, barcode)
+        .joinToString("\n").trim()
+
+/** The chat without the request [id] and what came after it (its answer, a note it was stopped); alert lines stay. */
+internal fun withoutRequest(messages: List<ChatMessage>, id: Long): List<ChatMessage> {
+    val at = messages.indexOfFirst { it.id == id }
+    if (at < 0) return messages
+    return messages.take(at) + messages.drop(at + 1).filter { it.alertId != null }
+}
+
 internal fun quoteOf(message: ChatMessage): String {
     val plain = message.text.lines().map { withoutMarkdown(withoutUrls(it)) }.filter { it.isNotBlank() }.joinToString(" ")
         .ifEmpty { if (message.image != null) "foto" else "" }

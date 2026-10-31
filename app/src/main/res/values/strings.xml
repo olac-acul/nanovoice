@@ -265,6 +265,8 @@
     <string name="reply_to_agent">Rispondi a NanoVoice</string>
     <string name="reply_to_self">Rispondi al tuo messaggio</string>
     <string name="reply_cancel">Annulla la risposta</string>
+    <string name="correction_of">Correggi il tuo messaggio: la correzione lo sostituisce</string>
+    <string name="correction_cancel">Annulla la correzione</string>
     <string name="day_today">Oggi</string>
     <string name="day_yesterday">Ieri</string>
     <string name="scroll_to_latest">Vai all\'ultimo messaggio</string>
