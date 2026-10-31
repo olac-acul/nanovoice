@@ -93,24 +93,52 @@ class ReplySpeakerTest {
         assertEquals(listOf("Oggi hai", "connessione persa"), out.said)
     }
 
-    @Test fun aLongSentenceIsSpokenInGrowingPieces() {
+    @Test fun aLongSentenceIsSpokenInSlowlyGrowingPieces() {
         val long = "Domani hai tre appuntamenti, il dentista alle dieci, la riunione con il gruppo di lavoro alle quattordici, " +
             "e la cena da tua sorella alle venti, ricordati il regalo."
         val pieces = spokenChunks(long)
-        assertEquals(long, pieces.joinToString(" "))
+        assertEquals(long.replace(",", ""), pieces.joinToString(" ").replace(",", ""))
         assertTrue(pieces.size > 1 && pieces.first().length <= 60, pieces.toString())
-        assertTrue(pieces.zipWithNext().all { (a, b) -> a.length <= 160 && b.length <= 160 }, pieces.toString())
+        assertGrowSlowly(pieces)
     }
 
-    @Test fun shortSentencesNumbersAndUnbrokenClausesStayWhole() {
+    @Test fun shortSentencesAndNumbersStayWhole() {
         assertEquals(listOf("Sono le dieci, e un quarto."), spokenChunks("Sono le dieci, e un quarto."))
         val decimals = "La temperatura media di domani sarà di 21,5 gradi con umidità al 60,5 per cento e vento debole da nord."
         assertEquals(
-            listOf("La temperatura media di domani sarà di 21,5 gradi con umidità al 60,5 per cento,", "e vento debole da nord."),
+            listOf("La temperatura media di domani sarà di 21,5 gradi,", "con umidità al 60,5 per cento e vento debole da nord."),
             spokenChunks(decimals),
         )
+    }
+
+    @Test fun aSentenceWithNowhereToBreatheIsCutBetweenWords() {
         val unbroken = "La riunione con il gruppo di lavoro del progetto nuovo è stata spostata a giovedì pomeriggio alle quindici."
-        assertEquals(listOf(unbroken), spokenChunks(unbroken))
+        val pieces = spokenChunks(unbroken)
+        assertEquals(unbroken.replace(",", ""), pieces.joinToString(" ").replace(",", ""))
+        assertTrue(pieces.size > 1, pieces.toString())
+        // Before a preposition or an article, never inside a phrase like "21,5 gradi".
+        assertTrue(pieces.drop(1).all { it.substringBefore(' ').lowercase() in setOf("di", "del", "a", "alle", "con", "il") }, pieces.toString())
+        assertGrowSlowly(pieces)
+    }
+
+    @Test fun aLongSentenceAfterAShortPieceStartsShort() {
+        // On the phone: 27 characters said, then 141 with no comma took 8 s to make, 5 s of silence.
+        val long = "Il gruppo di lavoro ha deciso di spostare la riunione del progetto nuovo a giovedì pomeriggio nella sala grande del secondo piano dell'edificio"
+        val pieces = spokenChunks(long, previous = 27)
+        assertTrue(pieces.size > 2 && pieces.first().length <= 51, pieces.toString())
+        assertGrowSlowly(listOf("x".repeat(27)) + pieces)
+    }
+
+    @Test fun theSpeakerCarriesThePieceLengthAcrossSentences() {
+        speaker.onSnapshot("Sì, certo. Il gruppo di lavoro ha deciso di spostare la riunione del progetto nuovo a giovedì pomeriggio nella sala grande. ")
+        speaker.finish()
+        assertEquals("Sì, certo.", out.said.first())
+        assertTrue(out.said[1].length <= 51, out.said.toString())
+    }
+
+    private fun assertGrowSlowly(pieces: List<String>) {
+        // Each piece at most a fifth longer than the one before (50 at least), with the slack before a cut between words.
+        assertTrue(pieces.zipWithNext().all { (a, b) -> b.length <= maxOf(50, (a.length * 1.2).toInt()) * 1.3 + 1 }, pieces.toString())
     }
 
     @Test fun aLongSentenceWithoutCommasIsCutBeforeAConnectingWord() {

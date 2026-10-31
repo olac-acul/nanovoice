@@ -10,6 +10,8 @@ import dev.nanovoice.voice.SpokenOutput
 class ReplySpeaker(private val spoken: SpokenOutput) {
     private val buffer = SentenceBuffer()
     private var seen = ""
+    /** Length of the last piece queued, which sets how long the next one may be; 0 once the voice has caught up. */
+    private var lastPiece = 0
 
     fun onSnapshot(full: String) {
         val delta = if (full.startsWith(seen)) full.substring(seen.length) else full.also { buffer.reset() }
@@ -19,7 +21,11 @@ class ReplySpeaker(private val spoken: SpokenOutput) {
 
     private fun say(sentence: String) {
         val text = spokenNumbers(withoutMarkdown(withoutUrls(sentence)))
-        if (text.any { it.isLetterOrDigit() } && !isSourceLabel(text)) spokenChunks(text).forEach(spoken::speak)
+        if (text.any { it.isLetterOrDigit() } && !isSourceLabel(text)) {
+            val pieces = spokenChunks(text, lastPiece)
+            pieces.forEach(spoken::speak)
+            lastPiece = pieces.last().length
+        }
     }
 
     /**
@@ -28,12 +34,14 @@ class ReplySpeaker(private val spoken: SpokenOutput) {
      */
     fun pause() {
         buffer.flush()?.let(::say)
+        lastPiece = 0 // what comes next comes after a wait: the voice will have finished, so it starts short again
     }
 
     /** The reply is over: say what is left and get ready for the next one. */
     fun finish() {
         buffer.flush()?.let(::say)
         seen = ""
+        lastPiece = 0
     }
 }
 
@@ -132,33 +140,71 @@ internal fun breathPieces(clause: String): List<String> {
     return pieces
 }
 
+/** Short words a phrase starts with (prepositions, articles): cutting before one keeps the words of each part together. */
+private val weakWords = setOf(
+    "di", "a", "da", "in", "con", "su", "per", "tra", "fra", "il", "lo", "la", "i", "gli", "le", "un", "uno", "una",
+    "del", "dello", "della", "dei", "degli", "delle", "al", "allo", "alla", "ai", "agli", "alle", "dal", "dalla",
+    "nel", "nello", "nella", "nei", "negli", "nelle", "sul", "sullo", "sulla", "sui",
+)
+
 /**
- * A long sentence in pieces that can be synthesized one by one. The voice takes about 37 ms of synthesis per character
- * before any of it is heard (a 170-character sentence: over 6 s of silence; twice that on a hot phone), and
- * synthesizes faster than it speaks. So the first piece is short, to start soon, and the next ones grow, each made
- * while the one before is playing. Cuts after a comma, semicolon or colon followed by a space ("1,5" stays whole), and
- * in a long clause before a connecting word ("ma", "e", "perché"…); a piece cut there ends with a comma, so the voice
- * goes on in the tone of a pause, not of a full stop. A sentence up to [limits]'s first value stays whole.
+ * The last resort for a piece with no comma and no connecting word that is still too long: a cut between two words, at
+ * most [limit] characters in, before a preposition or an article ("… sarà di 21,5 gradi | con umidità …"). Never just
+ * anywhere ("arrivano | nuvole" sounds broken): null when there is no such word, or no cut leaves both parts at least
+ * [MIN_PIECE] long.
  */
-internal fun spokenChunks(sentence: String, limits: List<Int> = CHUNK_LIMITS): List<String> {
-    if (sentence.length <= limits.first()) return listOf(sentence)
+internal fun wordCut(text: String, limit: Int): Pair<String, String>? {
+    val spaces = text.indices.filter { text[it] == ' ' && it in MIN_PIECE..minOf(limit, text.length - MIN_PIECE - 1) }
+    val before = spaces.lastOrNull { text.substring(it + 1).substringBefore(' ').lowercase() in weakWords }
+    return before?.let { text.substring(0, it) to text.substring(it + 1) }
+}
+
+/** How long the piece after one of [previous] characters may be: see [spokenChunks]. */
+private fun pieceLimit(previous: Int) =
+    if (previous == 0) FIRST_PIECE else (previous * PIECE_GROWTH).toInt().coerceIn(MIN_LIMIT, MAX_PIECE)
+
+/**
+ * A sentence in pieces that can be synthesized one by one, each while the one before is playing. The voice needs
+ * about 30 ms of synthesis per character on a cool phone and nearly 60 on a hot or charging one, while a character
+ * lasts about 68 ms spoken: so a piece is ready in time only if it is at most about a fifth longer than the one being
+ * said, or the voice stops and waits. [previous] is the length of the piece before this sentence in the same reply (0
+ * at the start, when the first piece is short so the voice starts soon); the pieces then grow slowly, across sentences.
+ * Cuts after a comma, semicolon or colon followed by a space ("1,5" stays whole), then before a connecting word ("ma",
+ * "e", "perché"…), and last, when still well over, between two words ([wordCut]). A piece cut ends with a comma, so the voice goes on in the
+ * tone of a pause, not of a full stop. A sentence that fits stays whole.
+ */
+internal fun spokenChunks(sentence: String, previous: Int = 0): List<String> {
+    if (sentence.length <= pieceLimit(previous)) return listOf(sentence)
     val pieces = sentence.split(clauseBreak).filter { it.isNotBlank() }.flatMap(::breathPieces)
-    if (pieces.size < 2) return listOf(sentence)
     val chunks = mutableListOf<String>()
+    var last = previous
+    fun emit(chunk: String) {
+        chunks += chunk
+        last = chunk.length
+    }
     var current = ""
     for (piece in pieces) {
-        val limit = limits[minOf(chunks.size, limits.lastIndex)]
         val joined = if (current.isEmpty()) piece else "$current $piece"
-        if (current.isNotEmpty() && joined.length > limit) {
-            chunks += current
+        if (current.isNotEmpty() && joined.length > pieceLimit(last)) {
+            emit(current)
             current = piece
         } else {
             current = joined
         }
+        // Cut between words only when well over the limit: a little over costs a short wait, a cut costs some tune.
+        while (current.length > pieceLimit(last) * WORD_CUT_SLACK) {
+            val (head, rest) = wordCut(current, pieceLimit(last)) ?: break
+            emit(head)
+            current = rest
+        }
     }
-    if (current.isNotEmpty()) chunks += current
+    if (current.isNotEmpty()) emit(current)
     return chunks.mapIndexed { i, chunk -> if (i < chunks.lastIndex && chunk.last().isLetterOrDigit()) "$chunk," else chunk }
 }
 
 private const val MIN_PIECE = 20
-private val CHUNK_LIMITS = listOf(60, 100, 160)
+private const val FIRST_PIECE = 60
+private const val MIN_LIMIT = 50
+private const val MAX_PIECE = 160
+private const val PIECE_GROWTH = 1.2
+private const val WORD_CUT_SLACK = 1.3
