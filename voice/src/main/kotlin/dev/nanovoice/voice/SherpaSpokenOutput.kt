@@ -137,7 +137,7 @@ class SherpaSpokenOutput(
             if (audioOut == null || audioOut.samples.isEmpty() || myEpoch != epoch.get()) return@launch done(myEpoch)
             Log.d(TAG, "preview $voiceId: ${audioOut.samples.size} samples at ${audioOut.sampleRate} Hz in ${(System.nanoTime() - previewStart) / 1_000_000} ms")
             Loudness.normalize(audioOut.samples)
-            clips.send(Clip(myEpoch, audioOut.samples, audioOut.sampleRate))
+            clips.send(Clip(myEpoch, Silence.trim(audioOut.samples, audioOut.sampleRate), audioOut.sampleRate))
         }
     }
 
@@ -217,7 +217,7 @@ class SherpaSpokenOutput(
                     engine?.takeIf { it.id == voiceId }?.tts?.let { runCatching { it.generate(text = text, sid = 0, speed = 1.0f) }.getOrNull() }
                 } ?: return@launch
                 Loudness.normalize(audioOut.samples)
-                cache.pin(voiceId, text, PhraseCache.Audio(audioOut.samples, audioOut.sampleRate))
+                cache.pin(voiceId, text, PhraseCache.Audio(Silence.trim(audioOut.samples, audioOut.sampleRate), audioOut.sampleRate))
                 Log.d(TAG, "warmed a fixed phrase (${text.length} chars) in ${(System.nanoTime() - started) / 1_000_000} ms")
             }
         }
@@ -266,8 +266,9 @@ class SherpaSpokenOutput(
         Log.d(TAG, "voice=$voice ${item.text.length} chars -> ${audioOut?.samples?.size} samples in ${(System.nanoTime() - startedAt) / 1_000_000} ms")
         if (audioOut == null || audioOut.samples.isEmpty() || item.epoch != epoch.get()) return done(item.epoch)
         Loudness.normalize(audioOut.samples)
-        if (spokenBy != null) cache.put(spokenBy, item.text, PhraseCache.Audio(audioOut.samples, audioOut.sampleRate))
-        clips.send(Clip(item.epoch, audioOut.samples, audioOut.sampleRate))
+        val samples = Silence.trim(audioOut.samples, audioOut.sampleRate)
+        if (spokenBy != null) cache.put(spokenBy, item.text, PhraseCache.Audio(samples, audioOut.sampleRate))
+        clips.send(Clip(item.epoch, samples, audioOut.sampleRate))
     }
 
     private suspend fun play(clip: Clip) {
