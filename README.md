@@ -138,11 +138,13 @@ su GrapheneOS è spesso solo inglese (Transcribro include `whisper tiny.en`).
   Riccardo e Miro: Serena è la più pulita (30-48 dB tra voce e rumore, senza guadagno); Miro risultava gracchiante.
   Il file è quello originale di Piper (114 MB, fp32): l'app aggiunge i metadati ONNX che sherpa-onnx richiede e costruisce
   `tokens.txt` dal JSON, togliendo i cinque dittonghi a due caratteri (`RawPiperInstaller`, `PiperFiles`).
-- **Lettura a pezzi:** la risposta si legge mentre arriva, in pezzi preparati uno mentre suona il precedente. Si taglia
-  alle virgole, poi prima di una congiunzione ("ma", "e", "perché"…) e, se il pezzo è ancora lungo, prima di una
-  preposizione o di un articolo; ogni pezzo è al massimo un quinto più lungo del precedente e il silenzio ai bordi è
-  accorciato. Su un telefono caldo o in carica la sintesi può essere più lenta della voce: allora restano brevi pause.
-- **Cosa non viene letto:** gli URL (restano nel testo e diventano link). Le cifre sì, perché `espeak-ng` le legge bene;
+- **Lettura a pezzi:** la risposta si legge mentre arriva, in pezzi preparati mentre suonano i precedenti (fino a
+  quattro in anticipo). Si taglia alle virgole, poi prima di una congiunzione ("ma", "e", "perché"…) e, se il pezzo è
+  ancora lungo, prima di una preposizione o di un articolo; il silenzio ai bordi è accorciato. La voce misura quanto
+  le serve per ogni secondo di parlato e i pezzi si allungano solo quanto lo permette: su un telefono caldo o in
+  carica, quando la sintesi è più lenta della voce, restano corti, così le pause che restano sono brevi.
+- **Cosa non viene letto:** gli URL (restano nel testo e diventano link) e le fonti tra parentesi alla fine di un
+  elemento di un elenco, nome del sito compreso. Le cifre sì, perché `espeak-ng` le legge bene;
   prima della lettura l'app riscrive solo le date con le barre ("21/10/2026") e gli ordinali col simbolo ("il 3° piano").
 - **Audio:** flusso multimediale (`USAGE_MEDIA`), non "assistente": quest'ultimo ha un volume separato, di solito basso.
 - **Libreria nativa:** l'AAR di sherpa-onnx non è su Maven Central; la build lo scarica e ne verifica l'hash (`downloadSherpa`).
