@@ -164,6 +164,34 @@ private fun EarlierToggle(count: Int, shown: Boolean, onToggle: () -> Unit) {
     }
 }
 
+/** In the chat, where an alert came: its title and time, a tap opens it (the text itself is in "Avvisi"). */
+@Composable
+private fun AlertLine(title: String, time: Long, onOpen: () -> Unit) {
+    val color = MaterialTheme.colorScheme.onSurfaceVariant
+    val at = remember(time) { Instant.ofEpochMilli(time).atZone(ZoneId.systemDefault()).format(TIME) }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 10.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .clickable(role = Role.Button, onClick = onOpen)
+            .padding(horizontal = 8.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Icons.Bell(MaterialTheme.colorScheme.primary, size = 18.dp)
+        Text(
+            stringResource(R.string.alerts_line, title),
+            style = MaterialTheme.typography.bodyMedium,
+            color = color,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
+        Text(at, style = MaterialTheme.typography.labelSmall, color = color.copy(alpha = 0.7f))
+    }
+}
+
 /**
  * Under the latest reply: "Ascolta", or "Riprova" when it is no answer (with "Controlla il collegamento" when the server
  * is not reached). The long press stays a shortcut.
@@ -217,6 +245,8 @@ class MessageActions(
     val edit: (ChatMessage) -> Unit,
     /** Opens the photo picker: a photo the app no longer keeps, to attach again. */
     val attachAgain: () -> Unit = {},
+    /** Opens an alert from its line "Nuovo avviso". */
+    val openAlert: (Long) -> Unit = {},
 )
 
 /**
@@ -245,7 +275,7 @@ fun ChatList(
     val messages = if (showEarlier) all else all.filterNot { it.earlier }
     val lastUserId = messages.lastOrNull { it.fromUser }?.id
     // Under the latest reply, once it is complete: "Ascolta", and "Riprova" when it is no answer.
-    val lastReply = messages.lastOrNull()?.takeIf { !it.fromUser && !it.notice && !showTyping && workingText == null }
+    val lastReply = messages.lastOrNull()?.takeIf { !it.fromUser && !it.notice && it.alertId == null && !showTyping && workingText == null }
     val lastRequest = messages.lastOrNull { it.fromUser }
     // "Correggi" under it once the turn is over, not while the answer is still coming.
     val editable = lastRequest?.takeIf { it.text.isNotBlank() && !showTyping && workingText == null }
@@ -298,6 +328,10 @@ fun ChatList(
                 }
                 if (message.notice) {
                     item(key = message.id) { OpeningHeader(message.text, day) }
+                    return@forEachIndexed
+                }
+                message.alertId?.let { alertId ->
+                    item(key = message.id) { AlertLine(message.text, message.time) { actions.openAlert(alertId) } }
                     return@forEachIndexed
                 }
                 val startsGroup = previous == null || previous.fromUser != message.fromUser || previous.notice ||

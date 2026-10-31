@@ -27,6 +27,9 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
 import dev.nanovoice.actions.photo.ProductKind
 import dev.nanovoice.agent.AgentImage
 import androidx.compose.ui.layout.ContentScale
@@ -120,6 +123,8 @@ fun ChatScreen(
     onOpenSettings: () -> Unit,
     /** Opens the connection page of the settings. */
     onCheckConnection: () -> Unit = onOpenSettings,
+    /** Opens "Avvisi": on one alert, or on the list (null). */
+    onOpenAlerts: (Long?) -> Unit = {},
 ) {
     val messages by viewModel.messages.collectAsState()
     val status by viewModel.status.collectAsState()
@@ -149,6 +154,8 @@ fun ChatScreen(
     val workingText by viewModel.workingText.collectAsState()
     val appSettings by viewModel.appSettings.collectAsState()
     val newChatLabel = stringResource(R.string.help_new_chat)
+    val unread by viewModel.unreadAlerts.collectAsState()
+    val alertsLabel = if (unread > 0) pluralStringResource(R.plurals.alerts_unread, unread, unread) else stringResource(R.string.alerts_title)
     val helpLabel = stringResource(R.string.help_title)
     val settingsLabel = stringResource(R.string.settings)
     val showStatus = working && workingText.isNotEmpty()
@@ -307,6 +314,31 @@ fun ChatScreen(
                     modifier = Modifier
                         .size(44.dp)
                         .background(MaterialTheme.colorScheme.surfaceContainerHigh, CircleShape)
+                        .semantics { contentDescription = alertsLabel }
+                        .clickable(role = Role.Button) { onOpenAlerts(null) },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icons.Bell(MaterialTheme.colorScheme.onSurface)
+                    if (unread > 0) {
+                        Box(
+                            Modifier.align(Alignment.TopEnd).padding(top = 2.dp, end = 2.dp).size(16.dp)
+                                .background(MaterialTheme.colorScheme.primary, CircleShape),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text(
+                                if (unread > 9) "9+" else unread.toString(),
+                                color = MaterialTheme.colorScheme.onPrimary,
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold,
+                            )
+                        }
+                    }
+                }
+                Spacer(Modifier.width(8.dp))
+                Box(
+                    modifier = Modifier
+                        .size(44.dp)
+                        .background(MaterialTheme.colorScheme.surfaceContainerHigh, CircleShape)
                         .semantics { contentDescription = newChatLabel }
                         .clickable { confirmNew = true },
                     contentAlignment = Alignment.Center,
@@ -349,6 +381,7 @@ fun ChatScreen(
                                 readAloud = viewModel::readAloud,
                                 edit = viewModel::editAndResend,
                                 attachAgain = onPickPhoto,
+                                openAlert = { onOpenAlerts(it) },
                             )
                         },
                         modifier = Modifier.fillMaxSize(),

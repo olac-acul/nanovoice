@@ -47,12 +47,13 @@ class ChatStore(private val file: File) {
         id, text, fromUser, time, quote, barcode, failed, notice,
         preview = image?.let(::jpeg),
         earlier = earlier,
+        alertId = alertId,
     )
 
     private fun StoredMessage.toMessage() = ChatMessage(
         id, text, fromUser,
         image = preview?.let { BitmapFactory.decodeByteArray(it, 0, it.size)?.asImageBitmap() },
-        time = time, quote = quote, barcode = barcode, failed = failed, notice = notice, earlier = earlier,
+        time = time, quote = quote, barcode = barcode, failed = failed, notice = notice, earlier = earlier, alertId = alertId,
     )
 
     private fun jpeg(image: ImageBitmap): ByteArray = ByteArrayOutputStream().use { out ->
@@ -78,6 +79,7 @@ internal data class StoredMessage(
     val notice: Boolean = false,
     val preview: ByteArray? = null,
     val earlier: Boolean = false,
+    val alertId: Long? = null,
 )
 
 internal fun encodeChat(messages: List<StoredMessage>): String = buildJsonObject {
@@ -93,6 +95,7 @@ internal fun encodeChat(messages: List<StoredMessage>): String = buildJsonObject
             if (m.failed) put("failed", true)
             if (m.notice) put("notice", true)
             if (m.earlier) put("earlier", true)
+            m.alertId?.let { put("alertId", it) }
             m.preview?.let { put("preview", Base64.getEncoder().encodeToString(it)) }
         })
     })
@@ -116,6 +119,7 @@ internal fun decodeChat(text: String): List<StoredMessage> {
             failed = bool("failed"),
             notice = bool("notice"),
             earlier = bool("earlier"),
+            alertId = (o["alertId"] as? JsonPrimitive)?.longOrNull,
             preview = str("preview")?.let { runCatching { Base64.getDecoder().decode(it) }.getOrNull() },
         )
     }

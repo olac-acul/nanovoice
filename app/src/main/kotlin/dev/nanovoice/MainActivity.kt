@@ -20,6 +20,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import dev.nanovoice.ui.NanoTheme
 import dev.nanovoice.wake.WakeWordService
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -35,6 +36,25 @@ class MainActivity : ComponentActivity() {
             .setAction(Intent.ACTION_MAIN)
             .addCategory(Intent.CATEGORY_LAUNCHER)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)
+
+        /** From an alert's notification: the app opens on that alert. */
+        fun openAlertIntent(context: android.content.Context, id: Long): Intent =
+            Intent(context, MainActivity::class.java)
+                .putExtra(EXTRA_ALERT, id)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+
+        private const val EXTRA_ALERT = "dev.nanovoice.alert"
+    }
+
+    /** "Avvisi" on screen, and the alert open in it (null: the list). Set by a tap on a notification too. */
+    private var showAlerts by mutableStateOf(false)
+    private var openAlert by mutableStateOf<Long?>(null)
+
+    private fun openAlertFrom(intent: Intent?) {
+        val id = intent?.getLongExtra(EXTRA_ALERT, -1L)?.takeIf { it >= 0 } ?: return
+        intent.removeExtra(EXTRA_ALERT)
+        showAlerts = true
+        openAlert = id
     }
 
     private fun hasMicPermission() =
@@ -59,6 +79,7 @@ class MainActivity : ComponentActivity() {
         container.vosk.preload() // the first listening does not wait for the speech model
         // Opened from the assistant sheet: what was said there goes on in this chat.
         container.takeHandOver()?.let { chatViewModel().adopt(it) }
+        chatViewModel().showMissedAlerts()
     }
 
     /** Same instance as the chat screen's: both live in this activity's ViewModel store. */
@@ -68,6 +89,7 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         receiveShared(intent)
+        openAlertFrom(intent)
     }
 
     /** "Condividi → Chiedi a NanoVoice" from another app: the photo is attached to the next message, text goes in the draft. */
@@ -91,7 +113,10 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val container = (application as NanoVoiceApp).container
-        if (savedInstanceState == null) receiveShared(intent)
+        if (savedInstanceState == null) {
+            receiveShared(intent)
+            openAlertFrom(intent)
+        }
         setContent {
             val themeMode by container.settingsStore.settings.collectAsState()
             NanoTheme(themeMode.themeMode, themeMode.dynamicColors) {
@@ -130,6 +155,35 @@ class MainActivity : ComponentActivity() {
                         },
                         onFinish = { container.finishSetup() },
                         onSkip = container::finishSetup,
+                    )
+                } else if (showAlerts) {
+                    val alerts by container.inbox.alerts.collectAsState()
+                    // Read once open, however it was opened (the list, the chat's line, a notification).
+                    LaunchedEffect(openAlert) {
+                        openAlert?.let {
+                            container.inbox.markRead(it)
+                            container.notifier.cancelAlert(it)
+                        }
+                    }
+                    AlertsScreen(
+                        alerts = alerts,
+                        openId = openAlert,
+                        onOpen = { openAlert = it },
+                        onClose = { openAlert = null },
+                        onBack = { showAlerts = false },
+                        onListen = { vm.readAloud(ChatMessage(-1, it.text, fromUser = false)) },
+                        onReply = { alert ->
+                            vm.replyTo(ChatMessage(-1, alert.text, fromUser = false))
+                            openAlert = null
+                            showAlerts = false
+                        },
+                        onDelete = { id ->
+                            container.inbox.delete(id)
+                            container.notifier.cancelAlert(id)
+                            openAlert = null
+                        },
+                        onMarkAllRead = container.inbox::markAllRead,
+                        onDeleteAll = container.inbox::deleteAll,
                     )
                 } else if (showSettings) {
                     SettingsScreen(
@@ -174,6 +228,10 @@ class MainActivity : ComponentActivity() {
                         requestMicPermission = { micLauncher.launch(Manifest.permission.RECORD_AUDIO) },
                         onOpenSettings = { settingsStart = null; showSettings = true },
                         onCheckConnection = { settingsStart = SettingsPage.Server.name; showSettings = true },
+                        onOpenAlerts = { id ->
+                            showAlerts = true
+                            openAlert = id
+                        },
                     )
                 }
             }

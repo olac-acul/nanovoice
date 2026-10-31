@@ -47,6 +47,8 @@ data class ChatMessage(
     val notice: Boolean = false,
     /** From before the server started the conversation over: kept to read again, folded, unknown to the agent. */
     val earlier: Boolean = false,
+    /** Not a message but the line "Nuovo avviso" for this [Alert] ([text] is its title); a tap opens it. */
+    val alertId: Long? = null,
 )
 
 /** Something the person should know about the draft, shown above the field until sent or dismissed. */
@@ -74,6 +76,8 @@ class ChatViewModel(
     private val saveSettings: (AppSettings) -> Unit = {},
     /** Where the conversation on screen is kept across restarts of the app; none in tests. */
     private val chatStore: ChatStore? = null,
+    /** Where the agent's own messages are sorted into late answers and alerts; none in tests (they come to the chat). */
+    private val inbox: Inbox? = null,
 ) : ViewModel() {
     /** The settings, for the screens that depend on them (link previews). */
     val appSettings: StateFlow<AppSettings> get() = settings
@@ -83,6 +87,10 @@ class ChatViewModel(
     val messages: StateFlow<List<ChatMessage>> = _messages
 
     val status: StateFlow<AgentStatus> = connection.status
+
+    /** How many alerts are not read yet, for the bell's badge. */
+    val unreadAlerts: StateFlow<Int> = inbox?.alerts?.map { list -> list.count { !it.read } }
+        ?.stateIn(viewModelScope, SharingStarted.Eagerly, 0) ?: MutableStateFlow(0)
 
     private val _thinking = MutableStateFlow(false)
 
@@ -251,7 +259,12 @@ class ChatViewModel(
             }
         }
         // On the lock screen the sheet must not show what the agent sends: the system notification still arrives.
-        viewModelScope.launch { connection.notifications.collect { if (!isLocked() && !repeatsLastReply(it)) add(it, fromUser = false) } }
+        if (inbox == null) {
+            viewModelScope.launch { connection.notifications.collect { if (!isLocked() && !repeatsLastReply(it)) add(it, fromUser = false) } }
+        } else {
+            viewModelScope.launch { inbox.lateAnswers.collect { if (!isLocked() && !repeatsLastReply(it)) add(it, fromUser = false) } }
+            viewModelScope.launch { inbox.arrivals.collect { if (!isLocked()) addAlertLine(it) } }
+        }
         // Only the screen whose spoken request is open asks aloud; the other one just shows the question.
         viewModelScope.launch {
             consent.pending.collectLatest { question ->
@@ -420,6 +433,7 @@ class ChatViewModel(
         if (busy.value) stopReplies()
         spokenRequest = spoken
         val requestId = add(trimmed, fromUser = true, image = preview, photo = sent, quote = quote, barcode = barcode)
+        inbox?.requestSent()
         // The barcode read on the phone goes to the agent (for the product databases), not into the bubble. Scanned or found
         // in a photo, it takes the line the agent's instructions know. A reply carries the start of the message it
         // answers, so the agent knows what "questo" refers to.
@@ -459,6 +473,8 @@ class ChatViewModel(
                     if (snap.working || snap.messageEnd) speaker?.pause()
                 }
                 speaker?.finish()
+                // Answered: what the agent sends on its own from now on is not this request's answer.
+                if (!failed && replyId != null) inbox?.requestAnswered()
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -480,7 +496,24 @@ class ChatViewModel(
 
     /** Messages of the assistant sheet, appended to this chat when the app is opened from it. */
     fun adopt(handed: List<ChatMessage>) {
-        for (m in handed) add(m.text, m.fromUser, m.image, m.photo, m.quote)
+        // Its "Nuovo avviso" lines come back through [showMissedAlerts], with their link to the alert.
+        for (m in handed) if (m.alertId == null) add(m.text, m.fromUser, m.image, m.photo, m.quote)
+    }
+
+    /**
+     * The lines "Nuovo avviso" for unread alerts that came while this chat was not on screen (the app closed, woken
+     * by a push), each once and after the last message.
+     */
+    fun showMissedAlerts() {
+        val box = inbox ?: return
+        val shown = _messages.value.mapNotNull { it.alertId }.toSet()
+        val after = _messages.value.lastOrNull()?.time ?: 0L
+        box.alerts.value.filter { !it.read && it.id !in shown && it.time > after }.forEach(::addAlertLine)
+    }
+
+    private fun addAlertLine(alert: Alert) {
+        if (_messages.value.any { it.alertId == alert.id }) return
+        _messages.update { it + ChatMessage(nextId++, alert.title, fromUser = false, time = alert.time, alertId = alert.id) }
     }
 
     /**
@@ -592,9 +625,10 @@ private const val SAVE_DELAY_MS = 500L
 /** How much of the answered message goes with a reply: enough to recognise it, one line on screen. */
 private const val QUOTE_CHARS = 160
 
-/** The start of [message] as plain text, for "Rispondi": Markdown symbols and line breaks out. */
+/** The start of [message] as plain text, for "Rispondi": Markdown symbols, link addresses and line breaks out. */
 internal fun quoteOf(message: ChatMessage): String {
-    val plain = withoutMarkdown(message.text.lines().joinToString(" ") { it.trim() }).ifEmpty { if (message.image != null) "foto" else "" }
+    val plain = message.text.lines().map { withoutMarkdown(withoutUrls(it)) }.filter { it.isNotBlank() }.joinToString(" ")
+        .ifEmpty { if (message.image != null) "foto" else "" }
     return if (plain.length > QUOTE_CHARS) plain.take(QUOTE_CHARS).trimEnd() + "…" else plain
 }
 

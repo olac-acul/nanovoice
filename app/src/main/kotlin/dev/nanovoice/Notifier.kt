@@ -32,19 +32,23 @@ class Notifier(private val context: Context) {
     fun canNotify() = Build.VERSION.SDK_INT < 33 ||
         context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
 
-    fun showAgentMessage(text: String) {
+    fun showAgentMessage(text: String) = show(text, MainActivity.openIntent(context), nextId.getAndIncrement())
+
+    /** An alert: its title over its text; a tap opens it in "Avvisi". Taken away once it is read in the app. */
+    fun showAlert(alert: Alert) =
+        show(alert.text, MainActivity.openAlertIntent(context, alert.id), ALERT_IDS + alert.id.toInt(), title = alert.title)
+
+    fun cancelAlert(id: Long) = manager.cancel(ALERT_IDS + id.toInt())
+
+    private fun show(text: String, intent: android.content.Intent, id: Int, title: String? = null) {
         if (!canNotify()) return
         manager.createNotificationChannel(
             NotificationChannel(CHANNEL, context.getString(R.string.notif_channel), NotificationManager.IMPORTANCE_DEFAULT),
         )
-        val open = PendingIntent.getActivity(
-            context, 0,
-            MainActivity.openIntent(context),
-            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
-        )
+        val open = PendingIntent.getActivity(context, id, intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
         val notification = android.app.Notification.Builder(context, CHANNEL)
             .setSmallIcon(R.drawable.ic_notification)
-            .setContentTitle(context.getString(R.string.app_name))
+            .setContentTitle(title ?: context.getString(R.string.app_name))
             .setContentText(text)
             .setStyle(android.app.Notification.BigTextStyle().bigText(text))
             .setContentIntent(open)
@@ -59,11 +63,13 @@ class Notifier(private val context: Context) {
                     .build(),
             )
             .build()
-        manager.notify(nextId.getAndIncrement(), notification)
+        manager.notify(id, notification)
     }
 
     companion object {
         private const val CHANNEL = "agent_messages"
+        /** Alert notifications take ids from here on, so the one of an alert can be taken away when it is read. */
+        private const val ALERT_IDS = 1_000_000
 
         internal fun shouldNotify(appInForeground: Boolean, locked: Boolean) = !appInForeground || locked
     }

@@ -46,6 +46,24 @@ object Icons {
         }
     }
 
+    /** A bell: the alerts, what the agent said on its own. */
+    @Composable
+    fun Bell(color: Color, modifier: Modifier = Modifier, size: Dp = 22.dp) = Canvas(modifier.size(size)) {
+        val w = this.size.width
+        val stroke = Stroke(w * 0.085f, cap = StrokeCap.Round, join = StrokeJoin.Round)
+        val body = Path().apply {
+            moveTo(w * 0.22f, w * 0.72f)
+            lineTo(w * 0.78f, w * 0.72f)
+            cubicTo(w * 0.70f, w * 0.64f, w * 0.71f, w * 0.56f, w * 0.71f, w * 0.44f)
+            cubicTo(w * 0.71f, w * 0.30f, w * 0.62f, w * 0.20f, w * 0.50f, w * 0.20f)
+            cubicTo(w * 0.38f, w * 0.20f, w * 0.29f, w * 0.30f, w * 0.29f, w * 0.44f)
+            cubicTo(w * 0.29f, w * 0.56f, w * 0.30f, w * 0.64f, w * 0.22f, w * 0.72f)
+            close()
+        }
+        drawPath(body, color, style = stroke)
+        line(color, w, 0.43f, 0.84f, 0.57f, 0.84f)
+    }
+
     /** A flame: "start fresh", for the new conversation button. */
     @Composable
     fun Flame(color: Color, modifier: Modifier = Modifier, size: Dp = 22.dp) = Canvas(modifier.size(size)) {

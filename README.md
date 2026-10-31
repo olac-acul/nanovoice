@@ -88,9 +88,14 @@ Lato server serve la skill `add-voice` di [skills-for-nanoclaw](https://github.c
 - **Ripartenza dopo una pausa:** quando il server ricomincia la conversazione, la chat riparte sotto un titolo con la
   data; i messaggi di prima restano, chiusi dietro una linea "N messaggi precedenti" che li riapre. La chat è salvata
   nei file privati dell'app (al massimo 200 messaggi; delle foto solo la miniatura), esclusa dai backup di Android.
-- **Notifiche:** i messaggi che l'agente manda da solo arrivano come notifica di sistema quando l'app non è in primo
-  piano. Con UnifiedPush (per esempio ntfy) il server sveglia il telefono anche ad app chiusa; la push non contiene
-  testo, che arriva poi dal server.
+- **Avvisi:** i messaggi che l'agente manda da solo (riepiloghi programmati, promemoria) stanno in una sezione a parte,
+  aperta dalla campanella in alto, con il numero dei non letti; in chat resta solo la riga "Nuovo avviso", che lo apre.
+  Ogni avviso si legge, si ascolta, si elimina o, con "Rispondi", torna in chat come citazione. Una risposta arrivata in
+  ritardo (entro 15 minuti da una richiesta rimasta senza risposta) va invece in chat. Gli avvisi restano nei file
+  privati dell'app, anche se arrivano ad app chiusa: al massimo 100, per 30 giorni.
+- **Notifiche:** gli avvisi arrivano come notifica di sistema quando l'app non è in primo piano; un tocco apre
+  quell'avviso. Con UnifiedPush (per esempio ntfy) il server sveglia il telefono anche ad app chiusa; la push non
+  contiene testo, che arriva poi dal server.
 
 ## Azioni sul telefono
 

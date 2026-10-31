@@ -44,3 +44,10 @@ class VisibleReplyTest {
         assertEquals("", visibleReply("Cerco sul Web...", "Cerco sul Web..."))
     }
 }
+
+class QuoteTest {
+    @Test fun aQuotedListLosesItsMarkersAndAddresses() {
+        val recap = "## Recap di Reddit\n\n- **r/italy**: treni regionali ([Reddit](https://example.com/a))\n- [r/torino](https://example.com/b): ciclabile"
+        assertEquals("Recap di Reddit r/italy: treni regionali r/torino: ciclabile", quoteOf(ChatMessage(1, recap, fromUser = false)))
+    }
+}

@@ -84,6 +84,7 @@ class AppContainer(context: Context) {
 
     /** The conversation on screen, kept across restarts of the app (private files, no backup). */
     val chatStore = ChatStore(File(context.filesDir, "chat/conversation.json"))
+    val inbox = Inbox(File(context.filesDir, "chat/alerts.json"), scope)
     private val sherpa = SherpaSpokenOutput(context, voices, settingsStore.settings.map { it.voiceId }, scope, phrases.fixedPhrases)
     val spokenOutput: SpokenOutput = sherpa
     val voskModels = ModelManager(File(context.filesDir, "vosk"), VoskModels.ITALIAN_SMALL)
@@ -108,8 +109,14 @@ class AppContainer(context: Context) {
         scope.launch {
             settingsStore.settings.map { it.wakeWord }.distinctUntilChanged().collect { WakeWordService.apply(appContext, it) }
         }
-        // Things the agent says on its own: a system notification when the app is not on screen.
-        scope.launch { connection.notifications.collect { if (notifier.shouldNotify()) notifier.showAgentMessage(it) } }
+        // Things the agent says on its own: a late answer goes to the chat, the rest is kept as an alert; a system
+        // notification when the app is not on screen.
+        scope.launch {
+            connection.notifications.collect { text ->
+                val alert = inbox.receive(text)
+                if (notifier.shouldNotify()) if (alert != null) notifier.showAlert(alert) else notifier.showAgentMessage(text)
+            }
+        }
     }
 
     fun installVoskModel() {

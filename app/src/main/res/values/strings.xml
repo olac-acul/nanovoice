@@ -202,6 +202,23 @@
     <string name="help_agent_body">Domande, ricerche, promemoria: risponde il tuo agente NanoClaw, a voce o per iscritto. Serve il collegamento.</string>
     <string name="help_try_agent">Cerca la biografia di antirez</string>
     <string name="help_new_chat">Nuova conversazione</string>
+    <string name="alerts_title">Avvisi</string>
+    <plurals name="alerts_unread">
+        <item quantity="one">Avvisi, %1$d da leggere</item>
+        <item quantity="other">Avvisi, %1$d da leggere</item>
+    </plurals>
+    <string name="alerts_line">Nuovo avviso · %1$s</string>
+    <string name="alerts_empty">Nessun avviso. Qui arrivano i messaggi che l\'agente manda da solo: promemoria, riepiloghi programmati e simili.</string>
+    <string name="alerts_mark_all_read">Segna tutti come letti</string>
+    <string name="alerts_delete_all">Elimina tutti</string>
+    <string name="alerts_delete_all_title">Eliminare tutti gli avvisi?</string>
+    <string name="alerts_delete_all_body">Gli avvisi spariscono da questo telefono. L\'agente non cambia nulla.</string>
+    <string name="alerts_delete">Elimina</string>
+    <string name="alerts_reply">Rispondi</string>
+    <string name="alerts_listen">Ascolta</string>
+    <string name="alerts_unread_mark">Da leggere</string>
+    <string name="alerts_gone">Questo avviso è stato eliminato.</string>
+    <string name="alerts_more">Altre azioni</string>
     <string name="previews_label">Anteprime dei link</string>
     <string name="previews_hint">Sotto un messaggio con un link mostra titolo, immagine e descrizione del primo; per i link dell\'agente solo dopo un tocco. Per farlo il telefono scarica la pagina dal sito, che vede il tuo indirizzo di rete. Solo siti https pubblici.</string>
     <string name="new_chat_title">Nuova conversazione?</string>
