@@ -13,6 +13,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -49,7 +50,9 @@ import androidx.compose.material3.TextButton
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextAlign
@@ -247,6 +250,7 @@ fun ChatList(
     // "Correggi" under it once the turn is over, not while the answer is still coming.
     val editable = lastRequest?.takeIf { it.text.isNotBlank() && !showTyping && workingText == null }
     val scope = rememberCoroutineScope()
+    val peekPx = with(LocalDensity.current) { EARLIER_PEEK.toPx() }
     // Following the conversation unless the person scrolled up to read: then new text does not pull them down.
     var followLatest by remember { mutableStateOf(true) }
     LaunchedEffect(listState) {
@@ -254,7 +258,8 @@ fun ChatList(
             if (!more) followLatest = true else if (scrolling) followLatest = false
         }
     }
-    LaunchedEffect(messages.size, showTyping, workingText != null) {
+    // On new messages, not on folding the earlier ones open or closed: that keeps the place being read.
+    LaunchedEffect(all.size, showTyping, workingText != null) {
         // Every message, one chip per day, and the dots or the status line after them.
         val last = messages.size + dayCount(messages, zone) + (if (earlierCount > 0) 1 else 0) +
             (if (showTyping || workingText != null || lastReply != null) 1 else 0) + (if (editable != null) 1 else 0) - 1
@@ -270,10 +275,21 @@ fun ChatList(
             // Room under the header for the first message; it scrolls away with the list.
             contentPadding = PaddingValues(top = 16.dp, bottom = 8.dp),
         ) {
-            if (earlierCount > 0) {
-                item(key = "earlier") { EarlierToggle(earlierCount, showEarlier) { showEarlier = !showEarlier } }
+            // The line between the earlier conversation and this one: at the top while folded, under the earlier
+            // messages once open. Opened, the list keeps the line where it was (the earlier messages come in above
+            // it) and moves up a little to show how they ended.
+            val firstNew = messages.indexOfFirst { !it.earlier }.let { if (it < 0) messages.size else it }
+            fun toggleItem() = item(key = "earlier") {
+                EarlierToggle(earlierCount, showEarlier) {
+                    showEarlier = !showEarlier
+                    if (showEarlier) scope.launch {
+                        withFrameNanos {}
+                        listState.animateScrollBy(-peekPx)
+                    }
+                }
             }
             messages.forEachIndexed { index, message ->
+                if (earlierCount > 0 && index == firstNew) toggleItem()
                 val previous = messages.getOrNull(index - 1)
                 val day = day(message.time, zone)
                 // The opening of a restarted conversation carries its own day, so no chip above it.
@@ -301,6 +317,7 @@ fun ChatList(
                     item(key = "edit-${message.id}") { EditAction { actions.edit(message) } }
                 }
             }
+            if (earlierCount > 0 && firstNew == messages.size) toggleItem()
             if (lastReply != null) {
                 item(key = "after-${lastReply.id}") {
                     ReplyActions(
@@ -338,6 +355,9 @@ fun ChatList(
         }
     }
 }
+
+/** How much of the earlier conversation shows above the line once it is opened. */
+private val EARLIER_PEEK = 160.dp
 
 private fun day(time: Long, zone: ZoneId): LocalDate = Instant.ofEpochMilli(time).atZone(zone).toLocalDate()
 
