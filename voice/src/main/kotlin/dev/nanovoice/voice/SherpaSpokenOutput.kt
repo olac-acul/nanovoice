@@ -29,8 +29,8 @@ import java.io.File
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
- * Offline text-to-speech with a Piper voice run by sherpa-onnx. Sentences are synthesized one ahead of the one
- * being played, so the pause between them stays short. The voice follows [preferredVoice] and the library:
+ * Offline text-to-speech with a Piper voice run by sherpa-onnx. Sentences are synthesized ahead of the one being
+ * played (up to [CLIPS_AHEAD]), so the pause between them stays short. The voice follows [preferredVoice] and the library:
  * installing a first voice makes it ready, deleting the active one falls back to another installed voice.
  */
 class SherpaSpokenOutput(
@@ -62,6 +62,16 @@ class SherpaSpokenOutput(
     private val _speaking = MutableStateFlow(false)
     override val speaking: StateFlow<Boolean> = _speaking
 
+    @Volatile private var measuredPace = DEFAULT_PACE
+    override val pace: Double get() = measuredPace
+
+    /** Folds one synthesis into [pace]; a short one is mostly fixed cost and says little. It changes as the phone warms. */
+    private fun measure(elapsedMs: Long, samples: Int, sampleRate: Int) {
+        val audioMs = samples * 1000.0 / sampleRate
+        if (audioMs < PACE_MIN_AUDIO_MS) return
+        measuredPace = measuredPace * (1 - PACE_WEIGHT) + elapsedMs / audioMs * PACE_WEIGHT
+    }
+
     private val engineLock = Any()
     private val cache = PhraseCache()
     private var engine: Loaded? = null
@@ -73,7 +83,8 @@ class SherpaSpokenOutput(
     private val pending = AtomicInteger(0)
 
     private val texts = Channel<Item>(Channel.UNLIMITED)
-    private val clips = Channel<Clip>(1)
+    // Several, not one: when the voice runs faster than it speaks it gets ahead, and that lead covers a longer piece later.
+    private val clips = Channel<Clip>(CLIPS_AHEAD)
     /** Nothing is left to say: the playing coroutine releases the kept track (it alone touches it). */
     private val idle = Channel<Unit>(Channel.CONFLATED)
     /** [begin] and [done] change the count and the audio focus together, so neither can undo the other's change. */
@@ -216,6 +227,7 @@ class SherpaSpokenOutput(
                 val audioOut = synchronized(engineLock) {
                     engine?.takeIf { it.id == voiceId }?.tts?.let { runCatching { it.generate(text = text, sid = 0, speed = 1.0f) }.getOrNull() }
                 } ?: return@launch
+                measure((System.nanoTime() - started) / 1_000_000, audioOut.samples.size, audioOut.sampleRate)
                 Loudness.normalize(audioOut.samples)
                 cache.pin(voiceId, text, PhraseCache.Audio(Silence.trim(audioOut.samples, audioOut.sampleRate), audioOut.sampleRate))
                 Log.d(TAG, "warmed a fixed phrase (${text.length} chars) in ${(System.nanoTime() - started) / 1_000_000} ms")
@@ -263,7 +275,9 @@ class SherpaSpokenOutput(
                     .getOrNull()
             }
         }
-        Log.d(TAG, "voice=$voice ${item.text.length} chars -> ${audioOut?.samples?.size} samples in ${(System.nanoTime() - startedAt) / 1_000_000} ms")
+        val elapsedMs = (System.nanoTime() - startedAt) / 1_000_000
+        if (audioOut != null) measure(elapsedMs, audioOut.samples.size, audioOut.sampleRate)
+        Log.d(TAG, "voice=$voice ${item.text.length} chars -> ${audioOut?.samples?.size} samples in $elapsedMs ms, pace ${"%.2f".format(measuredPace)}")
         if (audioOut == null || audioOut.samples.isEmpty() || item.epoch != epoch.get()) return done(item.epoch)
         Loudness.normalize(audioOut.samples)
         val samples = Silence.trim(audioOut.samples, audioOut.sampleRate)
@@ -347,5 +361,8 @@ class SherpaSpokenOutput(
         const val LOAD_WAIT_MS = 15_000L
         const val HEAD_WAIT_MARGIN_MS = 1_500L
         const val SYNTH_THREADS = 4
+        const val CLIPS_AHEAD = 4
+        const val PACE_MIN_AUDIO_MS = 1_500.0
+        const val PACE_WEIGHT = 0.4
     }
 }

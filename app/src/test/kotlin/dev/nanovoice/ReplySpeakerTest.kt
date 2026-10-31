@@ -1,5 +1,6 @@
 package dev.nanovoice
 
+import dev.nanovoice.voice.DEFAULT_PACE
 import dev.nanovoice.voice.SpokenOutput
 import dev.nanovoice.voice.TtsStatus
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -11,6 +12,7 @@ import kotlin.test.assertTrue
 class FakeSpokenOutput : SpokenOutput {
     val said = mutableListOf<String>()
     var stops = 0
+    override var pace = DEFAULT_PACE
     override val status: StateFlow<TtsStatus> = MutableStateFlow(TtsStatus.Ready)
     override val speaking: StateFlow<Boolean> = MutableStateFlow(false)
     override fun speak(text: String) { said += text }
@@ -134,6 +136,25 @@ class ReplySpeakerTest {
         speaker.finish()
         assertEquals("Sì, certo.", out.said.first())
         assertTrue(out.said[1].length <= 51, out.said.toString())
+    }
+
+    @Test fun thePiecesGrowAsFastAsTheVoiceAllows() {
+        // Measured on the phone: 0.6 s to make a second of speech when cool, 1.1-1.2 when hot.
+        assertEquals(1.5, pieceGrowth(0.5))
+        assertTrue(pieceGrowth(0.6) > 1.3)
+        assertEquals(1.0, pieceGrowth(0.9))
+        assertEquals(1.0, pieceGrowth(1.2))
+    }
+
+    @Test fun aVoiceSlowerThanSpeechKeepsThePiecesShort() {
+        out.pace = 1.2
+        speaker.onSnapshot(
+            "Domani hai tre appuntamenti, il dentista alle dieci, la riunione con il gruppo di lavoro alle quattordici, " +
+                "e la cena da tua sorella alle venti, ricordati il regalo. Poi c'è da passare in farmacia a ritirare le medicine. ",
+        )
+        speaker.finish()
+        // No piece much longer than the first: each wait for the voice stays as short as the first one.
+        assertTrue(out.said.size > 3 && out.said.all { it.length <= 60 * 1.3 + 1 }, out.said.toString())
     }
 
     private fun assertGrowSlowly(pieces: List<String>) {

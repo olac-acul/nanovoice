@@ -22,7 +22,7 @@ class ReplySpeaker(private val spoken: SpokenOutput) {
     private fun say(sentence: String) {
         val text = spokenNumbers(withoutMarkdown(withoutUrls(sentence)))
         if (text.any { it.isLetterOrDigit() } && !isSourceLabel(text)) {
-            val pieces = spokenChunks(text, lastPiece)
+            val pieces = spokenChunks(text, lastPiece, pieceGrowth(spoken.pace))
             pieces.forEach(spoken::speak)
             lastPiece = pieces.last().length
         }
@@ -161,22 +161,31 @@ internal fun wordCut(text: String, limit: Int): Pair<String, String>? {
     return before?.let { text.substring(0, it) to text.substring(it + 1) }
 }
 
+/**
+ * How much longer than the one before a piece may be, for a voice that takes [pace] seconds to make one second of
+ * speech: the next piece must be ready by the time this one is said, with some margin. A fast voice grows the pieces
+ * (fewer cuts); one that barely keeps up keeps them as they are, and a hot phone, slower than speech, short, so each
+ * wait is short too.
+ */
+internal fun pieceGrowth(pace: Double): Double = (PACE_MARGIN / pace).coerceIn(1.0, MAX_GROWTH)
+
 /** How long the piece after one of [previous] characters may be: see [spokenChunks]. */
-private fun pieceLimit(previous: Int) =
-    if (previous == 0) FIRST_PIECE else (previous * PIECE_GROWTH).toInt().coerceIn(MIN_LIMIT, MAX_PIECE)
+private fun pieceLimit(previous: Int, growth: Double) =
+    if (previous == 0) FIRST_PIECE else (previous * growth).toInt().coerceIn(MIN_LIMIT, MAX_PIECE)
 
 /**
- * A sentence in pieces that can be synthesized one by one, each while the one before is playing. The voice needs
- * about 30 ms of synthesis per character on a cool phone and nearly 60 on a hot or charging one, while a character
- * lasts about 68 ms spoken: so a piece is ready in time only if it is at most about a fifth longer than the one being
- * said, or the voice stops and waits. [previous] is the length of the piece before this sentence in the same reply (0
- * at the start, when the first piece is short so the voice starts soon); the pieces then grow slowly, across sentences.
+ * A sentence in pieces that can be synthesized one by one, each while the one before is playing. On a Pixel 8 the
+ * voice takes 0.6-0.9 s to make a second of speech, more on a hot or charging phone: so a piece is ready in time only
+ * if it is not much longer than the one being said ([growth], from [pieceGrowth]), or the voice stops and waits.
+ * [previous] is the length of the piece before this sentence in the same reply (0 at the start, when the first piece
+ * is short so the voice starts soon); the pieces then grow slowly, across sentences.
  * Cuts after a comma, semicolon or colon followed by a space ("1,5" stays whole), then before a connecting word ("ma",
  * "e", "perché"…), and last, when still well over, between two words ([wordCut]). A piece cut ends with a comma, so the voice goes on in the
  * tone of a pause, not of a full stop. A sentence that fits stays whole.
  */
-internal fun spokenChunks(sentence: String, previous: Int = 0): List<String> {
-    if (sentence.length <= pieceLimit(previous)) return listOf(sentence)
+internal fun spokenChunks(sentence: String, previous: Int = 0, growth: Double = PIECE_GROWTH): List<String> {
+    fun limit(previous: Int) = pieceLimit(previous, growth)
+    if (sentence.length <= limit(previous)) return listOf(sentence)
     val pieces = sentence.split(clauseBreak).filter { it.isNotBlank() }.flatMap(::breathPieces)
     val chunks = mutableListOf<String>()
     var last = previous
@@ -187,15 +196,15 @@ internal fun spokenChunks(sentence: String, previous: Int = 0): List<String> {
     var current = ""
     for (piece in pieces) {
         val joined = if (current.isEmpty()) piece else "$current $piece"
-        if (current.isNotEmpty() && joined.length > pieceLimit(last)) {
+        if (current.isNotEmpty() && joined.length > limit(last)) {
             emit(current)
             current = piece
         } else {
             current = joined
         }
         // Cut between words only when well over the limit: a little over costs a short wait, a cut costs some tune.
-        while (current.length > pieceLimit(last) * WORD_CUT_SLACK) {
-            val (head, rest) = wordCut(current, pieceLimit(last)) ?: break
+        while (current.length > limit(last) * WORD_CUT_SLACK) {
+            val (head, rest) = wordCut(current, limit(last)) ?: break
             emit(head)
             current = rest
         }
@@ -209,4 +218,7 @@ private const val FIRST_PIECE = 60
 private const val MIN_LIMIT = 50
 private const val MAX_PIECE = 160
 private const val PIECE_GROWTH = 1.2
+private const val MAX_GROWTH = 1.5
+/** The share of the time a piece plays that its successor's synthesis may take: the rest is margin. */
+private const val PACE_MARGIN = 0.85
 private const val WORD_CUT_SLACK = 1.3
