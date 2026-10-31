@@ -396,10 +396,15 @@ fun ChatScreen(
                         onCheckConnection = onCheckConnection.takeIf { status != AgentStatus.Connected },
                     )
                 }
-                // Messages scrolling under the header fade out instead of being cut at its edge.
+                // Messages scrolling under the header, or down to the orb's box, fade out instead of being cut at the edge.
+                val background = MaterialTheme.colorScheme.background
                 Box(
                     Modifier.fillMaxWidth().height(EDGE_FADE).align(Alignment.TopCenter)
-                        .background(Brush.verticalGradient(listOf(MaterialTheme.colorScheme.background, Color.Transparent))),
+                        .background(Brush.verticalGradient(listOf(background, Color.Transparent))),
+                )
+                Box(
+                    Modifier.fillMaxWidth().height(EDGE_FADE).align(Alignment.BottomCenter)
+                        .background(Brush.verticalGradient(listOf(Color.Transparent, background))),
                 )
             }
             if (ttsStatus == TtsStatus.NeedsVoice || ttsStatus == TtsStatus.Failed) {
@@ -961,7 +966,7 @@ private const val TYPING_DELAY_MS = 500L
 /** Orb and text field swap in about the time the keyboard takes to slide. */
 private const val TRANSITION_MS = 250
 
-/** How far the messages fade out under the header. */
+/** How far the messages fade out at the top and the bottom of the chat. */
 private val EDGE_FADE = 14.dp
 
 /** The number on the bell: a line exactly as tall as the digits, without the font's padding, so it sits in the middle. */
