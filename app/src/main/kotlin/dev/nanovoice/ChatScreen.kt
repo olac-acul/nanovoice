@@ -19,6 +19,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.foundation.layout.height
@@ -314,7 +315,7 @@ fun ChatScreen(
         Column(modifier = Modifier.safeDrawingPadding().padding(horizontal = 16.dp)) {
             // The name and the buttons on one steady row; the status under them, however long it gets.
             Row(
-                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Box(Modifier.weight(1f)) { Wordmark() }
@@ -395,6 +396,11 @@ fun ChatScreen(
                         onCheckConnection = onCheckConnection.takeIf { status != AgentStatus.Connected },
                     )
                 }
+                // Messages scrolling under the header fade out instead of being cut at its edge.
+                Box(
+                    Modifier.fillMaxWidth().height(EDGE_FADE).align(Alignment.TopCenter)
+                        .background(Brush.verticalGradient(listOf(MaterialTheme.colorScheme.background, Color.Transparent))),
+                )
             }
             if (ttsStatus == TtsStatus.NeedsVoice || ttsStatus == TtsStatus.Failed) {
                 Text(
@@ -569,7 +575,7 @@ private fun StatusBanner(status: AgentStatus, onCheck: () -> Unit, onOpenVpn: ()
     if (status == AgentStatus.Connecting) {
         val connecting = stringResource(R.string.status_connecting)
         LinearProgressIndicator(
-            modifier = Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 4.dp).height(3.dp).semantics { contentDescription = connecting },
+            modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp).height(3.dp).semantics { contentDescription = connecting },
             color = colors.primary,
             trackColor = colors.surfaceContainerHigh,
         )
@@ -586,7 +592,7 @@ private fun StatusBanner(status: AgentStatus, onCheck: () -> Unit, onOpenVpn: ()
     Surface(
         shape = RoundedCornerShape(18.dp),
         color = if (fault) warning.copy(alpha = 0.16f) else colors.surfaceContainerHigh,
-        modifier = Modifier.fillMaxWidth().padding(top = 10.dp, bottom = 4.dp),
+        modifier = Modifier.fillMaxWidth().padding(top = 2.dp, bottom = 6.dp),
     ) {
         Row(Modifier.padding(start = 14.dp, end = 6.dp, top = 6.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(
@@ -954,6 +960,9 @@ private const val TYPING_DELAY_MS = 500L
 
 /** Orb and text field swap in about the time the keyboard takes to slide. */
 private const val TRANSITION_MS = 250
+
+/** How far the messages fade out under the header. */
+private val EDGE_FADE = 14.dp
 
 /** The number on the bell: a line exactly as tall as the digits, without the font's padding, so it sits in the middle. */
 private val BadgeText = TextStyle(
