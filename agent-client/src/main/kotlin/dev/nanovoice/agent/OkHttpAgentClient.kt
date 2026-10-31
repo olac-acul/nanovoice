@@ -4,7 +4,6 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -58,6 +57,16 @@ class OkHttpAgentClient(
         .build()
 
     private val _state = MutableStateFlow(ConnectionState.Disconnected)
+
+    /** Cuts the wait before the next attempt short ([retryNow]). */
+    private val wake = Channel<Unit>(Channel.CONFLATED)
+
+    override fun retryNow() {
+        wake.trySend(Unit)
+    }
+
+    /** Waits [ms], or less if [retryNow] is called meanwhile: true then. */
+    private suspend fun pause(ms: Long): Boolean = withTimeoutOrNull(ms) { wake.receive() } != null
     override val state: StateFlow<ConnectionState> = _state
 
     // Room for everything the server may hand over at once on reconnection (it keeps up to 50).
@@ -165,9 +174,10 @@ class OkHttpAgentClient(
     private suspend fun connectLoop() {
         var backoff = config.initialBackoffMs
         while (true) {
+            wake.tryReceive() // a retry asked for while connecting or connected is about that attempt, not the next one
             if (ServerUrl.isCleartext(config.url) && !config.cleartextAllowed()) {
                 _state.value = ConnectionState.Blocked
-                delay(BLOCKED_RECHECK_MS)
+                pause(BLOCKED_RECHECK_MS)
                 continue
             }
             _state.value = ConnectionState.Connecting
@@ -179,7 +189,7 @@ class OkHttpAgentClient(
             }.getOrElse {
                 // A URL or token the settings check let through: no connection, but no crash at every launch either.
                 _state.value = ConnectionState.Disconnected
-                delay(config.maxBackoffMs)
+                pause(config.maxBackoffMs)
                 continue
             }
             val ws = http.newWebSocket(request, object : WebSocketListener() {
@@ -220,8 +230,7 @@ class OkHttpAgentClient(
             // Back to the short wait only after a connection that lasted: one closed at once (a refused protocol, two
             // phones with the same token replacing each other) keeps backing off instead of reconnecting every second.
             if (opened && System.nanoTime() - openedAt >= STABLE_CONNECTION_NANOS) backoff = config.initialBackoffMs
-            delay(backoff)
-            backoff = (backoff * 2).coerceAtMost(config.maxBackoffMs)
+            backoff = if (pause(backoff)) config.initialBackoffMs else (backoff * 2).coerceAtMost(config.maxBackoffMs)
         }
     }
 

@@ -354,6 +354,22 @@ class OkHttpAgentClientTest {
         assertEquals(listOf<AgentEvent>(AgentEvent.Error("boom")), runBlocking { events.await() })
     }
 
+    @Test fun retryNowConnectsWithoutWaitingForTheBackoff() {
+        // The first attempt is refused, and the next would come only after a minute: retryNow cuts the wait.
+        server.enqueue(MockResponse.Builder().code(503).build())
+        server.enqueue(MockResponse.Builder().webSocketUpgrade(serverListener).build())
+        server.start()
+        val c = OkHttpAgentClient(
+            AgentConfig(wsUrl(), "tok", emptySet(), initialBackoffMs = 60_000, maxBackoffMs = 60_000),
+            scope,
+            ActionHandler { _, _, _ -> ActionOutcome(true, "") },
+        )
+        c.start()
+        runBlocking { withTimeout(5_000) { c.state.first { it == ConnectionState.Disconnected && server.requestCount >= 1 } } }
+        c.retryNow()
+        waitConnected(c)
+    }
+
     @Test fun askWhileDisconnectedFailsFast() {
         val c = OkHttpAgentClient(
             AgentConfig("ws://127.0.0.1:1", "tok", emptySet(), initialBackoffMs = 50, maxBackoffMs = 100),

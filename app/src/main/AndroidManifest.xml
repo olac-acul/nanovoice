@@ -10,6 +10,13 @@
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-feature android:name="android.hardware.camera.any" android:required="false" />
     <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- Whether a VPN or a Wi-Fi is up: a server that does not answer may be waiting for the VPN. -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+    <!-- "Apri la VPN" opens Tailscale when it is installed, otherwise Android's VPN settings. -->
+    <queries>
+        <package android:name="com.tailscale.ipn" />
+    </queries>
 
     <application
         android:name=".NanoVoiceApp"

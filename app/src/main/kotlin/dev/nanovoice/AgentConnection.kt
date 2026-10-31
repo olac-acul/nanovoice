@@ -5,6 +5,7 @@ import dev.nanovoice.agent.AgentConfig
 import dev.nanovoice.agent.AgentEvent
 import dev.nanovoice.agent.AgentImage
 import dev.nanovoice.agent.ConnectionState
+import dev.nanovoice.agent.ServerReach
 import dev.nanovoice.agent.ServerUrl
 import dev.nanovoice.agent.ServerUrlCheck
 import kotlinx.coroutines.CoroutineScope
@@ -20,6 +21,19 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
 enum class AgentStatus { NotConfigured, Disconnected, Connecting, Connected, NeedsVpn }
+
+/** What the phone is connected through. */
+data class NetworkNow(val vpn: Boolean, val wifi: Boolean)
+
+/**
+ * A server that does not answer is most likely waiting for the VPN when it is off and the server is only reachable
+ * through it (Tailscale), or is at home and the phone is not on a Wi-Fi (out, on mobile data).
+ */
+internal fun waitsForVpn(reach: ServerReach, network: NetworkNow): Boolean = !network.vpn && when (reach) {
+    ServerReach.VpnOnly -> true
+    ServerReach.HomeNetwork -> !network.wifi
+    ServerReach.Anywhere -> false
+}
 
 private const val WARM_EVERY_MS = 30_000L
 
@@ -37,6 +51,8 @@ class AgentConnection(
     private val clientFactory: (AgentConfig) -> AgentClient,
     /** A plain ws:// server may be reached now (a VPN is up). */
     private val cleartextAllowed: () -> Boolean = { true },
+    /** The phone's network now: whether a server that does not answer is most likely waiting for the VPN. */
+    private val network: () -> NetworkNow = { NetworkNow(vpn = true, wifi = true) },
 ) : AgentGateway {
     private val _status = MutableStateFlow(AgentStatus.NotConfigured)
     val status: StateFlow<AgentStatus> = _status
@@ -62,7 +78,18 @@ class AgentConnection(
                         launch {
                             settings.map { it.pushEndpoint.ifEmpty { null } }.distinctUntilChanged().collect { c.setPushEndpoint(it) }
                         }
-                        c.state.collect { _status.value = it.toStatus() }
+                        _status.value = AgentStatus.Connecting
+                        var tried = false
+                        c.state.collect { state ->
+                            // The client's "disconnected" before its first attempt is no failure yet.
+                            if (state != ConnectionState.Disconnected) tried = true
+                            if (!tried && state == ConnectionState.Disconnected) return@collect
+                            // Once an attempt failed, the next ones (every few seconds, each up to 10 s) do not show
+                            // "connecting" again: the screen keeps saying what is wrong until it connects.
+                            val next = state.toStatus(url)
+                            val failed = _status.value == AgentStatus.Disconnected || _status.value == AgentStatus.NeedsVpn
+                            _status.value = if (next == AgentStatus.Connecting && failed) _status.value else next
+                        }
                     }
                 } finally {
                     c.stop()
@@ -89,8 +116,13 @@ class AgentConnection(
     /** Starts a new conversation on the server; false when not connected or the server refused. */
     suspend fun newConversation(): Boolean = client?.newConversation() ?: false
 
-    private fun ConnectionState.toStatus() = when (this) {
-        ConnectionState.Disconnected -> AgentStatus.Disconnected
+    /** Not connected: try again now (the network changed, or the person asked). */
+    fun retryNow() {
+        client?.retryNow()
+    }
+
+    private fun ConnectionState.toStatus(url: String) = when (this) {
+        ConnectionState.Disconnected -> if (waitsForVpn(ServerUrl.reach(url), network())) AgentStatus.NeedsVpn else AgentStatus.Disconnected
         ConnectionState.Connecting -> AgentStatus.Connecting
         ConnectionState.Connected -> AgentStatus.Connected
         ConnectionState.Blocked -> AgentStatus.NeedsVpn

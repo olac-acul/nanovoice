@@ -128,6 +128,8 @@ fun ChatScreen(
     onOpenSettings: () -> Unit,
     /** Opens the connection page of the settings. */
     onCheckConnection: () -> Unit = onOpenSettings,
+    /** Opens the VPN app (or Android's VPN settings). */
+    onOpenVpn: () -> Unit = onCheckConnection,
     /** Opens "Avvisi": on one alert, or on the list (null). */
     onOpenAlerts: (Long?) -> Unit = {},
 ) {
@@ -367,7 +369,7 @@ fun ChatScreen(
                     contentAlignment = Alignment.Center,
                 ) { Icons.Settings(MaterialTheme.colorScheme.onSurface) }
             }
-            StatusBanner(status, onCheck = onCheckConnection)
+            StatusBanner(status, onCheck = onCheckConnection, onOpenVpn = onOpenVpn)
             Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
                 if (messages.isEmpty() && !showStatus && !showTyping) {
                     EmptyHint(modifier = Modifier.align(Alignment.Center))
@@ -562,7 +564,7 @@ private fun HelpSection(icon: @Composable (Color) -> Unit, title: Int, body: Int
  * server settings right where the problem shows. No server set yet is a choice, not a fault: a neutral card.
  */
 @Composable
-private fun StatusBanner(status: AgentStatus, onCheck: () -> Unit) {
+private fun StatusBanner(status: AgentStatus, onCheck: () -> Unit, onOpenVpn: () -> Unit) {
     val colors = MaterialTheme.colorScheme
     if (status == AgentStatus.Connecting) {
         val connecting = stringResource(R.string.status_connecting)
@@ -575,7 +577,7 @@ private fun StatusBanner(status: AgentStatus, onCheck: () -> Unit) {
     }
     val (title, body, action) = when (status) {
         AgentStatus.Disconnected -> Triple(R.string.banner_unreachable, R.string.banner_local_only, R.string.banner_check)
-        AgentStatus.NeedsVpn -> Triple(R.string.banner_needs_vpn, R.string.banner_needs_vpn_body, R.string.banner_check)
+        AgentStatus.NeedsVpn -> Triple(R.string.banner_needs_vpn, R.string.banner_local_only, R.string.banner_open_vpn)
         AgentStatus.NotConfigured -> Triple(R.string.banner_not_configured, R.string.banner_local_only, R.string.banner_configure)
         else -> return
     }
@@ -598,7 +600,7 @@ private fun StatusBanner(status: AgentStatus, onCheck: () -> Unit) {
                 Text(stringResource(title), style = MaterialTheme.typography.titleSmall, color = colors.onSurface)
                 Text(stringResource(body), style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
             }
-            TextButton(onClick = onCheck) { Text(stringResource(action)) }
+            TextButton(onClick = if (status == AgentStatus.NeedsVpn) onOpenVpn else onCheck) { Text(stringResource(action)) }
         }
     }
 }

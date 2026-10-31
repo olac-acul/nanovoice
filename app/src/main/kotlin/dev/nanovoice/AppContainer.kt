@@ -39,9 +39,15 @@ class AppContainer(context: Context) {
     private val connectivity = context.getSystemService(android.net.ConnectivityManager::class.java)
 
     /** A VPN carries the traffic (Tailscale): a plain ws:// server is then reached through an encrypted tunnel. */
-    private fun vpnActive(): Boolean = connectivity?.let { cm ->
-        cm.getNetworkCapabilities(cm.activeNetwork)?.hasTransport(android.net.NetworkCapabilities.TRANSPORT_VPN)
-    } == true
+    private fun vpnActive(): Boolean = networkNow().vpn
+
+    private fun networkNow(): NetworkNow {
+        val caps = connectivity?.let { cm -> cm.getNetworkCapabilities(cm.activeNetwork) }
+        return NetworkNow(
+            vpn = caps?.hasTransport(android.net.NetworkCapabilities.TRANSPORT_VPN) == true,
+            wifi = caps?.hasTransport(android.net.NetworkCapabilities.TRANSPORT_WIFI) == true,
+        )
+    }
 
     private val keyguard = context.getSystemService(android.app.KeyguardManager::class.java)
 
@@ -62,6 +68,7 @@ class AppContainer(context: Context) {
         settings = settingsStore.settings,
         capabilities = PhoneActionHandler::capabilities,
         cleartextAllowed = ::vpnActive,
+        network = ::networkNow,
         clientFactory = { config ->
             OkHttpAgentClient(
                 config,
@@ -79,6 +86,23 @@ class AppContainer(context: Context) {
             )
         },
     )
+
+    init {
+        // The VPN turned on, back on the home Wi-Fi: connect now, not after up to 30 s of backoff.
+        var last: NetworkNow? = null
+        connectivity?.registerDefaultNetworkCallback(object : android.net.ConnectivityManager.NetworkCallback() {
+            override fun onAvailable(network: android.net.Network) = changed()
+            override fun onLost(network: android.net.Network) = changed()
+            override fun onCapabilitiesChanged(network: android.net.Network, caps: android.net.NetworkCapabilities) = changed()
+
+            private fun changed() {
+                val now = networkNow()
+                if (now == last) return // the signal strength changes all the time: only a change of network counts
+                last = now
+                connection.retryNow()
+            }
+        })
+    }
 
     val voices = VoiceLibrary(File(context.filesDir, "tts")).also { it.removeUnknownVoices() }
 

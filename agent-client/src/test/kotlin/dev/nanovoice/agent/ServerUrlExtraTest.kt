@@ -23,4 +23,13 @@ class ServerUrlExtraTest {
         assertTrue(ServerUrl.isCleartext(" WS://host:1"))
         assertFalse(ServerUrl.isCleartext("wss://example.org"))
     }
+
+    @Test fun aTailscaleServerIsReachedOnlyThroughTheVpn() {
+        kotlin.test.assertEquals(ServerReach.VpnOnly, ServerUrl.reach("ws://100.101.102.3:8767"))
+        kotlin.test.assertEquals(ServerReach.VpnOnly, ServerUrl.reach("wss://myhost.example.ts.net"))
+        kotlin.test.assertEquals(ServerReach.HomeNetwork, ServerUrl.reach("ws://192.168.50.20:8767")) // privacy-scan: allow (an example address the code must classify)
+        kotlin.test.assertEquals(ServerReach.HomeNetwork, ServerUrl.reach("ws://myhost:8767"))
+        kotlin.test.assertEquals(ServerReach.Anywhere, ServerUrl.reach("wss://example.test/voice"))
+        kotlin.test.assertEquals(ServerReach.Anywhere, ServerUrl.reach("not a url"))
+    }
 }

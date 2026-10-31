@@ -22,6 +22,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Button
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
@@ -99,6 +100,10 @@ fun SettingsScreen(
     onRequestMic: () -> Unit = {},
     /** Asks Android for these runtime permissions (the reads' switches). */
     onRequestPermissions: (Array<String>) -> Unit = {},
+    /** Not connected: try to connect again now. */
+    onRetryConnection: () -> Unit = {},
+    /** Opens the VPN app (or Android's VPN settings). */
+    onOpenVpn: () -> Unit = {},
     /** Opens Android's notification access page. */
     onOpenNotificationAccess: () -> Unit = {},
     /** Tries the Navidrome account: null when it works, otherwise the error. */
@@ -305,6 +310,18 @@ fun SettingsScreen(
                     SettingsPage.Server -> {
                         Card {
                             Text(statusLabel(status), style = MaterialTheme.typography.titleMedium)
+                            // The server set but not answering: what to try first, before the pairing and the address.
+                            if (status == AgentStatus.Disconnected || status == AgentStatus.NeedsVpn) {
+                                Hint(if (status == AgentStatus.NeedsVpn) R.string.server_needs_vpn_help else R.string.server_unreachable_help)
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    if (status == AgentStatus.NeedsVpn) {
+                                        Button(onClick = onOpenVpn) { Text(stringResource(R.string.banner_open_vpn)) }
+                                        OutlinedButton(onClick = onRetryConnection) { Text(stringResource(R.string.server_retry)) }
+                                    } else {
+                                        Button(onClick = onRetryConnection) { Text(stringResource(R.string.server_retry)) }
+                                    }
+                                }
+                            }
                             PairingSection(onPair = onPair, onPaired = { server, newToken -> url = server; token = newToken; commit() })
                         }
                         // Typing the address and the token is for who set the server up: the QR code does it for everyone else.

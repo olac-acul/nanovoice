@@ -8,6 +8,9 @@ import java.net.URI
  * are not on the open internet (loopback, private ranges, Tailscale, `.ts.net`, `.local`, bare hostnames),
  * so the bearer token is never sent in clear text across the internet; everything else needs `wss://`.
  */
+/** Where a server can be reached from, for why it may not answer: only through the VPN, from home, or anywhere. */
+enum class ServerReach { VpnOnly, HomeNetwork, Anywhere }
+
 sealed interface ServerUrlCheck {
     data class Valid(val url: String) : ServerUrlCheck
     data class Invalid(val reason: String) : ServerUrlCheck
@@ -38,6 +41,19 @@ object ServerUrl {
 
     /** A plain ws:// URL: the token and everything said travel unencrypted unless a VPN carries them. */
     fun isCleartext(url: String): Boolean = url.trim().startsWith("ws://", ignoreCase = true)
+
+    /** Tailscale addresses (100.64.0.0/10, `.ts.net`) only answer through the VPN; other private ones at home or through it. */
+    fun reach(url: String): ServerReach {
+        val host = runCatching { URI(url.trim()).host?.removePrefix("[")?.removeSuffix("]")?.lowercase() }.getOrNull()
+            ?: return ServerReach.Anywhere
+        val octets = host.split('.').mapNotNull { it.toIntOrNull() }.takeIf { it.size == 4 }
+        return when {
+            host.endsWith(".ts.net") || (octets != null && octets[0] == 100 && octets[1] in 64..127) -> ServerReach.VpnOnly
+            host == "localhost" || host == "::1" || host.startsWith("127.") -> ServerReach.Anywhere
+            isPrivateHost(host) -> ServerReach.HomeNetwork
+            else -> ServerReach.Anywhere
+        }
+    }
 
     internal fun isPrivateHost(host: String): Boolean {
         val h = host.lowercase()

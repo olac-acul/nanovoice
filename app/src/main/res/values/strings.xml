@@ -92,12 +92,15 @@
     <string name="banner_unreachable">Non raggiungo NanoClaw</string>
     <string name="banner_local_only">Solo funzioni locali</string>
     <string name="banner_needs_vpn">Accendi la VPN per collegarti</string>
-    <string name="banner_needs_vpn_body">Il server è senza crittografia (ws://): mi collego solo con la VPN</string>
+    <string name="banner_open_vpn">Apri la VPN</string>
+    <string name="server_retry">Riprova ora</string>
+    <string name="server_unreachable_help">Il server non risponde. Controlla che il telefono sia connesso a internet; se il server è a casa e tu sei fuori, accendi la VPN. Può anche essere spento o in aggiornamento: l\'app riprova da sola.</string>
+    <string name="server_needs_vpn_help">Il server si raggiunge solo attraverso la VPN. Accendila: l\'app si ricollega da sola appena è attiva.</string>
     <string name="banner_not_configured">Server non configurato</string>
     <string name="banner_check">Controlla</string>
     <string name="banner_configure">Configura</string>
     <string name="preview_show">Anteprima di %1$s</string>
-    <string name="status_needs_vpn">Server in chiaro (ws://): mi collego solo con la VPN attiva</string>
+    <string name="status_needs_vpn">Serve la VPN per collegarsi al server</string>
     <string name="token_invalid">Il token può contenere solo lettere, cifre e simboli, senza spazi.</string>
     <string name="voice_hold">Tocca il cerchio per parlare</string>
     <string name="voice_listening_tap">Ti ascolto…</string>

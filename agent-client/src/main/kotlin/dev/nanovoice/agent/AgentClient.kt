@@ -63,4 +63,7 @@ interface AgentClient {
 
     /** The person is about to ask: the server may start the agent ahead of the request. Nothing when not connected. */
     fun warmUp() {}
+
+    /** Not connected: try again now instead of after the backoff (the network changed, or the person asked). */
+    fun retryNow() {}
 }

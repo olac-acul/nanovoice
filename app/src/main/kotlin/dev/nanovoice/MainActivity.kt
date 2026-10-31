@@ -71,6 +71,16 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    /** "Apri la VPN": Tailscale when installed (the VPN the server pairing assumes), otherwise Android's VPN settings. */
+    private fun openVpn() {
+        val tailscale = packageManager.getLaunchIntentForPackage("com.tailscale.ipn")
+        try {
+            startActivity(tailscale ?: Intent(Settings.ACTION_VPN_SETTINGS))
+        } catch (_: ActivityNotFoundException) {
+            startActivity(Intent(Settings.ACTION_WIRELESS_SETTINGS))
+        }
+    }
+
     override fun onStart() {
         super.onStart()
         // Visible now, so Android allows starting the microphone service if the system had stopped it.
@@ -215,6 +225,8 @@ class MainActivity : ComponentActivity() {
                         onRequestPermissions = { permissionsLauncher.launch(it) },
                         onTestMusic = container::testMusic,
                         onPair = container::pair,
+                        onRetryConnection = container.connection::retryNow,
+                        onOpenVpn = ::openVpn,
                         onOpenNotificationAccess = {
                             runCatching { startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)) }
                         },
@@ -228,6 +240,7 @@ class MainActivity : ComponentActivity() {
                         requestMicPermission = { micLauncher.launch(Manifest.permission.RECORD_AUDIO) },
                         onOpenSettings = { settingsStart = null; showSettings = true },
                         onCheckConnection = { settingsStart = SettingsPage.Server.name; showSettings = true },
+                        onOpenVpn = ::openVpn,
                         onOpenAlerts = { id ->
                             showAlerts = true
                             openAlert = id
