@@ -75,6 +75,10 @@ Lato server serve la skill `add-voice` di [skills-for-nanoclaw](https://github.c
 
 - **Quando va al server:** quando il router locale non riconosce la richiesta o resta sotto la soglia di confidenza.
   Se il server non è raggiungibile l'app lo dice e le funzioni locali continuano a funzionare.
+- **Stato del collegamento:** da collegata l'app non mostra nulla; mentre si collega, una linea sottile sotto la
+  testata; se il server non risponde, una scheda con "Controlla". Se il server si raggiunge solo con la VPN (Tailscale,
+  o una rete privata fuori casa) e la VPN è spenta, la scheda lo dice e la apre. A ogni cambio di rete l'app riprova
+  subito, senza aspettare l'attesa tra un tentativo e l'altro.
 - **Stesso agente di un altro canale:** il canale dell'app può essere collegato allo stesso gruppo di agenti di un
   altro canale (per esempio Telegram). Conversazioni separate, memoria e strumenti condivisi. Le regole di stile per la
   voce stanno in una sezione delle istruzioni del gruppo che vale solo per il canale `voice`.
@@ -85,8 +89,9 @@ Lato server serve la skill `add-voice` di [skills-for-nanoclaw](https://github.c
   NanoClaw non ha un modo per fermarlo senza farlo ripetere.
 - **Nuova conversazione:** il pulsante con la fiamma svuota la chat e chiede al server di ripartire. L'utente dell'app
   non è amministratore, quindi è l'adattatore a scrivere `/clear` nella sessione dell'app. La memoria resta.
-- **Ripartenza dopo una pausa:** quando il server ricomincia la conversazione, la chat riparte sotto un titolo con la
-  data; i messaggi di prima restano, chiusi dietro una linea "N messaggi precedenti" che li riapre. La chat è salvata
+- **Ripartenza dopo una pausa:** dopo 30 minuti senza messaggi (`VOICE_IDLE_RESET_MINUTES` sul server) il server
+  ricomincia la conversazione e lo dice all'app, che riparte subito, all'apertura o mentre è aperta, sotto una frase
+  di benvenuto; i messaggi di prima restano, chiusi dietro una linea "N messaggi precedenti" che li riapre. La chat è salvata
   nei file privati dell'app (al massimo 200 messaggi; delle foto solo la miniatura), esclusa dai backup di Android.
 - **Avvisi:** i messaggi che l'agente manda da solo (riepiloghi programmati, promemoria) stanno in una sezione a parte,
   aperta dalla campanella in alto, con il numero dei non letti; in chat resta solo la riga "Nuovo avviso", che lo apre.
@@ -138,13 +143,16 @@ su GrapheneOS è spesso solo inglese (Transcribro include `whisper tiny.en`).
   Riccardo e Miro: Serena è la più pulita (30-48 dB tra voce e rumore, senza guadagno); Miro risultava gracchiante.
   Il file è quello originale di Piper (114 MB, fp32): l'app aggiunge i metadati ONNX che sherpa-onnx richiede e costruisce
   `tokens.txt` dal JSON, togliendo i cinque dittonghi a due caratteri (`RawPiperInstaller`, `PiperFiles`).
+  "Serena leggera" è la stessa voce nel modello medium di Piper (63 MB): circa metà del lavoro per ogni secondo di
+  parlato, per un telefono che scalda.
 - **Lettura a pezzi:** la risposta si legge mentre arriva, in pezzi preparati mentre suonano i precedenti (fino a
   quattro in anticipo). Si taglia alle virgole, poi prima di una congiunzione ("ma", "e", "perché"…) e, se il pezzo è
   ancora lungo, prima di una preposizione o di un articolo; il silenzio ai bordi è accorciato. La voce misura quanto
   le serve per ogni secondo di parlato e i pezzi si allungano solo quanto lo permette: su un telefono caldo o in
   carica, quando la sintesi è più lenta della voce, restano corti, così le pause che restano sono brevi.
-- **Cosa non viene letto:** gli URL (restano nel testo e diventano link) e le fonti tra parentesi alla fine di un
-  elemento di un elenco, nome del sito compreso. Le cifre sì, perché `espeak-ng` le legge bene;
+- **Cosa non viene letto:** gli indirizzi, anche senza `https://` o `www.` ("example.it/articolo"), che restano nel
+  testo e diventano link, e le fonti, nome del sito compreso: tra parentesi alla fine di un elemento di un elenco, una
+  frase che comincia con "Fonte:" o "(fonte: …)" dentro una frase. Le cifre sì, perché `espeak-ng` le legge bene;
   prima della lettura l'app riscrive solo le date con le barre ("21/10/2026") e gli ordinali col simbolo ("il 3° piano").
 - **Audio:** flusso multimediale (`USAGE_MEDIA`), non "assistente": quest'ultimo ha un volume separato, di solito basso.
 - **Libreria nativa:** l'AAR di sherpa-onnx non è su Maven Central; la build lo scarica e ne verifica l'hash (`downloadSherpa`).
@@ -170,7 +178,8 @@ su GrapheneOS è spesso solo inglese (Transcribro include `whisper tiny.en`).
 - **Aiuto:** "Cosa puoi chiedermi" ha tre schede: richieste da provare sul telefono, foto e codici, e cosa va al server.
   Un tocco su un esempio lo mette nel campo.
 - **Correggere:** sotto l'ultima richiesta "Correggi" la riporta nel campo con foto e codice; la bozza che sostituisce
-  si recupera con "Ripristina". Sotto una risposta fallita ci sono "Riprova" e "Controlla il collegamento".
+  si recupera con "Ripristina". La correzione prende il posto della richiesta e della sua risposta, e l'agente sa che
+  deve dimenticarle. Sotto una risposta fallita ci sono "Riprova" e "Controlla il collegamento".
 - **Impostazioni** divise per obiettivo: Come risponde, Ascolto, Collegamento, Cosa può fare sul telefono, Foto e codici,
   Musica, Notifiche, Aspetto; i dettagli tecnici stanno in "Dettagli avanzati".
 - **Anteprime dei link:** sotto un messaggio compare una scheda per il primo link. La pagina viene scaricata dal telefono,
