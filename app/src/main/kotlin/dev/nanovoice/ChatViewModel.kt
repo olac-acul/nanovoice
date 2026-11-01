@@ -265,6 +265,14 @@ class ChatViewModel(
             viewModelScope.launch { inbox.lateAnswers.collect { if (!isLocked() && !repeatsLastReply(it)) add(it, fromUser = false) } }
             viewModelScope.launch { inbox.arrivals.collect { if (!isLocked()) addAlertLine(it) } }
         }
+        // The pause is over: the chat starts over now, not after the next request; once a reply still coming has ended.
+        viewModelScope.launch {
+            connection.conversationIdle.collect { idle ->
+                if (!idle) return@collect
+                busy.first { !it }
+                startOverAt(null)
+            }
+        }
         // Only the screen whose spoken request is open asks aloud; the other one just shows the question.
         viewModelScope.launch {
             consent.pending.collectLatest { question ->
@@ -472,10 +480,7 @@ class ChatViewModel(
             try {
                 engine.respond(trimmed, localOnly = isLocked(), image = sent, forAgent = forAgent).collect { snap ->
                     if (snap.contextRestarted) {
-                        val zone = java.time.ZoneId.systemDefault()
-                        val before = _messages.value.takeWhile { it.id != requestId }.lastOrNull { !it.notice }?.time
-                        val last = before?.let { java.time.LocalDateTime.ofInstant(java.time.Instant.ofEpochMilli(it), zone) }
-                        startOverAt(requestId, phrases.freshStart(java.time.LocalDateTime.now(zone), last))
+                        startOverAt(requestId)
                         return@collect
                     }
                     _thinking.value = false
@@ -617,15 +622,21 @@ class ChatViewModel(
     private fun remove(id: Long) = _messages.update { list -> list.filter { it.id != id } }
 
     /**
-     * The server started the conversation over before the request [from] (after a long pause): the chat starts over
-     * too, under a [headline] of the app's own, so it shows what the agent knows. What came before stays, folded above
-     * it, to read again ("Nuova conversazione" empties it all).
+     * The server started the conversation over before the request [from] (after a long pause), or will with the next
+     * one ([from] null: the pause is over): the chat starts over too, under a headline of the app's own, so it shows
+     * what the agent knows. What came before stays, folded above it, to read again ("Nuova conversazione" empties it
+     * all). Once only: the request after a pause the chat already showed finds the headline there.
      */
-    private fun startOverAt(from: Long, headline: String) {
-        val id = nextId++
+    private fun startOverAt(from: Long?) {
+        val zone = java.time.ZoneId.systemDefault()
+        val now = java.time.LocalDateTime.now(zone)
         _messages.update { list ->
             val at = list.indexOfFirst { it.id == from }.takeIf { it >= 0 } ?: list.size
-            list.take(at).map { it.copy(earlier = true) } + ChatMessage(id, headline, fromUser = false, notice = true) + list.drop(at)
+            if (!hasNewsBefore(list, at)) return@update list
+            val last = list.take(at).lastOrNull { !it.notice }?.time
+                ?.let { java.time.LocalDateTime.ofInstant(java.time.Instant.ofEpochMilli(it), zone) }
+            val headline = ChatMessage(nextId++, phrases.freshStart(now, last), fromUser = false, notice = true)
+            list.take(at).map { it.copy(earlier = true) } + headline + list.drop(at)
         }
     }
 
@@ -633,6 +644,16 @@ class ChatViewModel(
         lastReplyAt = android.os.SystemClock.elapsedRealtime()
         _messages.update { list -> list.map { if (it.id == id) it.copy(text = text, failed = failed) else it } }
     }
+}
+
+/**
+ * Whether the chat before position [at] has something the agent will no longer know: a request since the latest
+ * headline of a new conversation, or, with none, any message. Alert lines alone are not a conversation to fold.
+ */
+internal fun hasNewsBefore(list: List<ChatMessage>, at: Int): Boolean {
+    val shown = list.take(at).filter { !it.earlier }
+    val headline = shown.indexOfLast { it.notice }
+    return if (headline >= 0) shown.drop(headline + 1).any { it.fromUser } else shown.any { !it.notice && it.alertId == null }
 }
 
 enum class OrbAction { Listen, Finish, Cancel }

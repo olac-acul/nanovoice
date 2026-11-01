@@ -73,6 +73,12 @@ class OkHttpAgentClient(
     private val _notifications = MutableSharedFlow<String>(extraBufferCapacity = 64)
     override val notifications: SharedFlow<String> = _notifications
 
+    private val _conversationIdle = MutableStateFlow(false)
+    override val conversationIdle: StateFlow<Boolean> = _conversationIdle
+
+    /** When the latest request was sent ([System.nanoTime]): a `conversation_idle` crossing it on the way is stale. */
+    @Volatile private var askedAt: Long? = null
+
     private val session = UUID.randomUUID().toString()
     private val counter = AtomicLong()
     private val pending = ConcurrentHashMap<String, Channel<AgentEvent>>()
@@ -103,6 +109,7 @@ class OkHttpAgentClient(
         if (!ws.send(Protocol.newConversation())) return false
         val ok = withTimeoutOrNull(RESET_TIMEOUT_MS) { answer.await() }
         if (ok == null) lateResets.incrementAndGet()
+        if (ok == true) _conversationIdle.value = false
         return ok ?: false
     }
 
@@ -136,6 +143,8 @@ class OkHttpAgentClient(
             return@flow
         }
         val id = "m${counter.incrementAndGet()}"
+        askedAt = System.nanoTime()
+        _conversationIdle.value = false // the server starts the new conversation with this request
         val events = Channel<AgentEvent>(Channel.UNLIMITED)
         pending[id] = events
         var finished = false
@@ -244,6 +253,9 @@ class OkHttpAgentClient(
             }
             is Protocol.ServerMessage.Working -> pending[msg.replyTo]?.trySend(AgentEvent.Working)
             is Protocol.ServerMessage.ContextRestarted -> pending[msg.replyTo]?.trySend(AgentEvent.ContextRestarted)
+            // Sent as a request went out, it is about the pause that request ends: the reply says it with context_restarted.
+            is Protocol.ServerMessage.ConversationIdle ->
+                if (askedAt.let { it == null || System.nanoTime() - it > IDLE_CROSSING_NS }) _conversationIdle.value = true
             is Protocol.ServerMessage.Done -> if (abandoned.remove(msg.replyTo)) Unit else pending[msg.replyTo]?.trySend(AgentEvent.Done)
             is Protocol.ServerMessage.Error -> {
                 if (msg.replyTo != null && abandoned.remove(msg.replyTo)) return
@@ -304,6 +316,8 @@ class OkHttpAgentClient(
 
     private companion object {
         const val RESET_TIMEOUT_MS = 10_000L
+        /** A pause lasts minutes: a `conversation_idle` this soon after a request was sent before the server got it. */
+        const val IDLE_CROSSING_NS = 60_000_000_000L
         const val MAX_ABANDONED = 50
         /** A connection that stayed up this long resets the reconnect wait to its shortest. */
         const val STABLE_CONNECTION_NANOS = 30_000_000_000L

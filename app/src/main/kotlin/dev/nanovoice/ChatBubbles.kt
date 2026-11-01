@@ -273,10 +273,11 @@ fun ChatList(
     val all = messages
     @Suppress("NAME_SHADOWING")
     val messages = if (showEarlier) all else all.filterNot { it.earlier }
-    val lastUserId = messages.lastOrNull { it.fromUser }?.id
+    // Not a request folded above a new conversation: the agent no longer has it to retry or correct.
+    val lastUserId = messages.lastOrNull { it.fromUser && !it.earlier }?.id
     // Under the latest reply, once it is complete: "Ascolta", and "Riprova" when it is no answer.
     val lastReply = messages.lastOrNull()?.takeIf { !it.fromUser && !it.notice && it.alertId == null && !showTyping && workingText == null }
-    val lastRequest = messages.lastOrNull { it.fromUser }
+    val lastRequest = messages.lastOrNull { it.fromUser && !it.earlier }
     // "Correggi" under it once the turn is over, not while the answer is still coming.
     val editable = lastRequest?.takeIf { it.text.isNotBlank() && !showTyping && workingText == null }
     val scope = rememberCoroutineScope()

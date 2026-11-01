@@ -1,6 +1,7 @@
 package dev.nanovoice.agent
 
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.serialization.json.JsonObject
@@ -46,6 +47,12 @@ interface AgentClient {
     val notifications: SharedFlow<String>
 
     /**
+     * The pause is over (`conversation_idle`): the next request starts a new conversation, so the chat can show it now.
+     * True until the next request or new conversation.
+     */
+    val conversationIdle: StateFlow<Boolean> get() = NEVER_IDLE
+
+    /**
      * The UnifiedPush endpoint the server may wake this phone with while it is not connected; null removes it.
      * Sent right after `hello` on every connection, and immediately if already connected.
      */
@@ -67,3 +74,5 @@ interface AgentClient {
     /** Not connected: try again now instead of after the backoff (the network changed, or the person asked). */
     fun retryNow() {}
 }
+
+private val NEVER_IDLE: StateFlow<Boolean> = MutableStateFlow(false)

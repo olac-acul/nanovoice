@@ -60,11 +60,17 @@ class AgentConnection(
     private val _notifications = MutableSharedFlow<String>(extraBufferCapacity = 64)
     val notifications: SharedFlow<String> = _notifications
 
+    private val _conversationIdle = MutableStateFlow(false)
+
+    /** The server's pause is over: the next request starts a new conversation ([AgentClient.conversationIdle]). */
+    val conversationIdle: StateFlow<Boolean> = _conversationIdle
+
     @Volatile private var client: AgentClient? = null
 
     init {
         scope.launch {
             settings.map { Triple(it.serverUrl.trim(), it.token, capabilities(it)) }.distinctUntilChanged().collectLatest { (url, token, caps) ->
+                _conversationIdle.value = false // another server, or none: its pause is not this one's
                 if (url.isEmpty() || !ServerUrl.tokenIsValid(token) || ServerUrl.check(url) !is ServerUrlCheck.Valid) {
                     _status.value = AgentStatus.NotConfigured
                     return@collectLatest
@@ -75,6 +81,7 @@ class AgentConnection(
                 try {
                     coroutineScope {
                         launch { c.notifications.collect { _notifications.emit(it) } }
+                        launch { c.conversationIdle.collect { _conversationIdle.value = it } }
                         launch {
                             settings.map { it.pushEndpoint.ifEmpty { null } }.distinctUntilChanged().collect { c.setPushEndpoint(it) }
                         }

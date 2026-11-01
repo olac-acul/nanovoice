@@ -30,6 +30,7 @@ Autenticazione: header `Authorization: Bearer <token>` nell'upgrade WebSocket (4
 {"type": "notify", "text": "Promemoria: riunione tra 10 minuti"}
 {"type": "conversation_reset", "ok": true}
 {"type": "context_restarted", "reply_to": "m1"}
+{"type": "conversation_idle"}
 ```
 
 ## Richieste e azioni
@@ -71,6 +72,11 @@ Autenticazione: header `Authorization: Bearer <token>` nell'upgrade WebSocket (4
 - `context_restarted`: dopo una lunga pausa il server ha ricominciato la conversazione da solo prima della richiesta
   `reply_to`. L'app toglie dallo schermo i messaggi precedenti, che l'agente non ha più, e apre la chat con una riga
   di benvenuto sopra quella richiesta. Un'app più vecchia ignora il frame.
+- `conversation_idle`: la pausa è finita, e la prossima richiesta farà ricominciare la conversazione. Il server lo manda
+  dopo `hello` e, a client connesso, appena la pausa scade; una volta per connessione. Da quel momento la prossima
+  richiesta ricomincia la conversazione anche se nel frattempo è arrivato un avviso. L'app piega subito i messaggi
+  precedenti sotto la riga di benvenuto e, quando arriva `context_restarted`, non ne aggiunge un'altra. Un'app più
+  vecchia ignora il frame.
 - `warm`: la persona ha toccato l'orb, aperto il foglio dell'assistente o la tastiera. Il server avvia subito il
   contenitore dell'agente della sessione voce, se esiste e non è già attivo, così il suo avvio si sovrappone alla frase.
   Nessuna risposta; al massimo uno ogni 30 secondi (lo limitano sia l'app sia il server). Non con il telefono bloccato.

@@ -166,6 +166,23 @@ class OkHttpAgentClientTest {
         )
     }
 
+    @Test fun theEndOfAPauseHoldsUntilTheNextRequestAndNotRightAfterOne() {
+        val c = client()
+        val ws = serverSocket()
+        next() // hello
+        waitConnected(c)
+        ws.send("""{"type":"conversation_idle"}""")
+        runBlocking { withTimeout(5_000) { c.conversationIdle.first { it } } }
+        val events = scope.async { c.ask("dopo la pausa").toList() }
+        val id = next()["id"]!!.jsonPrimitive.content
+        assertEquals(false, c.conversationIdle.value)
+        // sent by the server before it got the request: about the pause this request ends
+        ws.send("""{"type":"conversation_idle"}""")
+        ws.send("""{"type":"done","reply_to":"$id"}""")
+        runBlocking { events.await() }
+        assertEquals(false, c.conversationIdle.value)
+    }
+
     @Test fun newConversationWaitsForTheServer() {
         val c = client()
         val ws = serverSocket()
