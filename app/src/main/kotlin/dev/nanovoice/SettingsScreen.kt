@@ -38,6 +38,9 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.remember
@@ -67,6 +70,7 @@ enum class SettingsPage(val title: Int) {
     Music(R.string.cat_music),
     Notifications(R.string.cat_notifications),
     Appearance(R.string.cat_appearance),
+    Updates(R.string.cat_updates),
 }
 
 /** Settings as a list of categories; each opens its own page. Changes are saved when a page is left. */
@@ -113,6 +117,8 @@ fun SettingsScreen(
     onBack: () -> Unit,
     /** The page to open on ("Controlla il collegamento" opens the connection); null for the list of categories. */
     startPage: SettingsPage? = null,
+    /** The app's own updates from GitHub ("Aggiornamenti"); none in previews. */
+    updates: AppUpdates? = null,
 ) {
     var url by remember { mutableStateOf(initial.serverUrl) }
     var token by remember { mutableStateOf(initial.token) }
@@ -231,7 +237,19 @@ fun SettingsScreen(
                             stringResource(if (pushActive) R.string.sum_on else R.string.sum_off),
                         ) { pageName = SettingsPage.Notifications.name }
                         CategoryRow(R.string.cat_appearance, stringResource(themeLabel(theme))) { pageName = SettingsPage.Appearance.name }
+                        if (updates != null) {
+                            val latest by updates.latest.collectAsState()
+                            val badge by updates.badge.collectAsState()
+                            val newer = latest?.takeIf { isNewer(it.version, updates.installed) }
+                            CategoryRow(
+                                R.string.cat_updates,
+                                if (newer != null) stringResource(R.string.sum_update_new, newer.version)
+                                else stringResource(R.string.sum_update_ok, updates.installed),
+                                dot = badge,
+                            ) { pageName = SettingsPage.Updates.name }
+                        }
                     }
+                    SettingsPage.Updates -> if (updates != null) UpdatesPage(updates)
                     SettingsPage.Appearance -> Card {
                         Text(stringResource(R.string.theme_label), style = MaterialTheme.typography.titleMedium)
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -568,6 +586,79 @@ private fun SwitchRow(
     }
 }
 
+/**
+ * "Aggiornamenti": the version installed and the newest one published, "Scarica e installa" when it is newer (a copy
+ * signed with the development key is told why it cannot), what the download is doing, and the daily check.
+ */
+@Composable
+private fun UpdatesPage(updates: AppUpdates) {
+    val latest by updates.latest.collectAsState()
+    val checkedAt by updates.checkedAt.collectAsState()
+    val work by updates.work.collectAsState()
+    val daily by updates.daily.collectAsState()
+    val uriHandler = LocalUriHandler.current
+    val zone = remember { java.time.ZoneId.systemDefault() }
+    val today = remember { java.time.LocalDate.now(zone) }
+    // Seen: the dot goes until a newer version comes.
+    LaunchedEffect(latest) { updates.markSeen() }
+    val newer = latest?.takeIf { isNewer(it.version, updates.installed) }
+    val busy = work is UpdateWork.Checking || work is UpdateWork.Downloading
+    Card {
+        Text(stringResource(R.string.update_installed, updates.installed), style = MaterialTheme.typography.titleMedium)
+        when {
+            newer != null -> {
+                val day = runCatching { whenSaid(java.time.Instant.parse(newer.published).toEpochMilli(), today, zone) }.getOrNull()
+                Text(
+                    if (day != null) stringResource(R.string.update_available_on, newer.version, day) else stringResource(R.string.update_available, newer.version),
+                    color = MaterialTheme.colorScheme.primary,
+                )
+                if (updates.releaseSigned) {
+                    Button(onClick = updates::downloadAndInstall, enabled = !busy) { Text(stringResource(R.string.update_install)) }
+                } else {
+                    Hint(R.string.update_dev_signed)
+                }
+            }
+            latest != null -> Text(stringResource(R.string.update_latest))
+        }
+        when (val w = work) {
+            UpdateWork.Checking -> LinearProgressIndicator(Modifier.fillMaxWidth())
+            is UpdateWork.Downloading -> {
+                LinearProgressIndicator(progress = { w.percent / 100f }, modifier = Modifier.fillMaxWidth())
+                Text(stringResource(R.string.update_downloading, w.percent), style = MaterialTheme.typography.bodySmall)
+            }
+            UpdateWork.Installing -> Hint(R.string.update_installing)
+            UpdateWork.NeedsPermission -> Hint(R.string.update_needs_permission)
+            is UpdateWork.Failed -> Text(w.reason, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+            UpdateWork.Idle -> Unit
+        }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                if (checkedAt > 0) stringResource(R.string.update_last_check, whenSaid(checkedAt, today, zone)) else stringResource(R.string.update_never),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.weight(1f),
+            )
+            TextButton(onClick = updates::checkNow, enabled = !busy) { Text(stringResource(R.string.update_check_now)) }
+        }
+        latest?.page?.takeIf { it.startsWith("https://github.com/") }?.let { page ->
+            TextButton(onClick = { runCatching { uriHandler.openUri(page) } }) { Text(stringResource(R.string.update_open_page)) }
+        }
+    }
+    Card {
+        SwitchRow(R.string.update_daily, daily, hint = R.string.update_daily_hint, style = MaterialTheme.typography.titleMedium) { updates.setDaily(it) }
+    }
+}
+
+/** When something happened, as a sentence goes on: "oggi alle 13:21", "ieri", "il 28 ott". */
+internal fun whenSaid(time: Long, today: java.time.LocalDate, zone: java.time.ZoneId): String {
+    val short = alertWhen(time, today, zone)
+    return when {
+        short.contains(':') -> "oggi alle $short"
+        short == "ieri" -> short
+        else -> "il $short"
+    }
+}
+
 /** The settings by goal as one block, rows split by thin lines: a list to pick from, not eight cards. */
 @Composable
 private fun CategoryGroup(content: @Composable ColumnScope.() -> Unit) {
@@ -580,7 +671,7 @@ private fun CategoryGroup(content: @Composable ColumnScope.() -> Unit) {
 }
 
 @Composable
-private fun CategoryRow(title: Int, summary: String, first: Boolean = false, onClick: () -> Unit) {
+private fun CategoryRow(title: Int, summary: String, first: Boolean = false, dot: Boolean = false, onClick: () -> Unit) {
     if (!first) HorizontalDivider(Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant)
     Row(
         modifier = Modifier.fillMaxWidth().clickable(role = Role.Button, onClick = onClick).padding(horizontal = 16.dp, vertical = 14.dp),
@@ -589,6 +680,11 @@ private fun CategoryRow(title: Int, summary: String, first: Boolean = false, onC
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(stringResource(title), style = MaterialTheme.typography.titleMedium)
             Text(summary, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        // Something new on that page (a newer version of the app), as the bell marks unread alerts.
+        if (dot) {
+            val label = stringResource(R.string.update_dot)
+            Box(Modifier.padding(end = 8.dp).size(10.dp).background(MaterialTheme.colorScheme.primary, CircleShape).semantics { contentDescription = label })
         }
         Icons.Chevron(MaterialTheme.colorScheme.outline)
     }

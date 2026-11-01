@@ -5,4 +5,6 @@
     <cache-path name="search" path="search/" />
     <!-- A picture of the agent handed to another app with "Condividi" (replaced on the next share). -->
     <cache-path name="shared" path="shared/" />
+    <!-- An update of the app downloaded from GitHub, handed to Android's installer (replaced by the next one). -->
+    <cache-path name="updates" path="updates/" />
 </paths>

@@ -12,6 +12,8 @@
     <uses-permission android:name="android.permission.VIBRATE" />
     <!-- Whether a VPN or a Wi-Fi is up: a server that does not answer may be waiting for the VPN. -->
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- "Aggiornamenti": hands an update downloaded from GitHub to Android's installer, which asks to confirm. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
     <!-- "Apri la VPN" opens Tailscale when it is installed, otherwise Android's VPN settings. -->
     <queries>
@@ -36,6 +38,11 @@
         </service>
 
         <!-- Listens for the wake word while the app is not on screen (off unless enabled in the settings). -->
+        <!-- The daily look at the app's releases on GitHub ("Aggiornamenti"). -->
+        <service android:name=".UpdateCheckJob"
+            android:exported="false"
+            android:permission="android.permission.BIND_JOB_SERVICE" />
+
         <service android:name=".wake.WakeWordService"
             android:exported="false"
             android:foregroundServiceType="microphone" />

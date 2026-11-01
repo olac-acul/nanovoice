@@ -135,6 +135,7 @@ class MainActivity : ComponentActivity() {
                 var settingsStart by rememberSaveable { mutableStateOf<String?>(null) }
                 val status by container.connection.status.collectAsState()
                 val settings by container.settingsStore.settings.collectAsState()
+                val updateBadge by container.updates.badge.collectAsState()
                 val modelState by container.voskModels.state.collectAsState()
                 val accurateState by container.parakeetModels.state.collectAsState()
                 val voiceStates by container.voices.states.collectAsState(initial = emptyMap())
@@ -232,6 +233,7 @@ class MainActivity : ComponentActivity() {
                         },
                         onBack = { showSettings = false },
                         startPage = SettingsPage.entries.firstOrNull { it.name == settingsStart },
+                        updates = container.updates,
                     )
                 } else {
                     ChatScreen(
@@ -239,6 +241,7 @@ class MainActivity : ComponentActivity() {
                         hasMicPermission = ::hasMicPermission,
                         requestMicPermission = { micLauncher.launch(Manifest.permission.RECORD_AUDIO) },
                         onOpenSettings = { settingsStart = null; showSettings = true },
+                        updateBadge = updateBadge,
                         onCheckConnection = { settingsStart = SettingsPage.Server.name; showSettings = true },
                         onOpenVpn = ::openVpn,
                         onOpenAlerts = { id ->

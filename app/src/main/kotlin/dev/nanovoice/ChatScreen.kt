@@ -127,6 +127,8 @@ fun ChatScreen(
     hasMicPermission: () -> Boolean,
     requestMicPermission: () -> Unit,
     onOpenSettings: () -> Unit,
+    /** A newer version of the app is out: a dot on the settings button, as on "Aggiornamenti" inside. */
+    updateBadge: Boolean = false,
     /** Opens the connection page of the settings. */
     onCheckConnection: () -> Unit = onOpenSettings,
     /** Opens the VPN app (or Android's VPN settings). */
@@ -166,6 +168,7 @@ fun ChatScreen(
     val alertsLabel = if (unread > 0) pluralStringResource(R.plurals.alerts_unread, unread, unread) else stringResource(R.string.alerts_title)
     val helpLabel = stringResource(R.string.help_title)
     val settingsLabel = stringResource(R.string.settings)
+    val updateLabel = stringResource(R.string.update_dot)
     val showStatus = working && workingText.isNotEmpty()
     val showTyping = (waited || working) && !showStatus
 
@@ -365,10 +368,18 @@ fun ChatScreen(
                     modifier = Modifier
                         .size(44.dp)
                         .background(MaterialTheme.colorScheme.surfaceContainerHigh, CircleShape)
-                        .semantics { contentDescription = settingsLabel }
+                        .semantics { contentDescription = if (updateBadge) "$settingsLabel, $updateLabel" else settingsLabel }
                         .clickable(role = Role.Button, onClick = onOpenSettings),
                     contentAlignment = Alignment.Center,
-                ) { Icons.Settings(MaterialTheme.colorScheme.onSurface) }
+                ) {
+                    Icons.Settings(MaterialTheme.colorScheme.onSurface)
+                    if (updateBadge) {
+                        Box(
+                            Modifier.align(Alignment.TopEnd).padding(top = 5.dp, end = 5.dp).size(10.dp)
+                                .background(MaterialTheme.colorScheme.primary, CircleShape),
+                        )
+                    }
+                }
             }
             StatusBanner(status, onCheck = onCheckConnection, onOpenVpn = onOpenVpn)
             Box(modifier = Modifier.weight(1f).fillMaxWidth()) {

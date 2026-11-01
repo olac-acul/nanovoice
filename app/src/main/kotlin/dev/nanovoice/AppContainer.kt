@@ -29,7 +29,7 @@ import java.util.Locale
 
 /** Manual dependency injection. Italian is the only supported locale for now. */
 class AppContainer(context: Context) {
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val locale = Locale.ITALIAN
     val phrases = ItalianPhrases
     private val executor = AndroidActionExecutor(context, phrases, music = { settingsStore.settings.value.musicAccount() })
@@ -124,6 +124,9 @@ class AppContainer(context: Context) {
     val linkPreviews = LinkPreviews()
 
     val notifier = Notifier(context)
+
+    /** The app's own updates from its GitHub releases ("Aggiornamenti"). */
+    val updates = AppUpdates(context.applicationContext, scope).also { it.checkIfDue() }
     val push = PushController(context, settingsStore)
 
     init {

@@ -181,7 +181,14 @@ su GrapheneOS è spesso solo inglese (Transcribro include `whisper tiny.en`).
   si recupera con "Ripristina". La correzione prende il posto della richiesta e della sua risposta, e l'agente sa che
   deve dimenticarle. Sotto una risposta fallita ci sono "Riprova" e "Controlla il collegamento".
 - **Impostazioni** divise per obiettivo: Come risponde, Ascolto, Collegamento, Cosa può fare sul telefono, Foto e codici,
-  Musica, Notifiche, Aspetto; i dettagli tecnici stanno in "Dettagli avanzati".
+  Musica, Notifiche, Aspetto, Aggiornamenti; i dettagli tecnici stanno in "Dettagli avanzati".
+- **Aggiornamenti:** una volta al giorno (si può spegnere) l'app chiede a GitHub l'elenco delle release; una versione
+  nuova è segnata da un pallino sull'icona delle impostazioni e su "Aggiornamenti". "Scarica e installa" scarica l'APK e
+  lo passa all'installatore di Android solo se il suo SHA-256 è quello pubblicato, il pacchetto è `dev.nanovoice`, la
+  versione è più alta e la firma è la chiave di rilascio (fissata nell'app). Una copia firmata con la chiave di sviluppo
+  (`tools/install-phone.sh`) non può ricevere le release: si aggiorna dal computer.
+- **Immagini dall'agente:** grafici e foto mandati dall'agente compaiono nella chat, interi; un tocco li apre a schermo
+  intero con zoom e "Condividi". Un file che l'app non apre resta una riga col suo nome.
 - **Anteprime dei link:** sotto un messaggio compare una scheda per il primo link. La pagina viene scaricata dal telefono,
   quindi il sito vede l'indirizzo di rete: si può disattivare in Aspetto. Solo `https`, solo host pubblici (niente reti
   private né Tailscale, controllati anche a ogni reindirizzamento), senza cookie, con limiti di tempo e di dimensione.
