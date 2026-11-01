@@ -20,7 +20,7 @@ class ReplySpeaker(private val spoken: SpokenOutput) {
     }
 
     private fun say(sentence: String) {
-        val text = spokenNumbers(withoutMarkdown(withoutUrls(sentence)))
+        val text = spokenNumbers(withoutSources(withoutMarkdown(withoutUrls(sentence))))
         if (text.any { it.isLetterOrDigit() } && !isSourceLabel(text)) {
             val pieces = spokenChunks(text, lastPiece, pieceGrowth(spoken.pace))
             pieces.forEach(spoken::speak)
@@ -47,6 +47,14 @@ class ReplySpeaker(private val spoken: SpokenOutput) {
 
 private val markdownLink = Regex("""\[([^\]]*)]\((?:https?://|www\.)[^)\s]*\)""")
 private val bareUrl = Regex("""(?:https?://|www\.)\S+""")
+/**
+ * An address written without http or www ("ilpost.it/2026/11/01/…", "Fonte: ansa.it"): a name with a known ending, as
+ * a word of its own. Not the part after the @ of an email address, nor a file name ("verbale.pdf").
+ */
+private val bareDomain = Regex(
+    """(?<![\p{L}\p{N}@./-])(?:[\p{L}\p{N}-]+\.)+(?:it|com|org|net|eu|info|io|gov|edu|uk|de|fr|es|ch|co|news|tv|me|app|dev)(?:/\S*)?(?![\p{L}\p{N}-])""",
+    RegexOption.IGNORE_CASE,
+)
 /** A source in brackets at the end of a list item, "([Corriere](https://…))": for the eyes only, not even its name. */
 private val sourceInBrackets = Regex("""\s*\(\s*\[[^\]]*]\((?:https?://|www\.)[^)\s]*\)\s*\)""")
 
@@ -55,9 +63,23 @@ private val sourceLabel = Regex("""^(?:fonte|fonti|source|sources)\s*[:.]?$""", 
 /** What is left of "Fonte: https://…" once the address is gone: a label for the link in the chat, not for the voice. */
 internal fun isSourceLabel(text: String): Boolean = sourceLabel.matches(text.trim())
 
-/** Links are for the eyes: a markdown link is read as its text and a bare address is not read at all. */
+/**
+ * Links are for the eyes: a markdown link is read as its text and a bare address is not read at all, with or without
+ * http or www (so a link whose text is an address is not read either).
+ */
 internal fun withoutUrls(text: String): String =
-    text.replace(sourceInBrackets, "").replace(markdownLink, "$1").replace(bareUrl, "").replace(Regex("\\s+"), " ").trim()
+    text.replace(sourceInBrackets, "").replace(markdownLink, "$1").replace(bareUrl, "").replace(bareDomain, "")
+        .replace(Regex("\\s+"), " ").trim()
+
+private val sourceInParentheses = Regex("""\s*\(\s*(?:fonte|fonti|source|sources)\s*:[^)]*\)""", RegexOption.IGNORE_CASE)
+private val sourceSentence = Regex("""^\s*(?:fonte|fonti|source|sources)\s*:.*""", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL))
+
+/**
+ * The source of what is said is for the eyes too, also by its name: "Fonte: Il Post." is not read, nor "(fonte: ISTAT)"
+ * inside a sentence. The chat still shows it.
+ */
+internal fun withoutSources(text: String): String =
+    if (sourceSentence.matches(text)) "" else text.replace(sourceInParentheses, "").trim()
 
 private val MONTHS = listOf("gennaio", "febbraio", "marzo", "aprile", "maggio", "giugno", "luglio", "agosto", "settembre", "ottobre", "novembre", "dicembre")
 private val ORDINALS_M = listOf("primo", "secondo", "terzo", "quarto", "quinto", "sesto", "settimo", "ottavo", "nono", "decimo")

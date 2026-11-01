@@ -26,6 +26,27 @@ class WithoutUrlsTest {
     }
 
     @Test
+    fun anAddressWithoutHttpOrWwwIsNotReadEither() {
+        assertEquals("Fonte:", withoutUrls("Fonte: example.it/2026/11/01/treni-regionali"))
+        assertEquals("Lo dice il sito .", withoutUrls("Lo dice il sito News.Example.COM ."))
+        // a link whose text is an address
+        assertEquals("Articolo:", withoutUrls("Articolo: [example.it/treni](https://example.it/treni)"))
+        // not an email address, a file name or a decimal
+        assertEquals("Scrivi a info@example.it", withoutUrls("Scrivi a info@example.it")) // privacy-scan: allow (synthetic address on example.it)
+        assertEquals("Allego verbale.pdf e costa 3.50 euro.", withoutUrls("Allego verbale.pdf e costa 3.50 euro."))
+    }
+
+    @Test
+    fun theSourceIsNotReadByItsNameEither() {
+        assertEquals("", withoutSources("Fonte: Il Post."))
+        assertEquals("", withoutSources("fonti: ISTAT e Banca d'Italia"))
+        assertEquals("La disoccupazione è al 6%.", withoutSources("La disoccupazione è al 6% (fonte: ISTAT)."))
+        assertEquals("La disoccupazione è al 6%.", withoutSources(withoutUrls("La disoccupazione è al 6% (Fonte: [ISTAT](https://example.it/dati)).")))
+        // a word that only starts like it stays
+        assertEquals("Fonte di energia rinnovabile.", withoutSources("Fonte di energia rinnovabile."))
+    }
+
+    @Test
     fun plainTextIsUntouched() {
         assertEquals("Sono le dodici e quarantanove.", withoutUrls("Sono le dodici e quarantanove."))
     }
