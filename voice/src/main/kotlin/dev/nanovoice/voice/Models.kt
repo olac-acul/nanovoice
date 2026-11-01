@@ -63,7 +63,8 @@ data class VoiceSpec(
 /**
  * Only Serena: it was clearly the best of the Italian voices tried (peak 0.73-0.91 and 30-48 dB speech-to-noise
  * range without any gain, against 33-36 dB for Paola, Dii and Riccardo, and a hissy, ~4x quieter Miro), so the
- * others were dropped. The catalog stays a list so another voice can be added with one entry.
+ * others were dropped. Her medium model too, to try on a phone that runs hot: the high one there takes longer to say
+ * a sentence than the sentence lasts, and the reply stops between pieces.
  */
 object VoiceCatalog {
     private const val SHERPA = "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models"
@@ -95,7 +96,25 @@ object VoiceCatalog {
         noiseScaleW = 0.4f,
     )
 
-    val all: List<VoiceSpec> = listOf(SERENA)
+    /** The same voice, medium model: about half the size and the work for each second of speech. */
+    val SERENA_MEDIUM = VoiceSpec(
+        id = "serena-medium",
+        displayName = "Serena leggera",
+        quality = "qualità media, più veloce",
+        licenseNote = "Dataset sintetico CC BY 4.0 (committa/serena-synthetic-it-27h)",
+        onnx = RemoteFile("$PIPER_VOICES/serena/medium/it_IT-serena-medium.onnx", "fe4e26b2c1236e2a44d2e295cad564d94a0d8b0a9fca1ccdfd70dd4af3116eb5", 63_516_051),
+        config = RemoteFile("$PIPER_VOICES/serena/medium/it_IT-serena-medium.onnx.json", "14cb4995874138b2792ae07753b5540942124761af9ae6609f9b520f28837881", 5_254),
+        metadata = mapOf(
+            "model_type" to "vits", "comment" to "piper", "language" to "Italian", "voice" to "it",
+            "has_espeak" to "1", "n_speakers" to "1", "sample_rate" to "22050",
+        ),
+        dirName = "piper-serena-medium",
+        onnxName = "it_IT-serena-medium.onnx",
+        noiseScale = 0.6f,
+        noiseScaleW = 0.4f,
+    )
+
+    val all: List<VoiceSpec> = listOf(SERENA, SERENA_MEDIUM)
     val default: VoiceSpec = SERENA
 
     fun byId(id: String): VoiceSpec? = all.firstOrNull { it.id == id }

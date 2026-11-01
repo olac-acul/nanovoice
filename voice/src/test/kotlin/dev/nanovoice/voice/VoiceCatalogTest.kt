@@ -37,6 +37,13 @@ class VoiceCatalogTest {
 
     @Test fun sizeCountsModelAndConfig() = assertEquals(114_204_024L + 5_252L, VoiceCatalog.SERENA.sizeBytes)
 
+    @Test fun theLighterSerenaIsTheSameVoiceInItsOwnFolder() {
+        assertEquals(63_516_051L + 5_254L, VoiceCatalog.SERENA_MEDIUM.sizeBytes)
+        assertEquals(VoiceCatalog.SERENA.metadata, VoiceCatalog.SERENA_MEDIUM.metadata)
+        assertTrue(VoiceCatalog.SERENA.dirName != VoiceCatalog.SERENA_MEDIUM.dirName)
+        assertEquals(VoiceCatalog.SERENA, VoiceCatalog.default)
+    }
+
     @Test fun espeakDataIsPinned() {
         assertTrue(hash.matches(VoiceCatalog.ESPEAK_DATA.sha256))
         assertEquals("espeak-ng-data", VoiceCatalog.ESPEAK_DATA.dirName)
