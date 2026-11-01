@@ -56,6 +56,24 @@
     <string name="barcode_change">Cambia tipo o numero</string>
     <string name="photo_sent">Foto inviata</string>
     <string name="cat_updates">Aggiornamenti</string>
+    <string name="cat_help">Aiuto</string>
+    <string name="sum_help">Cosa puoi chiedere e come si usa</string>
+    <string name="cat_new_chat">Nuova conversazione</string>
+    <string name="sum_new_chat">L\'agente non tiene più conto dei messaggi di prima, che restano consultabili.</string>
+    <string name="cat_export">Esporta i messaggi</string>
+    <string name="sum_export">Un file JSON da salvare o condividere, con le immagini se vuoi</string>
+    <plurals name="export_pictures">
+        <item quantity="one">Includi l\'immagine (%1$d)</item>
+        <item quantity="other">Includi le immagini (%1$d)</item>
+    </plurals>
+    <string name="export_pictures_hint">Il file diventa uno ZIP, con le immagini in una cartella.</string>
+    <string name="export_thumbnails">Delle foto più vecchie c\'è solo la miniatura.</string>
+    <string name="export_go">Esporta</string>
+    <string name="sum_export_empty">Nessun messaggio nella chat</string>
+    <string name="export_subject">Messaggi di NanoVoice</string>
+    <string name="export_failed">Impossibile esportare i messaggi</string>
+    <string name="cat_clear">Cancella i messaggi</string>
+    <string name="sum_clear">Svuota la chat su questo telefono</string>
     <string name="sum_update_new">Nuova versione: %1$s</string>
     <string name="sum_update_ok">Versione %1$s</string>
     <string name="update_dot">Nuova versione disponibile</string>
@@ -238,7 +256,6 @@
     <string name="help_agent_title">Tramite il server</string>
     <string name="help_agent_body">Domande, ricerche, promemoria: risponde il tuo agente NanoClaw, a voce o per iscritto. Serve il collegamento.</string>
     <string name="help_try_agent">Cerca la biografia di antirez</string>
-    <string name="help_new_chat">Nuova conversazione</string>
     <string name="alerts_title">Avvisi</string>
     <plurals name="alerts_unread">
         <item quantity="one">Avvisi, %1$d da leggere</item>
@@ -258,9 +275,9 @@
     <string name="alerts_more">Altre azioni</string>
     <string name="previews_label">Anteprime dei link</string>
     <string name="previews_hint">Sotto un messaggio con un link mostra titolo, immagine e descrizione del primo; per i link dell\'agente solo dopo un tocco. Per farlo il telefono scarica la pagina dal sito, che vede il tuo indirizzo di rete. Solo siti https pubblici.</string>
-    <string name="new_chat_title">Nuova conversazione?</string>
-    <string name="new_chat_body">La chat si svuota e l\'agente dimentica questa conversazione. Quello che ha salvato in memoria resta, e Telegram non cambia.</string>
-    <string name="new_chat_confirm">Ricomincia</string>
+    <string name="clear_title">Cancellare i messaggi?</string>
+    <string name="clear_body">Tutti i messaggi della chat spariscono da questo telefono e l\'agente ricomincia da zero. Gli avvisi restano, e anche quello che l\'agente ha salvato in memoria.</string>
+    <string name="clear_confirm">Cancella</string>
     <string name="cancel">Annulla</string>
     <string name="msg_copy">Copia</string>
     <string name="msg_select">Seleziona testo</string>
@@ -272,11 +289,8 @@
     <string name="msg_edit">Correggi</string>
     <string name="msg_more">Altre azioni</string>
     <string name="dictate">Detta nel campo</string>
-    <plurals name="earlier_show">
-        <item quantity="one">%1$d messaggio precedente</item>
-        <item quantity="other">%1$d messaggi precedenti</item>
-    </plurals>
-    <string name="earlier_hide">Nascondi i messaggi precedenti</string>
+    <string name="earlier_show">Mostra messaggi precedenti</string>
+    <string name="earlier_hide">Nascondi messaggi precedenti</string>
     <string name="draft_replaced">La bozza di prima è stata sostituita.</string>
     <string name="draft_restore">Ripristina</string>
     <string name="draft_cut">Del testo condiviso sono arrivati solo i primi %1$s caratteri.</string>

@@ -1,6 +1,7 @@
 package dev.nanovoice
 
 import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
@@ -26,5 +27,26 @@ class FreshStartTest {
         assertFalse(hasNewsBefore(listOf(alertLine(1), alertLine(2)), 2))
         // the request that came after the pause is not part of what is folded
         assertFalse(hasNewsBefore(listOf(user(1)), 0))
+    }
+
+    @Test fun theGreetingOfAConversationFoldedAwayGoes() {
+        val chat = listOf(user(1, earlier = true), headline(2), user(3), agent(4))
+        val folded = foldedForANewConversation(chat, chat.size) { headline(5) }
+        assertEquals(listOf(1L, 3L, 4L, 5L), folded.map { it.id })
+        assertEquals(listOf(true, true, true, false), folded.map { it.earlier })
+        // a chat saved before they went: dropped when it is loaded, the current one stays
+        val saved = listOf(user(1, earlier = true), headline(2).copy(earlier = true), user(3, earlier = true), headline(5))
+        assertEquals(listOf(1L, 3L, 5L), withoutEarlierHeadlines(saved).map { it.id })
+    }
+
+    @Test fun aNewConversationFoldsWhatCameBeforeUnderItsLine() {
+        val chat = listOf(user(1), agent(2))
+        val folded = foldedForANewConversation(chat, chat.size) { headline(3) }
+        assertEquals(listOf(true, true, false), folded.map { it.earlier })
+        assertEquals(3L, folded.last().id)
+        // again at once: nothing new to fold, no second line
+        assertEquals(folded, foldedForANewConversation(folded, folded.size) { headline(4) })
+        // the request the pause came before stays in the new conversation
+        assertEquals(listOf(1L, 3L, 2L), foldedForANewConversation(chat, 1) { headline(3) }.map { it.id })
     }
 }

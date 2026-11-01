@@ -197,6 +197,7 @@ class MainActivity : ComponentActivity() {
                         onDeleteAll = container.inbox::deleteAll,
                     )
                 } else if (showSettings) {
+                    val chat by vm.messages.collectAsState()
                     SettingsScreen(
                         initial = settings,
                         status = status,
@@ -234,6 +235,15 @@ class MainActivity : ComponentActivity() {
                         onBack = { showSettings = false },
                         startPage = SettingsPage.entries.firstOrNull { it.name == settingsStart },
                         updates = container.updates,
+                        onNewConversation = vm::newConversation,
+                        onTryExample = vm::putInDraft,
+                        messageCount = chat.count { !it.notice },
+                        pictureCount = chat.count { it.image != null },
+                        onlyThumbnails = hasOnlyThumbnails(chat),
+                        onExportMessages = { withPictures ->
+                            shareChat(this@MainActivity, vm.messages.value, container.updates.installed, withPictures)
+                        },
+                        onClearMessages = vm::clearMessages,
                     )
                 } else {
                     ChatScreen(

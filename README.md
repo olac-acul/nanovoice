@@ -87,11 +87,17 @@ Lato server serve la skill `add-voice` di [skills-for-nanoclaw](https://github.c
 - **Interrompere:** mentre una richiesta è in corso accanto al campo c'è "stop" (e "invia" accanto, se si scrive altro). L'app smette di aspettare,
   scarta quello che arriva dopo e rifiuta le azioni di quella richiesta. Sul server l'agente finisce comunque il lavoro:
   NanoClaw non ha un modo per fermarlo senza farlo ripetere.
-- **Nuova conversazione:** il pulsante con la fiamma svuota la chat e chiede al server di ripartire. L'utente dell'app
-  non è amministratore, quindi è l'adattatore a scrivere `/clear` nella sessione dell'app. La memoria resta.
+- **Nuova conversazione** (seconda voce delle impostazioni, dopo "Aiuto"): chiede al server di ripartire e chiude i
+  messaggi di prima dietro la linea "Mostra messaggi precedenti", come la ripartenza dopo una pausa. L'utente dell'app non è
+  amministratore, quindi è l'adattatore a scrivere `/clear` nella sessione dell'app. La memoria resta.
+- **Esporta i messaggi** e **Cancella i messaggi** (in fondo alle impostazioni): la chat intera, anche i messaggi
+  precedenti, diventa un file JSON da salvare o condividere; con la spunta "Includi le immagini" uno ZIP con
+  `messaggi.json` e la cartella `immagini/` (delle foto più vecchie c'è solo la miniatura). "Cancella", dopo una
+  conferma, svuota la chat e fa ripartire anche il server. Gli avvisi restano.
 - **Ripartenza dopo una pausa:** dopo 30 minuti senza messaggi (`VOICE_IDLE_RESET_MINUTES` sul server) il server
   ricomincia la conversazione e lo dice all'app, che riparte subito, all'apertura o mentre è aperta, sotto una frase
-  di benvenuto; i messaggi di prima restano, chiusi dietro una linea "N messaggi precedenti" che li riapre. La chat è salvata
+  di benvenuto; i messaggi di prima restano, chiusi dietro la linea "Mostra messaggi precedenti" che li riapre (senza le
+  loro frasi di benvenuto, che servono solo alla ripartenza). La chat è salvata
   nei file privati dell'app (al massimo 200 messaggi; delle foto solo la miniatura), esclusa dai backup di Android.
 - **Avvisi:** i messaggi che l'agente manda da solo (riepiloghi programmati, promemoria) stanno in una sezione a parte,
   aperta dalla campanella in alto, con il numero dei non letti; in chat resta solo la riga "Nuovo avviso", che lo apre.

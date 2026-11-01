@@ -87,6 +87,9 @@ interface SpokenPhrases {
     /** Shown when the server could not start a new conversation. */
     val newConversationFailed: String
 
+    /** The line over a new conversation the person started ("Nuova conversazione" in the settings). */
+    val startedOver: String
+
     /** On the locked phone, for anything beyond the time, the date, timers and alarms. */
     val unlockNeeded: String
 

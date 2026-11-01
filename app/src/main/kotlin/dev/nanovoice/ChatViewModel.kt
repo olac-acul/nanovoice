@@ -54,8 +54,16 @@ data class ChatMessage(
 
 /** Something the person should know about the draft, shown above the field until sent or dismissed. */
 sealed interface DraftNote {
-    /** The draft was replaced (a message to fix, an example to try): what was there, to put back. */
-    data class Replaced(val text: String, val photo: PreparedPhoto? = null, val barcode: ScannedProduct? = null) : DraftNote
+    /**
+     * The draft was replaced (a message to fix, an example to try): what was there, to put back whole, with the request
+     * "Correggi" had open then (none for an ordinary draft, which goes back to being sent as a new request).
+     */
+    data class Replaced(
+        val text: String,
+        val photo: PreparedPhoto? = null,
+        val barcode: ScannedProduct? = null,
+        val correcting: ChatMessage? = null,
+    ) : DraftNote
 
     /** Shared text longer than a message takes: only its first [chars] characters came in. */
     data class Cut(val chars: Int) : DraftNote
@@ -84,7 +92,7 @@ class ChatViewModel(
     val appSettings: StateFlow<AppSettings> get() = settings
 
     // The conversation shown before the app was last ended comes back (a small file, read once here).
-    private val _messages = MutableStateFlow(chatStore?.load().orEmpty())
+    private val _messages = MutableStateFlow(withoutEarlierHeadlines(chatStore?.load().orEmpty()))
     val messages: StateFlow<List<ChatMessage>> = _messages
 
     val status: StateFlow<AgentStatus> = connection.status
@@ -315,12 +323,13 @@ class ChatViewModel(
 
     fun dismissNote(note: DraftNote) = _draftNotes.update { it - note }
 
-    /** "Ripristina": the draft that was there before, with its attachments. */
+    /** "Ripristina": the draft that was there before, as it was: its attachments or none, a correction or none. */
     fun restoreDraft(note: DraftNote.Replaced) {
         dismissNote(note)
         _draftNotes.update { list -> list.filterNot { it == DraftNote.PhotoGone } }
-        note.photo?.let { _photo.value = it }
-        note.barcode?.let { _barcode.value = it }
+        _photo.value = note.photo
+        _barcode.value = note.barcode
+        _correcting.value = note.correcting?.takeIf { c -> _messages.value.any { it.id == c.id } }
         compose(note.text)
     }
 
@@ -340,24 +349,32 @@ class ChatViewModel(
      */
     fun editAndResend(message: ChatMessage) {
         if (!message.fromUser) return
-        _correcting.value = message
         val photo = message.photo?.let { sent ->
             message.image?.let { PreparedPhoto(sent, it, barcode = message.barcode?.let(::barcodeInPhoto)) }
         }
         val scanned = message.barcode?.let(ScannedProduct::fromLine)
-        replaceDraft(message.text, photo, scanned, attachments = true)
+        replaceDraft(message.text, photo, scanned, attachments = true, correcting = message)
         if (message.image != null && photo == null) note(DraftNote.PhotoGone)
     }
 
-    /** An example from the help, in the field to send or change: some of them act ("imposta un timer"), so not sent. */
-    fun putInDraft(text: String) = replaceDraft(text, null, null, attachments = false)
+    /**
+     * An example from the help, in the field to send or change: some of them act ("imposta un timer"), so not sent. A
+     * new request, not a correction.
+     */
+    fun putInDraft(text: String) = replaceDraft(text, null, null, attachments = false, correcting = null)
 
-    /** The draft becomes [text] (and these attachments): what it replaces can be put back with "Ripristina". */
-    private fun replaceDraft(text: String, photo: PreparedPhoto?, barcode: ScannedProduct?, attachments: Boolean) {
-        val oldText = _draft.value.takeIf { it.isNotBlank() && it.trim() != text.trim() }
-        val oldPhoto = _photo.value.takeIf { attachments && it != null && it !== photo }
-        val oldBarcode = _barcode.value.takeIf { attachments && it != null && it != barcode }
-        if (oldText != null || oldPhoto != null || oldBarcode != null) note(DraftNote.Replaced(_draft.value, oldPhoto, oldBarcode))
+    /**
+     * The draft becomes [text] (and these attachments), sent as a correction of [correcting] or as a new request: what
+     * it replaces can be put back with "Ripristina".
+     */
+    private fun replaceDraft(text: String, photo: PreparedPhoto?, barcode: ScannedProduct?, attachments: Boolean, correcting: ChatMessage?) {
+        val was = DraftNote.Replaced(_draft.value, _photo.value, _barcode.value, _correcting.value)
+        val textChanged = was.text.isNotBlank() && was.text.trim() != text.trim()
+        val photoChanged = attachments && was.photo != null && was.photo !== photo
+        val barcodeChanged = attachments && was.barcode != null && was.barcode != barcode
+        val correctionChanged = was.correcting != null && was.correcting.id != correcting?.id
+        if (textChanged || photoChanged || barcodeChanged || correctionChanged) note(was)
+        _correcting.value = correcting
         if (attachments) {
             _photo.value = photo
             _barcode.value = barcode
@@ -576,7 +593,24 @@ class ChatViewModel(
     }
 
     /** Empties the chat and asks the server to start over: the agent forgets this conversation, its memory stays. */
+    /**
+     * "Nuova conversazione": the agent starts over, as after a long pause, and so does the chat: what came before stays,
+     * folded above a line that says so, to read again.
+     */
     fun newConversation() {
+        stopEverything()
+        _messages.update { list -> foldedForANewConversation(list, list.size) { headline(phrases.startedOver) } }
+        tellServerItStartsOver()
+    }
+
+    /** "Cancella i messaggi": the chat empties, and the agent forgets the conversation too, or it would not match. */
+    fun clearMessages() {
+        stopEverything()
+        _messages.value = emptyList()
+        tellServerItStartsOver()
+    }
+
+    private fun stopEverything() {
         conversation.cancel()
         conversation = Job(viewModelScope.coroutineContext[Job])
         voice.cancel()
@@ -589,7 +623,9 @@ class ChatViewModel(
         _replyingTo.value = null
         _correcting.value = null
         _draftNotes.value = emptyList()
-        _messages.value = emptyList()
+    }
+
+    private fun tellServerItStartsOver() {
         viewModelScope.launch(conversation) {
             if (status.value == AgentStatus.NotConfigured) return@launch
             if (!connection.newConversation()) add(phrases.newConversationFailed, fromUser = false)
@@ -629,6 +665,8 @@ class ChatViewModel(
         return id
     }
 
+    private fun headline(text: String) = ChatMessage(nextId++, text, fromUser = false, notice = true)
+
     private fun remove(id: Long) = _messages.update { list -> list.filter { it.id != id } }
 
     /**
@@ -645,7 +683,7 @@ class ChatViewModel(
     /**
      * The server started the conversation over before the request [from] (after a long pause), or will with the next
      * one ([from] null: the pause is over): the chat starts over too, under a headline of the app's own, so it shows
-     * what the agent knows. What came before stays, folded above it, to read again ("Nuova conversazione" empties it
+     * what the agent knows. What came before stays, folded above it, to read again ("Cancella i messaggi" empties it
      * all). Once only: the request after a pause the chat already showed finds the headline there.
      */
     private fun startOverAt(from: Long?) {
@@ -653,11 +691,9 @@ class ChatViewModel(
         val now = java.time.LocalDateTime.now(zone)
         _messages.update { list ->
             val at = list.indexOfFirst { it.id == from }.takeIf { it >= 0 } ?: list.size
-            if (!hasNewsBefore(list, at)) return@update list
             val last = list.take(at).lastOrNull { !it.notice }?.time
                 ?.let { java.time.LocalDateTime.ofInstant(java.time.Instant.ofEpochMilli(it), zone) }
-            val headline = ChatMessage(nextId++, phrases.freshStart(now, last), fromUser = false, notice = true)
-            list.take(at).map { it.copy(earlier = true) } + headline + list.drop(at)
+            foldedForANewConversation(list, at) { headline(phrases.freshStart(now, last)) }
         }
     }
 
@@ -666,6 +702,19 @@ class ChatViewModel(
         _messages.update { list -> list.map { if (it.id == id) it.copy(text = text, failed = failed) else it } }
     }
 }
+
+/**
+ * The chat with what comes before position [at] folded, as from before a new conversation, under a line with
+ * its [headline]: unchanged when there is nothing new to fold (see [hasNewsBefore]). The headlines folded away go: a
+ * greeting is for the moment the conversation starts over, not to read again among the earlier messages.
+ */
+internal fun foldedForANewConversation(list: List<ChatMessage>, at: Int, headline: () -> ChatMessage): List<ChatMessage> {
+    if (!hasNewsBefore(list, at)) return list
+    return withoutEarlierHeadlines(list.take(at).map { it.copy(earlier = true) }) + headline() + list.drop(at)
+}
+
+/** The chat without the headlines of the conversations folded away (chats saved before they were dropped had them). */
+internal fun withoutEarlierHeadlines(list: List<ChatMessage>) = list.filterNot { it.earlier && it.notice }
 
 /**
  * Whether the chat before position [at] has something the agent will no longer know: a request since the latest

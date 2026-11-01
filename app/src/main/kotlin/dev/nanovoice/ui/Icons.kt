@@ -64,32 +64,6 @@ object Icons {
         line(color, w, 0.43f, 0.84f, 0.57f, 0.84f)
     }
 
-    /** A flame: "start fresh", for the new conversation button. */
-    @Composable
-    fun Flame(color: Color, modifier: Modifier = Modifier, size: Dp = 22.dp) = Canvas(modifier.size(size)) {
-        val w = this.size.width
-        fun Path.c(x1: Float, y1: Float, x2: Float, y2: Float, x3: Float, y3: Float) = cubicTo(x1 * w, y1 * w, x2 * w, y2 * w, x3 * w, y3 * w)
-        val outer = Path().apply {
-            moveTo(0.5f * w, 0.92f * w)
-            c(0.27f, 0.92f, 0.18f, 0.74f, 0.25f, 0.58f)
-            c(0.31f, 0.44f, 0.44f, 0.36f, 0.44f, 0.10f)
-            c(0.64f, 0.24f, 0.83f, 0.44f, 0.80f, 0.66f)
-            c(0.78f, 0.83f, 0.66f, 0.92f, 0.5f, 0.92f)
-            close()
-        }
-        val inner = Path().apply {
-            moveTo(0.5f * w, 0.84f * w)
-            c(0.41f, 0.84f, 0.37f, 0.76f, 0.41f, 0.68f)
-            c(0.45f, 0.61f, 0.51f, 0.58f, 0.52f, 0.49f)
-            c(0.60f, 0.56f, 0.64f, 0.65f, 0.62f, 0.73f)
-            c(0.60f, 0.80f, 0.56f, 0.84f, 0.5f, 0.84f)
-            close()
-        }
-        val stroke = Stroke(w * 0.085f, cap = StrokeCap.Round, join = StrokeJoin.Round)
-        drawPath(outer, color, style = stroke)
-        drawPath(inner, color, style = stroke)
-    }
-
     @Composable
     fun Stop(color: Color, modifier: Modifier = Modifier, size: Dp = 18.dp) = Canvas(modifier.size(size)) {
         val w = this.size.width
@@ -274,19 +248,6 @@ object Icons {
         line(color, w, 0.5f, 0.18f, 0.5f, 0.82f)
         line(color, w, 0.36f, 0.18f, 0.64f, 0.18f)
         line(color, w, 0.36f, 0.82f, 0.64f, 0.82f)
-    }
-
-    /** A question mark drawn with the same stroke as the other icons: what can be asked. */
-    @Composable
-    fun Help(color: Color, modifier: Modifier = Modifier, size: Dp = 24.dp) = Canvas(modifier.size(size)) {
-        val w = this.size.width
-        val p = Path().apply {
-            arcTo(androidx.compose.ui.geometry.Rect(w * 0.35f, w * 0.18f, w * 0.65f, w * 0.48f), 180f, 225f, true)
-            lineTo(w * 0.5f, w * 0.56f)
-            lineTo(w * 0.5f, w * 0.63f)
-        }
-        drawPath(p, color, style = Stroke(w * 0.085f, cap = StrokeCap.Round, join = StrokeJoin.Round))
-        drawCircle(color, radius = w * 0.06f, center = Offset(w * 0.5f, w * 0.79f))
     }
 
     /** A phone: what the app does on it by itself. */

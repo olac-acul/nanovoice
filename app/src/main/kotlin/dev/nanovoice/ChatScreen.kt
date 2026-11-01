@@ -144,8 +144,6 @@ fun ChatScreen(
     val speaking by viewModel.speaking.collectAsState()
     val ttsStatus by viewModel.ttsStatus.collectAsState()
     val input by viewModel.draft.collectAsState()
-    var showHelp by remember { mutableStateOf(false) }
-    var confirmNew by remember { mutableStateOf(false) }
     // While typing, the keyboard takes most of the screen: the orb gives way so the conversation keeps its room.
     val keyboardOpen = WindowInsets.ime.getBottom(LocalDensity.current) > 0
     val listState = rememberLazyListState()
@@ -163,10 +161,8 @@ fun ChatScreen(
     // When the agent says it is working, the dots show at once and stay until its answer arrives.
     val workingText by viewModel.workingText.collectAsState()
     val appSettings by viewModel.appSettings.collectAsState()
-    val newChatLabel = stringResource(R.string.help_new_chat)
     val unread by viewModel.unreadAlerts.collectAsState()
     val alertsLabel = if (unread > 0) pluralStringResource(R.plurals.alerts_unread, unread, unread) else stringResource(R.string.alerts_title)
-    val helpLabel = stringResource(R.string.help_title)
     val settingsLabel = stringResource(R.string.settings)
     val updateLabel = stringResource(R.string.update_dot)
     val showStatus = working && workingText.isNotEmpty()
@@ -295,24 +291,9 @@ fun ChatScreen(
         else -> OrbState.Idle
     }
 
-    if (showHelp) {
-        HelpDialog(onDismiss = { showHelp = false }, onTry = { example ->
-            showHelp = false
-            viewModel.putInDraft(example)
-        })
-    }
     val consentRequest by viewModel.consentRequest.collectAsState()
     val replyingTo by viewModel.replyingTo.collectAsState()
     val correcting by viewModel.correcting.collectAsState()
-    if (confirmNew) {
-        AlertDialog(
-            onDismissRequest = { confirmNew = false },
-            title = { Text(stringResource(R.string.new_chat_title)) },
-            text = { Text(stringResource(R.string.new_chat_body)) },
-            confirmButton = { TextButton(onClick = { confirmNew = false; viewModel.newConversation() }) { Text(stringResource(R.string.new_chat_confirm)) } },
-            dismissButton = { TextButton(onClick = { confirmNew = false }) { Text(stringResource(R.string.cancel)) } },
-        )
-    }
 
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Column(modifier = Modifier.safeDrawingPadding().padding(horizontal = 16.dp)) {
@@ -345,24 +326,6 @@ fun ChatScreen(
                         }
                     }
                 }
-                Spacer(Modifier.width(8.dp))
-                Box(
-                    modifier = Modifier
-                        .size(44.dp)
-                        .background(MaterialTheme.colorScheme.surfaceContainerHigh, CircleShape)
-                        .semantics { contentDescription = newChatLabel }
-                        .clickable { confirmNew = true },
-                    contentAlignment = Alignment.Center,
-                ) { Icons.Flame(MaterialTheme.colorScheme.onSurface) }
-                Spacer(Modifier.width(8.dp))
-                Box(
-                    modifier = Modifier
-                        .size(44.dp)
-                        .background(MaterialTheme.colorScheme.surfaceContainerHigh, CircleShape)
-                        .semantics { contentDescription = helpLabel }
-                        .clickable { showHelp = true },
-                    contentAlignment = Alignment.Center,
-                ) { Icons.Help(MaterialTheme.colorScheme.onSurface) }
                 Spacer(Modifier.width(8.dp))
                 Box(
                     modifier = Modifier
@@ -542,7 +505,7 @@ fun ChatScreen(
 
 /** What can be asked, in short: a few requests to try, photos and codes, and what goes to NanoClaw. */
 @Composable
-private fun HelpDialog(onDismiss: () -> Unit, onTry: (String) -> Unit) {
+internal fun HelpDialog(onDismiss: () -> Unit, onTry: (String) -> Unit) {
     val tries = listOf(R.string.help_try_time, R.string.help_try_timer, R.string.help_try_alarm, R.string.help_try_app)
     AlertDialog(
         onDismissRequest = onDismiss,

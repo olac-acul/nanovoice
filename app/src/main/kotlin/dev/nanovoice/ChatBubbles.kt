@@ -55,7 +55,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.runtime.Composable
@@ -138,7 +137,7 @@ private fun OpeningHeader(text: String, day: LocalDate) {
  * the words in the middle, as messaging apps mark where the unread messages start: part of the timeline, not a message.
  */
 @Composable
-private fun EarlierToggle(count: Int, shown: Boolean, onToggle: () -> Unit) {
+private fun EarlierToggle(shown: Boolean, onToggle: () -> Unit) {
     val color = MaterialTheme.colorScheme.onSurfaceVariant
     val line = MaterialTheme.colorScheme.outlineVariant
     Row(
@@ -157,7 +156,7 @@ private fun EarlierToggle(count: Int, shown: Boolean, onToggle: () -> Unit) {
             // Down to unfold, as a list that opens; up to fold the messages away again.
             Icons.Chevron(color, Modifier.rotate(if (shown) -90f else 90f), size = 18.dp)
             Text(
-                if (shown) stringResource(R.string.earlier_hide) else pluralStringResource(R.plurals.earlier_show, count, count),
+                stringResource(if (shown) R.string.earlier_hide else R.string.earlier_show),
                 style = MaterialTheme.typography.bodyMedium,
                 color = color,
             )
@@ -314,7 +313,7 @@ fun ChatList(
             // it) and moves up a little to show how they ended.
             val firstNew = messages.indexOfFirst { !it.earlier }.let { if (it < 0) messages.size else it }
             fun toggleItem() = item(key = "earlier") {
-                EarlierToggle(earlierCount, showEarlier) {
+                EarlierToggle(showEarlier) {
                     showEarlier = !showEarlier
                     if (showEarlier) scope.launch {
                         withFrameNanos {}

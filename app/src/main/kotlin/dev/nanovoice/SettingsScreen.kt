@@ -48,6 +48,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import kotlinx.coroutines.launch
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -119,6 +120,20 @@ fun SettingsScreen(
     startPage: SettingsPage? = null,
     /** The app's own updates from GitHub ("Aggiornamenti"); none in previews. */
     updates: AppUpdates? = null,
+    /** "Nuova conversazione": the agent starts over, the messages stay; the chat shows it. */
+    onNewConversation: () -> Unit = {},
+    /** A request from the help to try: it goes in the chat's field. */
+    onTryExample: (String) -> Unit = {},
+    /** How many messages the chat holds: nothing to export or delete without any. */
+    messageCount: Int = 0,
+    /** How many pictures the chat holds: the export offers to include them when there are some. */
+    pictureCount: Int = 0,
+    /** Some photos of the person are only thumbnails now: said where the pictures are offered. */
+    onlyThumbnails: Boolean = false,
+    /** "Esporta i messaggi", with the pictures (a zip) or not (JSON): false when it could not be done. */
+    onExportMessages: suspend (withPictures: Boolean) -> Boolean = { false },
+    /** "Cancella i messaggi", once confirmed: the chat empties. */
+    onClearMessages: () -> Unit = {},
 ) {
     var url by remember { mutableStateOf(initial.serverUrl) }
     var token by remember { mutableStateOf(initial.token) }
@@ -193,6 +208,69 @@ fun SettingsScreen(
     }
     BackHandler(onBack = ::leave)
     val backLabel = stringResource(R.string.back)
+    var showHelp by remember { mutableStateOf(false) }
+    var confirmClear by remember { mutableStateOf(false) }
+    var exportFailed by remember { mutableStateOf(false) }
+    var exporting by remember { mutableStateOf(false) }
+
+    /** Back to the chat, the settings saved, to see what was just done there. */
+    fun toChat(then: () -> Unit) {
+        commit()
+        onBack()
+        then()
+    }
+    if (showHelp) {
+        HelpDialog(onDismiss = { showHelp = false }, onTry = { example ->
+            showHelp = false
+            toChat { onTryExample(example) }
+        })
+    }
+    if (exporting) {
+        var withPictures by remember { mutableStateOf(false) }
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { exporting = false },
+            title = { Text(stringResource(R.string.cat_export)) },
+            text = {
+                // Asked only when there are pictures: they make it a zip.
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth()
+                            .toggleable(withPictures, role = Role.Checkbox) { withPictures = it },
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        androidx.compose.material3.Checkbox(checked = withPictures, onCheckedChange = null)
+                        Text(
+                            pluralStringResource(R.plurals.export_pictures, pictureCount, pictureCount),
+                            modifier = Modifier.padding(start = 12.dp),
+                        )
+                    }
+                    val hint = stringResource(R.string.export_pictures_hint) +
+                        if (onlyThumbnails) " " + stringResource(R.string.export_thumbnails) else ""
+                    Text(hint, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    exporting = false
+                    scope.launch { exportFailed = !onExportMessages(withPictures) }
+                }) { Text(stringResource(R.string.export_go)) }
+            },
+            dismissButton = { TextButton(onClick = { exporting = false }) { Text(stringResource(R.string.cancel)) } },
+        )
+    }
+    if (confirmClear) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { confirmClear = false },
+            title = { Text(stringResource(R.string.clear_title)) },
+            text = { Text(stringResource(R.string.clear_body)) },
+            confirmButton = {
+                TextButton(onClick = { confirmClear = false; toChat(onClearMessages) }) {
+                    Text(stringResource(R.string.clear_confirm), color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = { TextButton(onClick = { confirmClear = false }) { Text(stringResource(R.string.cancel)) } },
+        )
+    }
 
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Column(modifier = Modifier.safeDrawingPadding().padding(horizontal = 16.dp)) {
@@ -213,40 +291,75 @@ fun SettingsScreen(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 when (page) {
-                    null -> CategoryGroup {
-                        CategoryRow(R.string.cat_replies, VoiceCatalog.byId(voiceId)?.displayName ?: "-", first = true) { pageName = SettingsPage.Replies.name }
-                        CategoryRow(
-                            R.string.cat_listening,
-                            stringResource(if (modelState == ModelState.Installed) R.string.sum_listening_ready else R.string.sum_listening_missing),
-                        ) { pageName = SettingsPage.Listening.name }
-                        CategoryRow(R.string.cat_server, statusLabel(status)) { pageName = SettingsPage.Server.name }
-                        CategoryRow(
-                            R.string.cat_permissions,
-                            stringResource(if (contactsGranted) R.string.sum_contacts_granted else R.string.sum_contacts_missing),
-                        ) { pageName = SettingsPage.Permissions.name }
-                        CategoryRow(
-                            R.string.cat_photos,
-                            stringResource(if (photoServices) R.string.sum_photos_on else R.string.sum_photos_off),
-                        ) { pageName = SettingsPage.Photos.name }
-                        CategoryRow(
-                            R.string.cat_music,
-                            stringResource(if (initial.musicAccount() != null) R.string.music_connected else R.string.music_not_configured),
-                        ) { pageName = SettingsPage.Music.name }
-                        CategoryRow(
-                            R.string.cat_notifications,
-                            stringResource(if (pushActive) R.string.sum_on else R.string.sum_off),
-                        ) { pageName = SettingsPage.Notifications.name }
-                        CategoryRow(R.string.cat_appearance, stringResource(themeLabel(theme))) { pageName = SettingsPage.Appearance.name }
-                        if (updates != null) {
-                            val latest by updates.latest.collectAsState()
-                            val badge by updates.badge.collectAsState()
-                            val newer = latest?.takeIf { isNewer(it.version, updates.installed) }
+                    null -> {
+                        // What is done with the chat: help first, to find it; then starting over, which keeps the messages.
+                        CategoryGroup {
+                            CategoryRow(R.string.cat_help, stringResource(R.string.sum_help), first = true) { showHelp = true }
+                            CategoryRow(R.string.cat_new_chat, stringResource(R.string.sum_new_chat), chevron = false) {
+                                toChat(onNewConversation)
+                            }
+                        }
+                        CategoryGroup {
+                            CategoryRow(R.string.cat_replies, VoiceCatalog.byId(voiceId)?.displayName ?: "-", first = true) { pageName = SettingsPage.Replies.name }
                             CategoryRow(
-                                R.string.cat_updates,
-                                if (newer != null) stringResource(R.string.sum_update_new, newer.version)
-                                else stringResource(R.string.sum_update_ok, updates.installed),
-                                dot = badge,
-                            ) { pageName = SettingsPage.Updates.name }
+                                R.string.cat_listening,
+                                stringResource(if (modelState == ModelState.Installed) R.string.sum_listening_ready else R.string.sum_listening_missing),
+                            ) { pageName = SettingsPage.Listening.name }
+                            CategoryRow(R.string.cat_server, statusLabel(status)) { pageName = SettingsPage.Server.name }
+                            CategoryRow(
+                                R.string.cat_permissions,
+                                stringResource(if (contactsGranted) R.string.sum_contacts_granted else R.string.sum_contacts_missing),
+                            ) { pageName = SettingsPage.Permissions.name }
+                            CategoryRow(
+                                R.string.cat_photos,
+                                stringResource(if (photoServices) R.string.sum_photos_on else R.string.sum_photos_off),
+                            ) { pageName = SettingsPage.Photos.name }
+                            CategoryRow(
+                                R.string.cat_music,
+                                stringResource(if (initial.musicAccount() != null) R.string.music_connected else R.string.music_not_configured),
+                            ) { pageName = SettingsPage.Music.name }
+                            CategoryRow(
+                                R.string.cat_notifications,
+                                stringResource(if (pushActive) R.string.sum_on else R.string.sum_off),
+                            ) { pageName = SettingsPage.Notifications.name }
+                            CategoryRow(R.string.cat_appearance, stringResource(themeLabel(theme))) { pageName = SettingsPage.Appearance.name }
+                            if (updates != null) {
+                                val latest by updates.latest.collectAsState()
+                                val badge by updates.badge.collectAsState()
+                                val newer = latest?.takeIf { isNewer(it.version, updates.installed) }
+                                CategoryRow(
+                                    R.string.cat_updates,
+                                    if (newer != null) stringResource(R.string.sum_update_new, newer.version)
+                                    else stringResource(R.string.sum_update_ok, updates.installed),
+                                    dot = badge,
+                                ) { pageName = SettingsPage.Updates.name }
+                            }
+                        }
+                        // The messages themselves, last: the one that deletes away from the rest, and asked first.
+                        CategoryGroup {
+                            CategoryRow(
+                                R.string.cat_export,
+                                stringResource(
+                                    when {
+                                        exportFailed -> R.string.export_failed
+                                        messageCount == 0 -> R.string.sum_export_empty
+                                        else -> R.string.sum_export
+                                    },
+                                ),
+                                first = true,
+                                chevron = false,
+                                enabled = messageCount > 0,
+                            ) {
+                            if (pictureCount > 0) exporting = true
+                            else scope.launch { exportFailed = !onExportMessages(false) }
+                        }
+                            CategoryRow(
+                                R.string.cat_clear,
+                                stringResource(R.string.sum_clear),
+                                chevron = false,
+                                enabled = messageCount > 0,
+                                danger = true,
+                            ) { confirmClear = true }
                         }
                     }
                     SettingsPage.Updates -> if (updates != null) UpdatesPage(updates)
@@ -670,15 +783,38 @@ private fun CategoryGroup(content: @Composable ColumnScope.() -> Unit) {
     ) { Column(content = content) }
 }
 
+/**
+ * A row of the settings list: a page to open, with the arrow, or an action done at once ([chevron] false). A [danger]
+ * one (deleting) has its title in the error color.
+ */
 @Composable
-private fun CategoryRow(title: Int, summary: String, first: Boolean = false, dot: Boolean = false, onClick: () -> Unit) {
-    if (!first) HorizontalDivider(Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant)
+private fun CategoryRow(
+    title: Int,
+    summary: String,
+    first: Boolean = false,
+    dot: Boolean = false,
+    chevron: Boolean = true,
+    enabled: Boolean = true,
+    danger: Boolean = false,
+    onClick: () -> Unit,
+) {
+    val colors = MaterialTheme.colorScheme
+    if (!first) HorizontalDivider(Modifier.padding(horizontal = 16.dp), color = colors.outlineVariant)
     Row(
-        modifier = Modifier.fillMaxWidth().clickable(role = Role.Button, onClick = onClick).padding(horizontal = 16.dp, vertical = 14.dp),
+        modifier = Modifier.fillMaxWidth().clickable(enabled = enabled, role = Role.Button, onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(stringResource(title), style = MaterialTheme.typography.titleMedium)
+            Text(
+                stringResource(title),
+                style = MaterialTheme.typography.titleMedium,
+                color = when {
+                    !enabled -> colors.onSurface.copy(alpha = 0.38f)
+                    danger -> colors.error
+                    else -> colors.onSurface
+                },
+            )
             Text(summary, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         // Something new on that page (a newer version of the app), as the bell marks unread alerts.
@@ -686,7 +822,7 @@ private fun CategoryRow(title: Int, summary: String, first: Boolean = false, dot
             val label = stringResource(R.string.update_dot)
             Box(Modifier.padding(end = 8.dp).size(10.dp).background(MaterialTheme.colorScheme.primary, CircleShape).semantics { contentDescription = label })
         }
-        Icons.Chevron(MaterialTheme.colorScheme.outline)
+        if (chevron) Icons.Chevron(colors.outline)
     }
 }
 

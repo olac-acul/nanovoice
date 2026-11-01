@@ -195,7 +195,8 @@ object ItalianPhrases : SpokenPhrases {
         }
     }
     override val unlockNeeded = "Per questo sblocca il telefono. Da bloccato posso dirti l'ora e la data, e impostare timer e sveglie."
-    override val newConversationFailed = "Non sono riuscito ad avviare una nuova conversazione sul server: la chat è vuota, ma l'agente ricorda ancora la precedente. Riprova quando sei connesso."
+    override val newConversationFailed = "Il server non ha avviato una nuova conversazione: l'agente ricorda ancora la precedente. Riprova quando c'è collegamento."
+    override val startedOver = "Nuova conversazione"
 
     override val fixedPhrases get() = listOf(askTimerDuration, askAlarmTime, notUnderstood, timerTooLong, timerNoApp, timerDenied, alarmNoApp, alarmDenied, callingNumber, contactsPermissionNeeded, dialerNotFound)
 }
