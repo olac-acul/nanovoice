@@ -154,6 +154,8 @@ object ItalianPhrases : SpokenPhrases {
     override val noteWritten = "Ho scritto la nota in Notes."
     override val noNotesApp = "Nextcloud Notes non è installato."
     override val requestInterrupted = "Risposta interrotta."
+    override fun fileNotShown(name: String, tooBig: Boolean) =
+        if (tooBig) "L'agente ha mandato l'immagine «$name», troppo grande da mostrare qui." else "L'agente ha mandato il file «$name», che l'app non può aprire."
     // None masculine or feminine: the app does not know who is using it. Statements, not questions to answer: the line
     // sits above the request just made. Mostly the time of day; now and then the weekday, a lighter line, or the pause.
     private val withCharacter = listOf(

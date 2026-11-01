@@ -45,7 +45,8 @@ class ChatStore(private val file: File) {
 
     private fun ChatMessage.toStored() = StoredMessage(
         id, text, fromUser, time, quote, barcode, failed, notice,
-        preview = image?.let(::jpeg),
+        // A picture of the agent is shown large (a chart to read): kept sharper than a photo's thumbnail.
+        preview = image?.let { jpeg(it, if (fromUser) 80 else 92) },
         earlier = earlier,
         alertId = alertId,
     )
@@ -56,8 +57,8 @@ class ChatStore(private val file: File) {
         time = time, quote = quote, barcode = barcode, failed = failed, notice = notice, earlier = earlier, alertId = alertId,
     )
 
-    private fun jpeg(image: ImageBitmap): ByteArray = ByteArrayOutputStream().use { out ->
-        image.asAndroidBitmap().compress(Bitmap.CompressFormat.JPEG, 80, out)
+    private fun jpeg(image: ImageBitmap, quality: Int): ByteArray = ByteArrayOutputStream().use { out ->
+        image.asAndroidBitmap().compress(Bitmap.CompressFormat.JPEG, quality, out)
         out.toByteArray()
     }
 

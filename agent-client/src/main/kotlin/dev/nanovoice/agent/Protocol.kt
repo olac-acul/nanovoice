@@ -22,6 +22,8 @@ internal object Protocol {
         put("protocol", VERSION)
         putJsonArray("capabilities") { capabilities.sorted().forEach { add(JsonPrimitive(it)) } }
         put("locale", locale)
+        // The pictures the agent sends come with their data: the chat shows them.
+        putJsonArray("shows") { add(JsonPrimitive("image")) }
     }.toString()
 
     fun message(session: String, id: String, text: String, image: AgentImage? = null) = buildJsonObject {
@@ -73,6 +75,7 @@ internal object Protocol {
         data class ConversationReset(val ok: Boolean) : ServerMessage
         data class ContextRestarted(val replyTo: String) : ServerMessage
         data object ConversationIdle : ServerMessage
+        data class File(val replyTo: String?, val file: AgentFile) : ServerMessage
     }
 
     /** Returns null for malformed or unknown messages, which the client ignores. */
@@ -94,10 +97,20 @@ internal object Protocol {
             "conversation_reset" -> ServerMessage.ConversationReset((obj["ok"] as? JsonPrimitive)?.contentOrNull == "true")
             "context_restarted" -> ServerMessage.ContextRestarted(str("reply_to") ?: return null)
             "conversation_idle" -> ServerMessage.ConversationIdle
+            "file" -> {
+                val name = str("name") ?: return null
+                val mime = str("mime")
+                val data = str("data")?.let { runCatching { Base64.getDecoder().decode(it) }.getOrNull() }
+                val image = if (mime != null && data != null && mime in PICTURE_TYPES) AgentImage(mime, data) else null
+                val tooBig = str("reason") == "size"
+                ServerMessage.File(str("reply_to"), AgentFile(name, image, tooBig))
+            }
             else -> null
         }
     }
 }
+
+private val PICTURE_TYPES = setOf("image/jpeg", "image/png", "image/webp")
 
 /**
  * The words for a session the server refused because of the protocol version ("unsupported protocol; expected 2"):

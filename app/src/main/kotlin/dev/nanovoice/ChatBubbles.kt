@@ -25,6 +25,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.ui.graphics.asAndroidBitmap
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -276,7 +278,8 @@ fun ChatList(
     // Not a request folded above a new conversation: the agent no longer has it to retry or correct.
     val lastUserId = messages.lastOrNull { it.fromUser && !it.earlier }?.id
     // Under the latest reply, once it is complete: "Ascolta", and "Riprova" when it is no answer.
-    val lastReply = messages.lastOrNull()?.takeIf { !it.fromUser && !it.notice && it.alertId == null && !showTyping && workingText == null }
+    // A picture after the reply's text does not hide its "Ascolta".
+    val lastReply = messages.lastOrNull { it.fromUser || it.image == null }?.takeIf { !it.fromUser && !it.notice && it.alertId == null && !showTyping && workingText == null }
     val lastRequest = messages.lastOrNull { it.fromUser && !it.earlier }
     // "Correggi" under it once the turn is over, not while the answer is still coming.
     val editable = lastRequest?.takeIf { it.text.isNotBlank() && !showTyping && workingText == null }
@@ -481,7 +484,8 @@ private fun MessageBubble(
                 Column {
                     message.quote?.let { QuoteLine(it, content, Modifier.padding(start = 10.dp, end = 10.dp, top = 8.dp)) }
                     message.image?.let {
-                        SentPhoto(it, message.photo, onLongPress = { menu = true }, onAttachAgain = actions.attachAgain.takeIf { message.fromUser })
+                        if (user) SentPhoto(it, message.photo, onLongPress = { menu = true }, onAttachAgain = actions.attachAgain)
+                        else AgentPicture(it, message.photo, onLongPress = { menu = true })
                     }
                     // With a link preview the time goes under it, as messaging apps do; otherwise at the end of the text.
                     val link = remember(message.text) { if (previewsOn) firstUrl(message.text) else null }
@@ -591,6 +595,9 @@ private fun MessageMenu(
     val host = remember(link) { link?.let { runCatching { java.net.URI(it).host }.getOrNull() } }
     NanoMenu(expanded = expanded, onDismiss = onDismiss) {
         NanoMenuItem(stringResource(R.string.msg_reply), { Icons.Reply(color) }) { onDismiss(); actions.reply(message) }
+        if (!message.fromUser && message.image != null) {
+            NanoMenuItem(stringResource(R.string.msg_share), { Icons.Share(color) }) { onDismiss(); sharePicture(context, message.image, message.photo) }
+        }
         if (shown.isNotEmpty()) {
             NanoMenuItem(stringResource(R.string.msg_copy), { Icons.Copy(color) }) { onDismiss(); copy(context, shown) }
             NanoMenuItem(stringResource(R.string.msg_select), { Icons.Select(color) }) { onDismiss(); onSelect() }
@@ -631,6 +638,60 @@ private fun copy(context: Context, text: String) = copyText(context, text)
 private fun share(context: Context, text: String) {
     val send = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, text)
     runCatching { context.startActivity(Intent.createChooser(send, null).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+}
+
+/**
+ * A picture the agent sent (a chart, a photo): whole, as wide as the bubble, never cropped; a tap shows it on the whole
+ * screen to zoom, with "Condividi", a long press the menu. A very tall one is shown smaller, with room at its sides.
+ */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun AgentPicture(preview: ImageBitmap, full: AgentImage?, onLongPress: () -> Unit) {
+    val context = LocalContext.current
+    var viewing by remember { mutableStateOf(false) }
+    Image(
+        preview,
+        contentDescription = stringResource(R.string.picture_from_agent),
+        contentScale = ContentScale.Fit,
+        modifier = Modifier
+            .padding(4.dp)
+            .fillMaxWidth()
+            .aspectRatio((preview.width.toFloat() / preview.height).coerceAtLeast(MIN_PICTURE_RATIO))
+            .clip(RoundedCornerShape(14.dp))
+            .combinedClickable(onClick = { viewing = true }, onLongClick = onLongPress),
+    )
+    if (viewing) {
+        PhotoViewer(
+            preview,
+            full = full,
+            onSearch = null,
+            onDismiss = { viewing = false },
+            onShare = { sharePicture(context, preview, full) },
+            description = stringResource(R.string.picture_from_agent),
+        )
+    }
+}
+
+/**
+ * Hands a picture of the agent to another app: the picture as it came when the app still has it, otherwise the copy
+ * the chat keeps. Through a file in the cache that only the chosen app may read, replaced on every share.
+ */
+private fun sharePicture(context: Context, preview: ImageBitmap, full: AgentImage?) {
+    runCatching {
+        val dir = java.io.File(context.cacheDir, "shared").apply { deleteRecursively(); mkdirs() }
+        val (bytes, ext, mime) = full?.let { Triple(it.bytes, it.mime.substringAfter('/').replace("jpeg", "jpg"), it.mime) }
+            ?: Triple(
+                java.io.ByteArrayOutputStream().also { preview.asAndroidBitmap().compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }.toByteArray(),
+                "png",
+                "image/png",
+            )
+        val file = java.io.File(dir, "immagine.$ext").apply { writeBytes(bytes) }
+        val uri = androidx.core.content.FileProvider.getUriForFile(context, "${context.packageName}.photos", file)
+        // The clip too: the chooser's own preview reads the picture through it, with the same one-off permission.
+        val send = Intent(Intent.ACTION_SEND).setType(mime).putExtra(Intent.EXTRA_STREAM, uri)
+            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION).apply { clipData = android.content.ClipData.newRawUri(null, uri) }
+        context.startActivity(Intent.createChooser(send, null).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+    }
 }
 
 /** A photo in the chat; a tap shows it on the whole screen (with the reverse image search there), a long press the menu. */
@@ -688,3 +749,6 @@ internal fun NanoMenuItem(label: String, icon: @Composable () -> Unit, onClick: 
         contentPadding = PaddingValues(horizontal = 18.dp, vertical = 4.dp),
     )
 }
+
+/** Width over height below which a picture is shown smaller, so a tall one does not fill the screen. */
+private const val MIN_PICTURE_RATIO = 0.75f

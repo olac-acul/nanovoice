@@ -8,7 +8,7 @@ Autenticazione: header `Authorization: Bearer <token>` nell'upgrade WebSocket (4
 ## App → NanoClaw
 
 ```json
-{"type": "hello", "protocol": 1, "capabilities": ["set_timer", "tell_time", "tell_date", "set_alarm", "open_app", "call", "stop_timer", "stop_alarm", "snooze_alarm", "confirm", "choose", "calendar_read", "calendar_update", "calendar_delete"], "locale": "it-IT"}
+{"type": "hello", "protocol": 1, "capabilities": ["set_timer", "tell_time", "tell_date", "set_alarm", "open_app", "call", "stop_timer", "stop_alarm", "snooze_alarm", "confirm", "choose", "calendar_read", "calendar_update", "calendar_delete"], "locale": "it-IT", "shows": ["image"]}
 {"type": "message", "session": "abc", "id": "m1", "text": "sposta il dentista a domani alle 10"}
 {"type": "message", "session": "abc", "id": "m2", "text": "cos'è?", "image": {"mime": "image/jpeg", "data": "<base64>"}}
 {"type": "action_result", "session": "abc", "action_id": "a1", "ok": true, "detail": "Evento aggiornato nel calendario del telefono."}
@@ -31,6 +31,7 @@ Autenticazione: header `Authorization: Bearer <token>` nell'upgrade WebSocket (4
 {"type": "conversation_reset", "ok": true}
 {"type": "context_restarted", "reply_to": "m1"}
 {"type": "conversation_idle"}
+{"type": "file", "reply_to": "m1", "name": "spese.png", "size": 48213, "mime": "image/png", "data": "<base64>"}
 ```
 
 ## Richieste e azioni
@@ -72,6 +73,11 @@ Autenticazione: header `Authorization: Bearer <token>` nell'upgrade WebSocket (4
 - `context_restarted`: dopo una lunga pausa il server ha ricominciato la conversazione da solo prima della richiesta
   `reply_to`. L'app toglie dallo schermo i messaggi precedenti, che l'agente non ha più, e apre la chat con una riga
   di benvenuto sopra quella richiesta. Un'app più vecchia ignora il frame.
+- `file`: un file che l'agente ha mandato (`send_file`), con la richiesta `reply_to` o da solo (allora va in chat;
+  a telefono offline il server ne tiene gli ultimi 4). Un'immagine JPEG, PNG o WebP (riconosciuta dai primi byte) fino
+  a 10 MB arriva con `mime` e `data` in base64 a un'app che nel `hello` dichiara `"shows": ["image"]`; ogni altro file
+  arriva solo con nome e dimensione e `reason` (`type`: non è un'immagine; `size`: troppo grande; `app`: l'app non
+  mostra immagini), e l'app dice che è arrivato. Un'app più vecchia ignora il frame.
 - `conversation_idle`: la pausa è finita, e la prossima richiesta farà ricominciare la conversazione. Il server lo manda
   dopo `hello` e, a client connesso, appena la pausa scade; una volta per connessione. Da quel momento la prossima
   richiesta ricomincia la conversazione anche se nel frattempo è arrivato un avviso. L'app piega subito i messaggi

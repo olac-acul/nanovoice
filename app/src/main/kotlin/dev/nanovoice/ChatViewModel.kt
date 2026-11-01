@@ -1,6 +1,7 @@
 package dev.nanovoice
 
 import androidx.compose.ui.graphics.ImageBitmap
+import dev.nanovoice.agent.AgentFile
 import dev.nanovoice.agent.AgentImage
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -265,6 +266,8 @@ class ChatViewModel(
             viewModelScope.launch { inbox.lateAnswers.collect { if (!isLocked() && !repeatsLastReply(it)) add(it, fromUser = false) } }
             viewModelScope.launch { inbox.arrivals.collect { if (!isLocked()) addAlertLine(it) } }
         }
+        // Files the agent sends on its own (a chart with a recap) go to the chat, as its late answers do.
+        viewModelScope.launch { connection.files.collect { showFile(it) } }
         // The pause is over: the chat starts over now, not after the next request; once a reply still coming has ended.
         viewModelScope.launch {
             connection.conversationIdle.collect { idle ->
@@ -476,11 +479,18 @@ class ChatViewModel(
             _thinking.value = true
             var replyId: Long? = null
             var failed = false
+            var gotFile = false
             val presenter = ReplyPresenter()
             try {
                 engine.respond(trimmed, localOnly = isLocked(), image = sent, forAgent = forAgent).collect { snap ->
                     if (snap.contextRestarted) {
                         startOverAt(requestId)
+                        return@collect
+                    }
+                    snap.file?.let { file ->
+                        _thinking.value = false
+                        showFile(file)
+                        gotFile = true
                         return@collect
                     }
                     _thinking.value = false
@@ -502,7 +512,7 @@ class ChatViewModel(
                 }
                 speaker?.finish()
                 // Answered: what the agent sends on its own from now on is not this request's answer.
-                if (!failed && replyId != null) inbox?.requestAnswered()
+                if (!failed && (replyId != null || gotFile)) inbox?.requestAnswered()
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -622,6 +632,17 @@ class ChatViewModel(
     private fun remove(id: Long) = _messages.update { list -> list.filter { it.id != id } }
 
     /**
+     * A file the agent sent: a picture shows as one (a chart, a photo), with the picture itself kept for the viewer; any
+     * other file, or one too big, as a line that says it came.
+     */
+    private suspend fun showFile(file: AgentFile) {
+        val image = file.image
+        val preview = image?.let { withContext(Dispatchers.Default) { Photos.pictureOf(it.bytes) } }
+        if (image != null && preview != null) add("", fromUser = false, image = preview, photo = image)
+        else add(phrases.fileNotShown(file.name, file.tooBig), fromUser = false)
+    }
+
+    /**
      * The server started the conversation over before the request [from] (after a long pause), or will with the next
      * one ([from] null: the pause is over): the chat starts over too, under a headline of the app's own, so it shows
      * what the agent knows. What came before stays, folded above it, to read again ("Nuova conversazione" empties it
@@ -690,7 +711,7 @@ internal fun withoutRequest(messages: List<ChatMessage>, id: Long): List<ChatMes
 
 internal fun quoteOf(message: ChatMessage): String {
     val plain = message.text.lines().map { withoutMarkdown(withoutUrls(it)) }.filter { it.isNotBlank() }.joinToString(" ")
-        .ifEmpty { if (message.image != null) "foto" else "" }
+        .ifEmpty { if (message.image == null) "" else if (message.fromUser) "foto" else "immagine" }
     return if (plain.length > QUOTE_CHARS) plain.take(QUOTE_CHARS).trimEnd() + "…" else plain
 }
 

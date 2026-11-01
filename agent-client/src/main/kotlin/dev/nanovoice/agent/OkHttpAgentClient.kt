@@ -73,6 +73,9 @@ class OkHttpAgentClient(
     private val _notifications = MutableSharedFlow<String>(extraBufferCapacity = 64)
     override val notifications: SharedFlow<String> = _notifications
 
+    private val _files = MutableSharedFlow<AgentFile>(extraBufferCapacity = 8)
+    override val files: SharedFlow<AgentFile> = _files
+
     private val _conversationIdle = MutableStateFlow(false)
     override val conversationIdle: StateFlow<Boolean> = _conversationIdle
 
@@ -274,6 +277,11 @@ class OkHttpAgentClient(
                 }
             }
             is Protocol.ServerMessage.Notify -> _notifications.tryEmit(msg.text)
+            // As a delta: with its open request, dropped for one given up, on its own otherwise.
+            is Protocol.ServerMessage.File -> {
+                val open = msg.replyTo?.let(pending::get)
+                if (open != null) open.trySend(AgentEvent.File(msg.file)) else if (msg.replyTo !in abandoned) _files.tryEmit(msg.file)
+            }
             is Protocol.ServerMessage.ConversationReset ->
                 if (lateResets.getAndUpdate { (it - 1).coerceAtLeast(0) } == 0) pendingReset?.complete(msg.ok)
             is Protocol.ServerMessage.Action -> {

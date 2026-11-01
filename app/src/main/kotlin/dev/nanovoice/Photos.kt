@@ -32,6 +32,10 @@ object Photos {
     /** Barcodes are read, and photos full of writing sent, at this size: thin bars and small letters need pixels. */
     private const val SCAN_SIDE = 2048
     private const val PREVIEW_SIDE = 480
+    /** A picture of the agent in the chat: as wide as a phone's screen, sharp enough to read a chart. */
+    private const val PICTURE_SIDE = 1080
+    /** On the whole screen, zoomed: more pixels, still within what one bitmap may weigh. */
+    const val VIEWER_SIDE = 4096
     private const val MAX_BYTES = 1_400_000 // the server takes up to 1.5 MB
     private const val TAG = "Photos"
 
@@ -48,6 +52,22 @@ object Photos {
     } catch (e: Exception) {
         Log.w(TAG, "cannot read the photo: ${e.javaClass.simpleName}")
         null
+    }
+
+    /**
+     * A picture as the screen shows it: at most [side] px on its longer side (the chat's size unless given), sampled
+     * while decoding so a big picture never fills the memory, with transparent parts white (a chart drawn on nothing
+     * would be black on black in the dark). Null when the bytes are no picture. Blocking: call it off the main thread.
+     */
+    fun pictureOf(bytes: ByteArray, side: Int = PICTURE_SIDE): ImageBitmap? {
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
+        var sample = 1
+        while (max(bounds.outWidth, bounds.outHeight) / (sample * 2) >= side) sample *= 2
+        val decoded = BitmapFactory.decodeByteArray(bytes, 0, bytes.size, BitmapFactory.Options().apply { inSampleSize = sample })
+            ?: return null
+        return opaque(scaled(decoded, side)).asImageBitmap()
     }
 
     private fun scaled(bitmap: Bitmap, side: Int): Bitmap {

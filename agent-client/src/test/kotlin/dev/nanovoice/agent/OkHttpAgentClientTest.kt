@@ -88,7 +88,34 @@ class OkHttpAgentClientTest {
         assertEquals("hello", hello["type"]!!.jsonPrimitive.content)
         assertEquals("1", hello["protocol"]!!.jsonPrimitive.content)
         assertEquals(listOf("set_timer", "tell_time"), hello["capabilities"]!!.jsonArray.map { it.jsonPrimitive.content })
+        assertEquals(listOf("image"), hello["shows"]!!.jsonArray.map { it.jsonPrimitive.content })
         waitConnected(c)
+    }
+
+    @Test fun aPictureOfTheAgentComesWithItsReplyAndAFileOnItsOwnSeparately() {
+        val c = client()
+        val ws = serverSocket()
+        next() // hello
+        waitConnected(c)
+        val alone = scope.async { withTimeout(5_000) { c.files.first() } }
+        val events = scope.async { c.ask("fammi un grafico").toList() }
+        val id = next()["id"]!!.jsonPrimitive.content
+        val png = byteArrayOf(0x89.toByte(), 0x50, 0x4e, 0x47)
+        val data = java.util.Base64.getEncoder().encodeToString(png)
+        ws.send("""{"type":"file","reply_to":"$id","name":"spese.png","size":4,"mime":"image/png","data":"$data"}""")
+        ws.send("""{"type":"file","reply_to":"$id","name":"grande.png","size":20000000,"mime":"image/png","reason":"size"}""")
+        ws.send("""{"type":"done","reply_to":"$id"}""")
+        val got = runBlocking { events.await() }.filterIsInstance<AgentEvent.File>().map { it.file }
+        assertEquals(listOf("spese.png", "grande.png"), got.map { it.name })
+        assertEquals("image/png", got[0].image!!.mime)
+        assertTrue(got[0].image!!.bytes.contentEquals(png))
+        assertEquals(listOf(false, true), got.map { it.tooBig })
+        assertEquals(null, got[1].image)
+        // with no request open: on its own
+        ws.send("""{"type":"file","name":"verbale.pdf","size":100,"reason":"type"}""")
+        val file = runBlocking { alone.await() }
+        assertEquals("verbale.pdf", file.name)
+        assertEquals(null, file.image)
     }
 
     @Test fun streamsDeltasUntilDone() {

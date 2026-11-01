@@ -3,12 +3,15 @@ package dev.nanovoice
 import dev.nanovoice.agent.AgentClient
 import dev.nanovoice.agent.AgentConfig
 import dev.nanovoice.agent.AgentEvent
+import dev.nanovoice.agent.AgentFile
 import dev.nanovoice.agent.AgentImage
 import dev.nanovoice.agent.ConnectionState
 import dev.nanovoice.agent.ServerReach
 import dev.nanovoice.agent.ServerUrl
 import dev.nanovoice.agent.ServerUrlCheck
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -18,6 +21,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 
 enum class AgentStatus { NotConfigured, Disconnected, Connecting, Connected, NeedsVpn }
@@ -60,6 +64,12 @@ class AgentConnection(
     private val _notifications = MutableSharedFlow<String>(extraBufferCapacity = 64)
     val notifications: SharedFlow<String> = _notifications
 
+    // Taken by one chat: each file goes to the conversation once, even with the assistant's sheet open too.
+    private val _files = Channel<AgentFile>(capacity = 8, onBufferOverflow = BufferOverflow.DROP_OLDEST)
+
+    /** Files the agent sends on its own (a chart with a scheduled recap), for the chat to show. */
+    val files: Flow<AgentFile> = _files.receiveAsFlow()
+
     private val _conversationIdle = MutableStateFlow(false)
 
     /** The server's pause is over: the next request starts a new conversation ([AgentClient.conversationIdle]). */
@@ -82,6 +92,7 @@ class AgentConnection(
                     coroutineScope {
                         launch { c.notifications.collect { _notifications.emit(it) } }
                         launch { c.conversationIdle.collect { _conversationIdle.value = it } }
+                        launch { c.files.collect { _files.send(it) } }
                         launch {
                             settings.map { it.pushEndpoint.ifEmpty { null } }.distinctUntilChanged().collect { c.setPushEndpoint(it) }
                         }

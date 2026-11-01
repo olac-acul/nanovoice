@@ -126,6 +126,16 @@ class ChatEngineTest {
         )
     }
 
+    @Test fun aFileOfTheAgentIsPassedOnOnceWithTheTextSoFar() {
+        val chart = dev.nanovoice.agent.AgentFile("spese.png", dev.nanovoice.agent.AgentImage("image/png", byteArrayOf(1)))
+        agentReply = flowOf(AgentEvent.Delta("Ecco il grafico."), AgentEvent.File(chart), AgentEvent.Done)
+        val seen = runBlocking { engine.respond("fammi un grafico").toList() }
+        assertEquals(
+            listOf(ReplySnapshot("Ecco il grafico.", messageEnd = true), ReplySnapshot("Ecco il grafico.", file = chart)),
+            seen,
+        )
+    }
+
     @Test fun workingIsSetWhileTheAgentWorksAndClearedByTheAnswer() {
         agentReply = flowOf(
             AgentEvent.Delta("Cerco sul Web..."),

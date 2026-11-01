@@ -55,6 +55,7 @@
     <string name="barcode_number_use">Usa questo numero</string>
     <string name="barcode_change">Cambia tipo o numero</string>
     <string name="photo_sent">Foto inviata</string>
+    <string name="picture_from_agent">Immagine dall\'agente</string>
     <string name="photo_view">Guarda la foto</string>
     <string name="photo_failed">Non riesco ad aprire questa foto.</string>
     <string name="photo_no_camera">Non trovo un\'app fotocamera.</string>

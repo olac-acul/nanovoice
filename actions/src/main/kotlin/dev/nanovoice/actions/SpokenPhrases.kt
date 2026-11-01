@@ -102,6 +102,9 @@ interface SpokenPhrases {
         random: kotlin.random.Random = kotlin.random.Random.Default,
     ): String
 
+    /** Shown in place of a file the agent sent that the chat cannot show: one it cannot open, or a picture [tooBig]. */
+    fun fileNotShown(name: String, tooBig: Boolean): String
+
     /** Every phrase that never changes, to be synthesized in advance. */
     val fixedPhrases: List<String>
 }

@@ -1,6 +1,7 @@
 package dev.nanovoice.agent
 
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -17,6 +18,8 @@ sealed interface AgentEvent {
     data object Done : AgentEvent
     /** The server started the conversation over before this request (after a long pause): earlier messages are gone. */
     data object ContextRestarted : AgentEvent
+    /** A file the agent sent with the reply (`send_file`). */
+    data class File(val file: AgentFile) : AgentEvent
     data class Error(val message: String) : AgentEvent
 }
 
@@ -24,6 +27,12 @@ data class ActionOutcome(val ok: Boolean, val detail: String)
 
 /** A photo sent with a message: [mime] is image/jpeg, image/png or image/webp; the server takes up to 1.5 MB. */
 class AgentImage(val mime: String, val bytes: ByteArray)
+
+/**
+ * A file the agent sent: [image] when it is a picture the chat can show (a chart, a photo), otherwise only its [name]
+ * came, because the app opens no other files or because it was [tooBig].
+ */
+class AgentFile(val name: String, val image: AgentImage?, val tooBig: Boolean = false)
 
 /**
  * The request of the user an action belongs to: [replyTo] is its message id, [image] the photo sent with it, if any.
@@ -52,6 +61,9 @@ interface AgentClient {
      */
     val conversationIdle: StateFlow<Boolean> get() = NEVER_IDLE
 
+    /** Files the agent sends on its own, or after the reply they belong to ended. */
+    val files: SharedFlow<AgentFile> get() = NO_FILES
+
     /**
      * The UnifiedPush endpoint the server may wake this phone with while it is not connected; null removes it.
      * Sent right after `hello` on every connection, and immediately if already connected.
@@ -76,3 +88,4 @@ interface AgentClient {
 }
 
 private val NEVER_IDLE: StateFlow<Boolean> = MutableStateFlow(false)
+private val NO_FILES: SharedFlow<AgentFile> = MutableSharedFlow()

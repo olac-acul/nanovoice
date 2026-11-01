@@ -2,6 +2,7 @@ package dev.nanovoice
 
 import dev.nanovoice.actions.SpokenPhrases
 import dev.nanovoice.agent.AgentEvent
+import dev.nanovoice.agent.AgentFile
 import dev.nanovoice.agent.AgentImage
 import dev.nanovoice.core.ActionExecutor
 import dev.nanovoice.core.PhoneAction
@@ -28,6 +29,8 @@ data class ReplySnapshot(
     val contextRestarted: Boolean = false,
     /** The reply is no answer but an error (the server unreachable, not answering): worth asking again. */
     val failed: Boolean = false,
+    /** A file the agent sent just now, to show under the text so far; the next snapshot no longer carries it. */
+    val file: AgentFile? = null,
 )
 
 /**
@@ -149,6 +152,7 @@ class ChatEngine(
                 AgentEvent.Working -> emit(ReplySnapshot(reply.toString(), working = true))
                 AgentEvent.Done -> Unit
                 AgentEvent.ContextRestarted -> emit(ReplySnapshot(reply.toString(), contextRestarted = true))
+                is AgentEvent.File -> emit(ReplySnapshot(reply.toString(), file = event.file))
                 // An error ends the work too: it must show, not stay hidden behind the status line.
                 is AgentEvent.Error -> emit(ReplySnapshot(if (reply.isEmpty()) event.message else "$reply\n${event.message}", failed = true))
             }

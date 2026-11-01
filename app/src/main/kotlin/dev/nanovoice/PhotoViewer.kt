@@ -1,6 +1,5 @@
 package dev.nanovoice
 
-import android.graphics.BitmapFactory
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -30,7 +29,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
@@ -61,11 +59,14 @@ fun PhotoViewer(
     onSearch: (() -> Unit)?,
     onDismiss: () -> Unit,
     onAttachAgain: (() -> Unit)? = null,
+    /** For a picture of the agent: "Condividi" at the bottom. */
+    onShare: (() -> Unit)? = null,
+    description: String = stringResource(R.string.photo_sent),
 ) {
     var shown by remember { mutableStateOf(preview) }
     LaunchedEffect(full) {
         val bytes = full?.bytes ?: return@LaunchedEffect
-        withContext(Dispatchers.Default) { BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.asImageBitmap() }?.let { shown = it }
+        withContext(Dispatchers.Default) { Photos.pictureOf(bytes, Photos.VIEWER_SIDE) }?.let { shown = it }
     }
     var scale by remember { mutableFloatStateOf(1f) }
     var offset by remember { mutableStateOf(Offset.Zero) }
@@ -74,7 +75,7 @@ fun PhotoViewer(
         Box(Modifier.fillMaxSize().background(Color.Black)) {
             Image(
                 shown,
-                contentDescription = stringResource(R.string.photo_sent),
+                contentDescription = description,
                 contentScale = ContentScale.Fit,
                 modifier = Modifier
                     .fillMaxSize()
@@ -126,7 +127,12 @@ fun PhotoViewer(
                     onClick = onSearch,
                     modifier = Modifier.safeDrawingPadding().padding(bottom = 24.dp).align(Alignment.BottomCenter),
                 ) { Text(stringResource(R.string.search_tineye)) }
-            } else if (full == null) {
+            } else if (onShare != null) {
+                Button(
+                    onClick = onShare,
+                    modifier = Modifier.safeDrawingPadding().padding(bottom = 24.dp).align(Alignment.BottomCenter),
+                ) { Text(stringResource(R.string.msg_share)) }
+            } else if (full == null && onAttachAgain != null) {
                 Column(
                     modifier = Modifier
                         .safeDrawingPadding()
