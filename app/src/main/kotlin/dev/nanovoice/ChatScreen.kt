@@ -69,7 +69,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.width
@@ -857,8 +856,8 @@ private fun Composer(
                 focusedIndicatorColor = androidx.compose.ui.graphics.Color.Transparent,
                 unfocusedIndicatorColor = androidx.compose.ui.graphics.Color.Transparent,
             ),
-            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
-            keyboardActions = KeyboardActions(onSend = { onSend() }),
+            // Enter starts a new line: sending is the button next to the field, never a slip on the keyboard.
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Default),
             maxLines = 4,
             // The microphone stays in the field whatever is in it: dictating adds to the text and the attachments.
             trailingIcon = {
