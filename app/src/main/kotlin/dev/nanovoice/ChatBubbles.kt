@@ -15,6 +15,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.gestures.scrollBy
+import androidx.compose.foundation.interaction.DragInteraction
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -285,11 +286,20 @@ fun ChatList(
     val scope = rememberCoroutineScope()
     val peekPx = with(LocalDensity.current) { EARLIER_PEEK.toPx() }
     // Following the conversation unless the person scrolled up to read: then new text does not pull them down.
+    // Only the person's finger stops following: the list's own scrolling to the latest message must not, or a reply
+    // arriving while it moves (and growing the list under it) would leave it believing the person scrolled away.
     var followLatest by remember { mutableStateOf(true) }
     LaunchedEffect(listState) {
-        snapshotFlow { listState.isScrollInProgress to listState.canScrollForward }.collect { (scrolling, more) ->
-            if (!more) followLatest = true else if (scrolling) followLatest = false
+        listState.interactionSource.interactions.collect { interaction ->
+            when (interaction) {
+                is DragInteraction.Start -> followLatest = false
+                // Let go at the bottom: following again (a drag that went nowhere, or down to the end).
+                is DragInteraction.Stop, is DragInteraction.Cancel -> if (!listState.canScrollForward) followLatest = true
+            }
         }
+    }
+    LaunchedEffect(listState) {
+        snapshotFlow { listState.canScrollForward }.collect { more -> if (!more) followLatest = true }
     }
     // On new messages, not on folding the earlier ones open or closed: that keeps the place being read.
     LaunchedEffect(all.size, showTyping, workingText != null) {
