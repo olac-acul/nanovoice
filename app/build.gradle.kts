@@ -11,8 +11,8 @@ android {
         applicationId = "dev.nanovoice"
         minSdk = 26
         targetSdk = 37
-        versionCode = 8
-        versionName = "0.3.5"
+        versionCode = 9
+        versionName = "0.3.6"
         // The owner's development builds say so in the version ("0.1.0-dev"): tools/install-phone.sh sets it,
         // tools/release.sh never does.
         System.getenv("NANOVOICE_VERSION_SUFFIX")?.takeIf { it.matches(Regex("-[a-z0-9.]{1,16}")) }?.let { versionNameSuffix = it }
