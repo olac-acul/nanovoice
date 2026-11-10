@@ -41,7 +41,7 @@ class ModelManagerTest {
     private fun manager(archive: ByteArray, declaredSha: String = sha(archive)) = ModelManager(
         baseDir = base,
         spec = ModelSpec("https://example.test/m.zip", declaredSha, archive.size.toLong(), "model-it"),
-        open = { ByteArrayInputStream(archive) },
+        open = wholeFiles { ByteArrayInputStream(archive) },
     )
 
     private val good = zip("model-it/am/final.mdl" to "weights", "model-it/conf/model.conf" to "conf")
@@ -85,14 +85,14 @@ class ModelManagerTest {
         val m = ModelManager(
             base,
             ModelSpec("https://example.test/m.zip", sha(good), 10, "model-it"),
-            open = { ByteArrayInputStream(good) },
+            open = wholeFiles { ByteArrayInputStream(good) },
         )
         m.install()
         assertTrue(m.state.value is ModelState.Failed)
     }
 
     @Test fun downloadErrorsBecomeAFailedState() = runBlocking {
-        val m = ModelManager(base, ModelSpec("https://example.test/m.zip", "a".repeat(64), 100, "model-it"), open = { throw IOException("offline") })
+        val m = ModelManager(base, ModelSpec("https://example.test/m.zip", "a".repeat(64), 100, "model-it"), open = wholeFiles { throw IOException("offline") })
         m.install()
         assertEquals(ModelState.Failed("offline"), m.state.value)
     }

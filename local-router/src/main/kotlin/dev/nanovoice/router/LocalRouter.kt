@@ -24,6 +24,8 @@ class LocalRouter(
 
     fun parseClockReply(text: String) = rules.parseClockReply(text)
 
+    fun mentionsTomorrow(text: String) = rules.mentionsTomorrow(text)
+
     companion object {
         const val DEFAULT_THRESHOLD = 0.7f
 

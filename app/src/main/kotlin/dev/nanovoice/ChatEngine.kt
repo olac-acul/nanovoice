@@ -94,7 +94,8 @@ class ChatEngine(
             awaitingAlarmTime = false
             val time = router.parseClockReply(text)
             if (time != null) {
-                emit(ReplySnapshot(executor.execute(PhoneAction.SetAlarm(time.hour, time.minute, alarmTomorrow)).message))
+                // "domani" may come in the answer too: "A che ora?" "Domani alle sette."
+                emit(ReplySnapshot(executor.execute(PhoneAction.SetAlarm(time.hour, time.minute, alarmTomorrow || router.mentionsTomorrow(text))).message))
                 return@flow
             }
             // not a time: treat it as a new request

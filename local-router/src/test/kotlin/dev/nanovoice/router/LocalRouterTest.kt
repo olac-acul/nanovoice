@@ -5,6 +5,8 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.hours
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
@@ -104,6 +106,38 @@ class LocalRouterTest {
     @Test fun clockReplyDigits() = assertEquals(ClockTime(7, 30), router.parseClockReply("le 7:30"))
     @Test fun clockReplyEvening() = assertEquals(ClockTime(19, 0), router.parseClockReply("sette di sera"))
     @Test fun clockReplyNotATime() = assertNull(router.parseClockReply("lascia stare"))
+    @Test fun clockReplyArticleIsNotOneOClock() {
+        assertEquals(ClockTime(7, 0), router.parseClockReply("mettine una alle 7"))
+        assertEquals(ClockTime(7, 0), router.parseClockReply("una alle sette"))
+        assertEquals(ClockTime(8, 0), router.parseClockReply("facciamo le otto"))
+    }
+    @Test fun clockReplyFromNowIsNoTime() {
+        assertNull(router.parseClockReply("tra due ore"))
+        assertNull(router.parseClockReply("fra un'ora"))
+        assertNull(router.parseClockReply("due ore"))
+    }
+    @Test fun clockReplyOtherDaysAndMoreAreNewRequests() {
+        assertNull(router.parseClockReply("dopodomani alle 7"))
+        assertNull(router.parseClockReply("lunedi alle 8"))
+        assertNull(router.parseClockReply("tutti i giorni alle 7"))
+        assertNull(router.parseClockReply("non alle sette"))
+        assertNull(router.parseClockReply("alle 7 del 12"))
+        assertNull(router.parseClockReply("un attimo, alle sette devo uscire"))
+    }
+    @Test fun clockReplySaysTomorrow() {
+        assertEquals(ClockTime(7, 0), router.parseClockReply("domani alle sette"))
+        assertTrue(router.mentionsTomorrow("domani alle sette"))
+        assertFalse(router.mentionsTomorrow("alle sette"))
+    }
+
+    // --- told, not asked: no alarm or timer from the classifier
+    @Test fun toldNotAsked() {
+        for (s in listOf(
+            "mi sono svegliato alle sette", "mio figlio mi sveglia sempre alle sei", "il cane mi sveglia alle 5",
+            "stamattina la sveglia alle 6 era troppo presto", "la sveglia alle 7 e mezza va benissimo", "tra 10 minuti esco",
+            "sveglia alle 7 del 12",
+        )) assertNull(intent(s), s)
+    }
 
     // --- general
     @Test fun unknownGoesToAgent() = assertNull(intent("riassumimi le email di oggi"))
@@ -119,4 +153,10 @@ class LocalRouterTest {
     @Test fun replyWithPreposition() = assertEquals(5.minutes, router.parseDurationReply("per cinque minuti"))
     @Test fun replyNotDuration() = assertNull(router.parseDurationReply("lascia stare"))
     @Test fun replyZero() = assertNull(router.parseDurationReply("0 minuti"))
+    @Test fun replyThatAsksSomethingElseIsANewRequest() {
+        assertNull(router.parseDurationReply("no, annulla, tra 5 minuti ti richiamo"))
+        assertNull(router.parseDurationReply("ricordami tra 10 minuti di chiamare Marco"))
+        assertNull(router.parseDurationReply("dieci minuti e poi cinque"))
+        assertEquals(15.minutes, router.parseDurationReply("facciamo quindici minuti"))
+    }
 }

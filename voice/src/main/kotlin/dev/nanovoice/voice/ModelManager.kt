@@ -50,11 +50,32 @@ interface ModelInstaller {
     fun delete()
 }
 
+/** A download opened from byte [from] on: 0 when the server sends the whole file again (it ignored the range). */
+class Opened(val input: InputStream, val from: Long)
+
+/** Opens [url] from the byte [from] on (a download cut short goes on where it stopped). */
+typealias Opener = (url: String, from: Long) -> Opened
+
+/** An opener that always sends the whole file (tests, servers without ranges). */
+fun wholeFiles(open: (String) -> InputStream): Opener = { url, _ -> Opened(open(url), 0) }
+
+/**
+ * Room for [needed] more bytes in [dir], said before downloading hundreds of MB, not after. An unknown free space (0)
+ * is not refused.
+ */
+internal fun ensureSpace(dir: File, needed: Long) {
+    dir.mkdirs()
+    val free = dir.usableSpace
+    if (free in 1 until needed) {
+        throw IOException("spazio insufficiente sul telefono: servono circa ${needed / 1_000_000} MB liberi, ce ne sono ${free / 1_000_000}")
+    }
+}
+
 /** Downloads, verifies and unpacks one model archive into [baseDir]. */
 class ModelManager(
     private val baseDir: File,
     private val spec: ModelSpec,
-    private val open: (String) -> InputStream = ::openHttps,
+    private val open: Opener = ::openHttpsFrom,
 ) : ModelInstaller {
     private val _state = MutableStateFlow<ModelState>(if (modelDir() != null) ModelState.Installed else ModelState.NotInstalled)
     override val state: StateFlow<ModelState> = _state
@@ -63,9 +84,9 @@ class ModelManager(
     private val busy = Mutex()
 
     init {
-        // A download cut short by the process dying leaves its partial files (hundreds of MB): gone at the next start.
+        // A download cut short by the process dying is kept and goes on at the next install; a half unpacking is not.
         Thread {
-            runBlocking { busy.withLock { for (name in listOf("download.part", "unpack.tmp")) File(baseDir, name).deleteRecursively() } }
+            runBlocking { busy.withLock { File(baseDir, "unpack.tmp").deleteRecursively() } }
         }.apply { isDaemon = true }.start()
     }
 
@@ -80,8 +101,11 @@ class ModelManager(
         }
         val archive = File(baseDir, "download.part")
         val unpack = File(baseDir, "unpack.tmp")
+        var done = false
         try {
             baseDir.mkdirs()
+            // The rest of the archive, and room to unpack it next to it.
+            ensureSpace(baseDir, spec.sizeBytes - (if (archive.isFile) archive.length() else 0L) + spec.sizeBytes * 2)
             _state.value = ModelState.Downloading(0f)
             download(archive)
             unpack.deleteRecursively()
@@ -98,6 +122,7 @@ class ModelManager(
             val target = File(baseDir, spec.dirName)
             target.deleteRecursively()
             if (!unpacked.renameTo(target)) throw IOException("cannot move the model into place")
+            done = true
             _state.value = ModelState.Installed
         } catch (e: CancellationException) {
             _state.value = ModelState.NotInstalled
@@ -105,13 +130,15 @@ class ModelManager(
         } catch (e: Exception) {
             _state.value = ModelState.Failed(e.message ?: e.javaClass.simpleName)
         } finally {
-            archive.delete()
+            // Kept when cut short (the network, the app closed): the next try goes on from there.
+            if (done) archive.delete()
             unpack.deleteRecursively()
         }
     }
 
     override fun delete() {
         File(baseDir, spec.dirName).deleteRecursively()
+        File(baseDir, "download.part").delete()
         _state.value = ModelState.NotInstalled
     }
 
@@ -125,24 +152,51 @@ class ModelManager(
     }
 }
 
-/** Downloads [file] into [target], refusing anything bigger than declared or not matching its SHA-256. */
+/**
+ * Downloads [file] into [target], refusing anything bigger than declared or not matching its SHA-256. What [target]
+ * already holds (a download cut short) is kept and the rest asked for; the SHA-256 is always of the whole file, and a
+ * file that does not match is deleted, so the next try starts over.
+ */
 internal suspend fun downloadVerified(
-    open: (String) -> InputStream,
+    open: Opener,
     file: RemoteFile,
     target: File,
     onProgress: (Float) -> Unit = {},
 ) {
+    val limit = file.sizeBytes * 11 / 10
+    var have = if (target.isFile) target.length() else 0L
+    if (have > limit) {
+        target.delete()
+        have = 0L
+    }
     val digest = MessageDigest.getInstance("SHA-256")
-    var total = 0L
-    open(file.url).use { input ->
-        target.outputStream().use { out ->
+    val opened = open(file.url, have)
+    if (opened.from != have) {
+        // The server sends the whole file again: start over.
+        have = 0L
+    } else if (have > 0) {
+        target.inputStream().use { kept ->
+            val buf = ByteArray(64 * 1024)
+            while (true) {
+                val n = kept.read(buf)
+                if (n < 0) break
+                digest.update(buf, 0, n)
+            }
+        }
+    }
+    var total = have
+    opened.input.use { input ->
+        java.io.FileOutputStream(target, have > 0).use { out ->
             val buf = ByteArray(64 * 1024)
             while (true) {
                 currentCoroutineContext().ensureActive()
                 val n = input.read(buf)
                 if (n < 0) break
                 total += n
-                if (total > file.sizeBytes * 11 / 10) throw IOException("download larger than expected")
+                if (total > limit) {
+                    target.delete()
+                    throw IOException("download larger than expected")
+                }
                 digest.update(buf, 0, n)
                 out.write(buf, 0, n)
                 onProgress((total.toFloat() / file.sizeBytes).coerceAtMost(1f))
@@ -150,7 +204,36 @@ internal suspend fun downloadVerified(
         }
     }
     val actual = digest.digest().joinToString("") { "%02x".format(it) }
-    if (actual != file.sha256) throw IOException("checksum mismatch: the downloaded file is not the expected one")
+    if (actual != file.sha256) {
+        target.delete()
+        throw IOException("checksum mismatch: the downloaded file is not the expected one")
+    }
+}
+
+/**
+ * [openHttps] from the byte [from] on: a server that honours the range answers 206 with the rest; one that does not
+ * answers 200 with the whole file ([Opened.from] 0); 416 means nothing is left to send.
+ */
+internal fun openHttpsFrom(url: String, from: Long): Opened {
+    if (from <= 0) return Opened(openHttps(url), 0)
+    require(url.startsWith("https://")) { "model downloads must use https" }
+    val conn = URL(url).openConnection() as HttpURLConnection
+    conn.connectTimeout = 15_000
+    conn.readTimeout = 30_000
+    conn.setRequestProperty("Range", "bytes=$from-")
+    return when (conn.responseCode) {
+        206 -> Opened(conn.inputStream, from)
+        200 -> Opened(conn.inputStream, 0)
+        416 -> {
+            conn.disconnect()
+            Opened(java.io.ByteArrayInputStream(ByteArray(0)), from)
+        }
+        else -> {
+            val code = conn.responseCode
+            conn.disconnect()
+            throw IOException("download failed: HTTP $code")
+        }
+    }
 }
 
 internal fun openHttps(url: String): InputStream {

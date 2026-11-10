@@ -3,13 +3,12 @@ package dev.nanovoice.voice
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import java.io.File
-import java.io.InputStream
 
 /** The voices of the catalog and what is installed of each. Every voice lives in its own directory under [baseDir]. */
 class VoiceLibrary(
     private val baseDir: File,
     val voices: List<VoiceSpec> = VoiceCatalog.all,
-    open: (String) -> InputStream = ::openHttps,
+    open: Opener = ::openHttpsFrom,
 ) {
     /** espeak data shared by the voices. */
     private val espeak = ModelManager(File(baseDir, ESPEAK_DIR), VoiceCatalog.ESPEAK_DATA, open)

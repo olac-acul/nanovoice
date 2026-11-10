@@ -34,7 +34,7 @@ class FilesInstallerTest {
     private fun open(url: String) = ByteArrayInputStream(content[url] ?: throw IOException("404"))
 
     @Test fun installsEveryFile() = runBlocking<Unit> {
-        val installer = FilesInstaller(base, spec(), ::open)
+        val installer = FilesInstaller(base, spec(), wholeFiles(::open))
         installer.install()
         assertEquals(ModelState.Installed, installer.state.value)
         val dir = assertNotNull(installer.modelDir())
@@ -44,23 +44,56 @@ class FilesInstallerTest {
     }
 
     @Test fun oneWrongHashInstallsNothing() = runBlocking<Unit> {
-        val installer = FilesInstaller(base, spec { if (it.endsWith("tokens.txt")) "0".repeat(64) else sha(content.getValue(it)) }, ::open)
+        val installer = FilesInstaller(base, spec { if (it.endsWith("tokens.txt")) "0".repeat(64) else sha(content.getValue(it)) }, wholeFiles(::open))
         installer.install()
         assertIs<ModelState.Failed>(installer.state.value)
         assertNull(installer.modelDir())
-        assertTrue(base.listFiles()!!.isEmpty())
+        assertTrue(base.listFiles()!!.none { it.name == "m" })
+        // The file that did not match is gone (the next try fetches it again); the verified one is kept.
+        kotlin.test.assertFalse(File(base, "work.tmp/tokens.txt").exists())
+        assertTrue(File(base, "work.tmp/a.onnx").isFile)
     }
 
-    @Test fun aDownloadCutShortIsCleanedUpAtTheNextStart() {
-        val leftover = java.io.File(base, "work.tmp/encoder.int8.onnx").apply { parentFile!!.mkdirs(); writeBytes(ByteArray(1024)) }
-        FilesInstaller(base, spec(), ::open)
-        val until = System.currentTimeMillis() + 3_000
-        while (leftover.parentFile!!.exists() && System.currentTimeMillis() < until) Thread.sleep(20)
-        kotlin.test.assertFalse(leftover.parentFile!!.exists())
+    @Test fun aDownloadCutShortGoesOnWhereItStopped() = runBlocking<Unit> {
+        // The app was ended half way through a.onnx: its first bytes are there, with a file of another model.
+        val body = content.getValue("https://x/a.onnx")
+        File(base, "work.tmp").mkdirs()
+        File(base, "work.tmp/a.onnx").writeBytes(body.copyOf(3))
+        File(base, "work.tmp/stale.bin").writeBytes(ByteArray(10))
+        val asked = mutableListOf<Pair<String, Long>>()
+        val ranged: Opener = { url, from ->
+            asked += url to from
+            val all = content[url] ?: throw IOException("404")
+            Opened(ByteArrayInputStream(all.copyOfRange(from.toInt(), all.size)), from)
+        }
+        val installer = FilesInstaller(base, spec(), ranged)
+        installer.install()
+        assertEquals(ModelState.Installed, installer.state.value)
+        assertEquals("model a", File(installer.modelDir(), "a.onnx").readText())
+        assertEquals(listOf("https://x/a.onnx" to 3L, "https://x/tokens.txt" to 0L), asked)
+        kotlin.test.assertFalse(File(installer.modelDir(), "stale.bin").exists())
+    }
+
+    @Test fun aServerThatIgnoresTheRangeStartsOver() = runBlocking<Unit> {
+        File(base, "work.tmp").mkdirs()
+        File(base, "work.tmp/a.onnx").writeBytes("XXX".toByteArray()) // not even the right start
+        val installer = FilesInstaller(base, spec(), wholeFiles(::open))
+        installer.install()
+        assertEquals("model a", File(installer.modelDir(), "a.onnx").readText())
+    }
+
+    @Test fun notEnoughRoomIsSaidBeforeDownloading() = runBlocking<Unit> {
+        val huge = FilesSpec("m", mapOf("a.onnx" to RemoteFile("https://x/a.onnx", "0".repeat(64), Long.MAX_VALUE / 4)))
+        var opened = false
+        val installer = FilesInstaller(base, huge) { _, _ -> opened = true; error("not reached") }
+        installer.install()
+        val failed = assertIs<ModelState.Failed>(installer.state.value)
+        assertTrue(failed.message.startsWith("spazio insufficiente"), failed.message)
+        kotlin.test.assertFalse(opened)
     }
 
     @Test fun deleteRemovesTheModel() = runBlocking<Unit> {
-        val installer = FilesInstaller(base, spec(), ::open)
+        val installer = FilesInstaller(base, spec(), wholeFiles(::open))
         installer.install()
         installer.delete()
         assertNull(installer.modelDir())

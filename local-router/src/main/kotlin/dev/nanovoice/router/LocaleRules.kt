@@ -12,6 +12,9 @@ interface LocaleRules {
     /** Interprets the answer to "a che ora?" ("alle sette e mezza", "le 7:30", "sette di sera"); null if not a time. */
     fun parseClockReply(text: String): ClockTime?
 
+    /** The answer to "a che ora?" says tomorrow ("domani alle sette"). */
+    fun mentionsTomorrow(text: String): Boolean = false
+
     /** A second opinion for sentences no matcher recognised (a trained classifier); null when there is none. */
     fun classify(text: String): MatchResult? = null
 

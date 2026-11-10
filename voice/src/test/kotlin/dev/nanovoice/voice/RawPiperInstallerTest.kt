@@ -54,8 +54,8 @@ class RawPiperInstallerTest {
         )
     }
 
-    private fun installer(spec: VoiceSpec = voice, espeak: ModelManager = ModelManager(File(base, "_espeak"), espeakSpec, ::open)) =
-        RawPiperInstaller(File(base, "voice"), spec, espeak, ::open) to espeak
+    private fun installer(spec: VoiceSpec = voice, espeak: ModelManager = ModelManager(File(base, "_espeak"), espeakSpec, wholeFiles(::open))) =
+        RawPiperInstaller(File(base, "voice"), spec, espeak, wholeFiles(::open)) to espeak
 
     @Test fun installsModelWithMetadataTokensAndSharedEspeakData() = runBlocking<Unit> {
         val (i, espeak) = installer()
@@ -71,7 +71,7 @@ class RawPiperInstallerTest {
     }
 
     @Test fun espeakDataIsDownloadedOnlyOnce() = runBlocking<Unit> {
-        val espeak = ModelManager(File(base, "_espeak"), espeakSpec, ::open)
+        val espeak = ModelManager(File(base, "_espeak"), espeakSpec, wholeFiles(::open))
         val (i, _) = installer(espeak = espeak)
         i.install()
         i.delete()
@@ -86,21 +86,22 @@ class RawPiperInstallerTest {
         assertTrue(i.state.value is ModelState.Failed)
         assertNull(i.modelDir())
         assertFalse(File(base, "voice/piper-v").exists())
-        assertFalse(File(base, "voice/work.tmp").exists())
+        // The download that did not match is not kept: the next try fetches it again.
+        assertTrue(File(base, "voice/work.tmp").listFiles().orEmpty().none { it.name.startsWith(bad.onnxName) })
     }
 
     @Test fun aBrokenConfigInstallsNothing() = runBlocking<Unit> {
         val broken = "{}".toByteArray()
         val spec = voice.copy(config = RemoteFile(voice.config.url, sha(broken), broken.size.toLong()))
-        val i = RawPiperInstaller(File(base, "voice"), spec, ModelManager(File(base, "_espeak"), espeakSpec, ::open),
-            open = { url -> if (url == spec.config.url) ByteArrayInputStream(broken) else open(url) })
+        val i = RawPiperInstaller(File(base, "voice"), spec, ModelManager(File(base, "_espeak"), espeakSpec, wholeFiles(::open)),
+            open = wholeFiles { url -> if (url == spec.config.url) ByteArrayInputStream(broken) else open(url) })
         i.install()
         assertTrue(i.state.value is ModelState.Failed)
         assertNull(i.modelDir())
     }
 
     @Test fun missingEspeakDataFailsClearly() = runBlocking<Unit> {
-        val failingEspeak = ModelManager(File(base, "_espeak"), espeakSpec, open = { throw IOException("offline") })
+        val failingEspeak = ModelManager(File(base, "_espeak"), espeakSpec, open = wholeFiles { throw IOException("offline") })
         val (i, _) = installer(espeak = failingEspeak)
         i.install()
         val state = i.state.value
