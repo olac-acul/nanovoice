@@ -31,7 +31,12 @@ class AgentConnectionTest {
         val endpoints = mutableListOf<String?>()
         override fun setPushEndpoint(url: String?) { endpoints += url }
         var stopped = false
-        override fun start() { started = true }
+        /** Sent by the server as soon as the client connects (what it kept while the phone was off). */
+        var onStart: String? = null
+        override fun start() {
+            started = true
+            onStart?.let { notifications.tryEmit(it) }
+        }
         override fun stop() { stopped = true }
         override fun ask(text: String, image: AgentImage?): Flow<AgentEvent> = emptyFlow()
     }
@@ -41,11 +46,13 @@ class AgentConnectionTest {
 
     private var network = NetworkNow(vpn = true, wifi = true)
 
+    private var kept: String? = null
+
     private fun TestScope.connection() = AgentConnection(
         scope = backgroundScope,
         settings = settings,
         capabilities = { setOf("tell_time") },
-        clientFactory = { FakeClient(it).also(created::add) },
+        clientFactory = { FakeClient(it).also { c -> c.onStart = kept; created.add(c) } },
         network = { network },
     ).also { runCurrent() }
 
@@ -171,6 +178,19 @@ class AgentConnectionTest {
         created.single().notifications.emit("Promemoria")
         runCurrent()
         assertEquals(listOf("Promemoria"), got)
+    }
+
+    @Test fun whatTheServerSendsRightAfterConnectingWaitsForItsReader() = runTest {
+        // Woken by a push: the client connects and the server hands over a reminder before anything reads it.
+        kept = "Promemoria delle 18"
+        val c = connection()
+        settings.value = AppSettings("ws://myhost:8767", "tok")
+        runCurrent()
+        assertTrue(created.single().started)
+        val got = mutableListOf<String>()
+        backgroundScope.launch { c.notifications.collect { got += it } }
+        runCurrent()
+        assertEquals(listOf("Promemoria delle 18"), got)
     }
 
     @Test fun thePushEndpointIsPassedToTheClientAndUpdatedWithoutReconnecting() = runTest {

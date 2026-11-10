@@ -42,18 +42,57 @@ class InboxTest {
         val got = mutableListOf<String>()
         val job = launch(Dispatchers.Unconfined) { box.lateAnswers.collect { got += it } }
         yield()
-        box.requestSent()
-        now += 5 * 60_000 // five minutes: the agent took longer than the reply stays open
+        box.requestUnanswered() // the reply's time was over: the request ended without its answer
+        now += 5 * 60_000 // five minutes later the agent finishes
         assertNull(box.receive("Ecco la risposta."))
         assertEquals(listOf("Ecco la risposta."), got)
-        // Answered now: the next message on its own is an alert.
+        // Answered now: a message on its own well after it is an alert.
+        now += 3 * 60_000
         assertNotNull(box.receive("Promemoria: chiamare il tecnico."))
         job.cancel()
     }
 
+    @Test fun aLateAnswerInSeveralMessagesStaysTogetherInTheChat() = runBlocking {
+        val box = inbox()
+        val got = mutableListOf<String>()
+        val job = launch(Dispatchers.Unconfined) { box.lateAnswers.collect { got += it } }
+        yield()
+        box.requestUnanswered()
+        now += 60_000
+        assertNull(box.receive("Controllo il calendario."))
+        now += 20_000
+        assertNull(box.receive(" Domani hai il dentista alle 10."))
+        assertEquals(2, got.size)
+        assertTrue(box.alerts.value.isEmpty())
+        job.cancel()
+    }
+
+    @Test fun whileARequestIsOpenAMessageOnItsOwnIsAnAlert() = runBlocking {
+        val box = inbox()
+        val job = launch(Dispatchers.Unconfined) { box.lateAnswers.collect {} }
+        yield()
+        box.requestUnanswered() // an earlier request had no answer...
+        box.requestAnswered() // ...then a new one was sent: its answer comes on it, never on its own
+        now += 60_000
+        assertNotNull(box.receive("Recap delle 18."))
+        job.cancel()
+    }
+
+    @Test fun alertIdsAreNeverUsedTwice() {
+        val box = inbox()
+        val a = box.receive("Uno")!!
+        val b = box.receive("Due")!!
+        box.delete(b.id)
+        val c = box.receive("Tre")!!
+        assertTrue(c.id > b.id)
+        box.deleteAll()
+        val d = inbox().receive("Quattro")!! // also after a restart with no alert left
+        assertTrue(d.id > c.id, "ids ${a.id} ${b.id} ${c.id} ${d.id}")
+    }
+
     @Test fun aLateAnswerWithNoChatOnScreenIsKeptAsAnAlert() {
         val box = inbox()
-        box.requestSent()
+        box.requestUnanswered()
         assertNotNull(box.receive("Ecco la risposta."))
     }
 
@@ -61,10 +100,10 @@ class InboxTest {
         val box = inbox()
         val job = launch(Dispatchers.Unconfined) { box.lateAnswers.collect {} }
         yield()
-        box.requestSent()
+        box.requestUnanswered()
         box.requestAnswered()
         assertNotNull(box.receive("Recap delle 18."))
-        box.requestSent()
+        box.requestUnanswered()
         now += 20 * 60_000
         assertNotNull(box.receive("Recap delle 18."))
         job.cancel()

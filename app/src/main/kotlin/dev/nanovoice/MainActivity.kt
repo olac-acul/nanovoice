@@ -194,7 +194,11 @@ class MainActivity : ComponentActivity() {
                             openAlert = null
                         },
                         onMarkAllRead = container.inbox::markAllRead,
-                        onDeleteAll = container.inbox::deleteAll,
+                        onDeleteAll = {
+                            // Their system notifications go too: one tapped later would open nothing.
+                            container.inbox.alerts.value.forEach { container.notifier.cancelAlert(it.id) }
+                            container.inbox.deleteAll()
+                        },
                     )
                 } else if (showSettings) {
                     val chat by vm.messages.collectAsState()

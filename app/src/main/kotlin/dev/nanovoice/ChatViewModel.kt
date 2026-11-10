@@ -499,7 +499,9 @@ class ChatViewModel(
         if (busy.value) stopReplies()
         spokenRequest = spoken
         val requestId = add(trimmed, fromUser = true, image = preview, photo = sent, quote = quote, barcode = barcode)
-        inbox?.requestSent()
+        // A new request: what comes on its own from now on answers no earlier one. While this one is open, its answer
+        // comes on it, so a message on its own is an alert.
+        inbox?.requestAnswered()
         val forAgent = agentText(trimmed, quote, barcode, corrects)
         viewModelScope.launch(conversation) {
             val speaker = if (spoken && settings.value.speakReplies) ReplySpeaker(spokenOutput) else null
@@ -539,11 +541,13 @@ class ChatViewModel(
                     if (snap.working || snap.messageEnd) speaker?.pause()
                 }
                 speaker?.finish()
-                // Answered: what the agent sends on its own from now on is not this request's answer.
-                if (!failed && (replyId != null || gotFile)) inbox?.requestAnswered()
+                // Ended without its answer (an error, the connection lost): what the agent sends on its own soon after
+                // may be it. Answered: nothing to wait for.
+                if (!failed && (replyId != null || gotFile)) inbox?.requestAnswered() else inbox?.requestUnanswered()
             } catch (e: CancellationException) {
-                throw e
+                throw e // interrupted by the person or replaced by a new request: no answer is awaited
             } catch (e: Exception) {
+                inbox?.requestUnanswered()
                 val message = e.message ?: e.javaClass.simpleName
                 val id = replyId
                 if (id == null) add(message, fromUser = false, failed = true) else replace(id, message, failed = true)

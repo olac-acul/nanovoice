@@ -40,9 +40,9 @@ internal fun alertPreview(text: String): String {
 }
 
 /**
- * A message with no request open is the answer to the last request when that one is recent and still has no answer
- * (it failed, was interrupted, or the agent took longer than the reply stays open): it goes to the chat, under it.
- * Anything else is an [Alert].
+ * A message with no request open is the answer to the last request when that one ended recently without its answer
+ * (it failed, or the agent took longer than the reply stays open): it goes to the chat, under it. Anything else is an
+ * [Alert]. While a request is open its answer comes on that request, never this way.
  */
 internal fun isLateAnswer(unansweredSince: Long?, now: Long): Boolean =
     unansweredSince != null && now - unansweredSince in 0 until LATE_ANSWER_MS
@@ -64,6 +64,12 @@ class Inbox(
 ) {
     private val lock = Any()
     private var unansweredSince: Long? = null
+
+    /** A late answer came: until then, the next pieces of it (an answer can be several messages) go to the chat too. */
+    private var lateUntil = 0L
+
+    /** Never used twice, even after alerts are deleted: a line "Nuovo avviso" in the chat keeps pointing at its own. */
+    private var nextId = 1L
     private val _alerts = MutableStateFlow<List<Alert>>(emptyList())
     val alerts: StateFlow<List<Alert>> = _alerts
 
@@ -81,10 +87,13 @@ class Inbox(
         load()
     }
 
-    /** A request was sent: until it is answered, a message coming on its own soon after may be its answer. */
-    fun requestSent() = changePending(clock())
+    /**
+     * The request on screen ended without its answer (an error, the connection lost, the reply's time over): a message
+     * coming on its own soon after may be its answer. Not for a request the person interrupted.
+     */
+    fun requestUnanswered() = changePending(clock())
 
-    /** The request on screen got its answer. */
+    /** The request on screen got its answer, or a new one was sent: nothing coming now answers an earlier one. */
     fun requestAnswered() = changePending(null)
 
     /** Sorts a message of the agent's own: null when it went to the chat, the new alert otherwise. */
@@ -92,13 +101,16 @@ class Inbox(
         val now = clock()
         synchronized(lock) {
             // A late answer only when a chat is there to show it; with the app closed it is kept as an alert.
-            if (isLateAnswer(unansweredSince, now) && _lateAnswers.subscriptionCount.value > 0) {
+            val late = isLateAnswer(unansweredSince, now) || now < lateUntil
+            if (late && _lateAnswers.subscriptionCount.value > 0) {
                 unansweredSince = null
+                lateUntil = now + LATE_PIECES_MS
                 _lateAnswers.tryEmit(text)
                 save()
                 return null
             }
-            val alert = Alert(id = (_alerts.value.maxOfOrNull { it.id } ?: 0) + 1, text = text, time = now)
+            lateUntil = 0L
+            val alert = Alert(id = nextId++, text = text, time = now)
             _alerts.value = pruned(_alerts.value + alert, now)
             save()
             _arrivals.tryEmit(alert)
@@ -133,13 +145,14 @@ class Inbox(
         }
         unansweredSince = stored?.unansweredSince
         _alerts.value = pruned(stored?.alerts.orEmpty(), clock())
+        nextId = maxOf(stored?.nextId ?: 1L, (stored?.alerts.orEmpty().maxOfOrNull { it.id } ?: 0L) + 1)
     }
 
     private val unsaved = AtomicReference<String?>(null)
 
     /** Written off the caller's thread; whichever write runs writes the latest state, so none can undo a newer one. */
     private fun save() {
-        unsaved.set(encodeInbox(StoredInbox(_alerts.value, unansweredSince)))
+        unsaved.set(encodeInbox(StoredInbox(_alerts.value, unansweredSince, nextId)))
         scope.launch(io) {
             synchronized(file) {
                 val text = unsaved.getAndSet(null) ?: return@synchronized
@@ -152,11 +165,12 @@ class Inbox(
     }
 }
 
-internal data class StoredInbox(val alerts: List<Alert>, val unansweredSince: Long?)
+internal data class StoredInbox(val alerts: List<Alert>, val unansweredSince: Long?, val nextId: Long? = null)
 
 internal fun encodeInbox(inbox: StoredInbox): String = buildJsonObject {
     put("version", 1)
     inbox.unansweredSince?.let { put("unansweredSince", it) }
+    inbox.nextId?.let { put("nextId", it) }
     put("alerts", buildJsonArray {
         for (a in inbox.alerts) add(buildJsonObject {
             put("id", a.id)
@@ -179,10 +193,15 @@ internal fun decodeInbox(text: String): StoredInbox {
             read = (o["read"] as? JsonPrimitive)?.booleanOrNull ?: false,
         )
     }
-    return StoredInbox(alerts, (root["unansweredSince"] as? JsonPrimitive)?.longOrNull)
+    return StoredInbox(
+        alerts,
+        (root["unansweredSince"] as? JsonPrimitive)?.longOrNull,
+        (root["nextId"] as? JsonPrimitive)?.longOrNull,
+    )
 }
 
 private const val TITLE_CHARS = 80
 private const val LATE_ANSWER_MS = 15 * 60_000L
+private const val LATE_PIECES_MS = 2 * 60_000L
 private const val MAX_ALERTS = 100
 private const val MAX_AGE_MS = 30L * 24 * 60 * 60_000

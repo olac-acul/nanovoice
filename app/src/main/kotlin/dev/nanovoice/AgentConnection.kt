@@ -10,6 +10,7 @@ import dev.nanovoice.agent.ServerReach
 import dev.nanovoice.agent.ServerUrl
 import dev.nanovoice.agent.ServerUrlCheck
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
@@ -61,8 +62,12 @@ class AgentConnection(
     private val _status = MutableStateFlow(AgentStatus.NotConfigured)
     val status: StateFlow<AgentStatus> = _status
 
-    private val _notifications = MutableSharedFlow<String>(extraBufferCapacity = 64)
-    val notifications: SharedFlow<String> = _notifications
+    // Kept until read, not dropped: woken by a push, the app may connect (and the server hand over what it kept for it)
+    // before the one reader, the container's sorting into late answers and alerts, has started.
+    private val _notifications = Channel<String>(capacity = 64, onBufferOverflow = BufferOverflow.DROP_OLDEST)
+
+    /** What the agent says on its own, for the one place that sorts it (late answer or alert). */
+    val notifications: Flow<String> = _notifications.receiveAsFlow()
 
     // Taken by one chat: each file goes to the conversation once, even with the assistant's sheet open too.
     private val _files = Channel<AgentFile>(capacity = 8, onBufferOverflow = BufferOverflow.DROP_OLDEST)
@@ -87,12 +92,13 @@ class AgentConnection(
                 }
                 val c = clientFactory(AgentConfig(url, token, caps, cleartextAllowed = cleartextAllowed))
                 client = c
-                c.start()
                 try {
                     coroutineScope {
-                        launch { c.notifications.collect { _notifications.emit(it) } }
-                        launch { c.conversationIdle.collect { _conversationIdle.value = it } }
-                        launch { c.files.collect { _files.send(it) } }
+                        // Listening before the client starts: what it receives right after connecting is not missed.
+                        launch(start = CoroutineStart.UNDISPATCHED) { c.notifications.collect { _notifications.send(it) } }
+                        launch(start = CoroutineStart.UNDISPATCHED) { c.conversationIdle.collect { _conversationIdle.value = it } }
+                        launch(start = CoroutineStart.UNDISPATCHED) { c.files.collect { _files.send(it) } }
+                        c.start()
                         launch {
                             settings.map { it.pushEndpoint.ifEmpty { null } }.distinctUntilChanged().collect { c.setPushEndpoint(it) }
                         }
