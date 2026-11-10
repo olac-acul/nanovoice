@@ -14,6 +14,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.animateScrollBy
+import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -52,7 +53,6 @@ import androidx.compose.material3.TextButton
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
@@ -301,6 +301,21 @@ fun ChatList(
             listState.animateScrollToItem(last)
         }
     }
+    // The line between the earlier conversation and this one, as the list's item number: after the earlier messages
+    // (when open) and their day chips.
+    val firstNew = messages.indexOfFirst { !it.earlier }.let { if (it < 0) messages.size else it }
+    val lineIndex = firstNew + dayCount(messages.take(firstNew), zone)
+    // Where the line was on the screen when it was tapped: opened or folded, it is put back there, then (opened) the
+    // list moves up a little to show how the earlier conversation ended. Not left to the list keeping its place by
+    // itself: with the line at the top it stays at the top, on the oldest message.
+    var lineWasAt by remember { mutableStateOf<Int?>(null) }
+    LaunchedEffect(showEarlier) {
+        val offset = lineWasAt ?: return@LaunchedEffect
+        lineWasAt = null
+        listState.scrollToItem(lineIndex)
+        listState.scrollBy(-offset.toFloat())
+        if (showEarlier) listState.animateScrollBy(-peekPx)
+    }
     Box(modifier) {
         LazyColumn(
             state = listState,
@@ -309,16 +324,11 @@ fun ChatList(
             contentPadding = PaddingValues(top = 16.dp, bottom = 8.dp),
         ) {
             // The line between the earlier conversation and this one: at the top while folded, under the earlier
-            // messages once open. Opened, the list keeps the line where it was (the earlier messages come in above
-            // it) and moves up a little to show how they ended.
-            val firstNew = messages.indexOfFirst { !it.earlier }.let { if (it < 0) messages.size else it }
+            // messages once open.
             fun toggleItem() = item(key = "earlier") {
                 EarlierToggle(showEarlier) {
+                    lineWasAt = listState.layoutInfo.visibleItemsInfo.firstOrNull { it.key == "earlier" }?.offset ?: 0
                     showEarlier = !showEarlier
-                    if (showEarlier) scope.launch {
-                        withFrameNanos {}
-                        listState.animateScrollBy(-peekPx)
-                    }
                 }
             }
             messages.forEachIndexed { index, message ->
