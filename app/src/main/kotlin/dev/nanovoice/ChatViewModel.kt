@@ -87,12 +87,18 @@ class ChatViewModel(
     private val chatStore: ChatStore? = null,
     /** Where the agent's own messages are sorted into late answers and alerts; none in tests (they come to the chat). */
     private val inbox: Inbox? = null,
+    /**
+     * The assistant sheet: a conversation of its own, kept nowhere and starting empty. What the agent sends on its own
+     * (alerts, late answers, files, the end of a pause) belongs to the app's chat, not here. So nothing of the app's
+     * chat can show over the lock screen, and handing the sheet over to the app adds only what was said in it.
+     */
+    private val sheet: Boolean = false,
 ) : ViewModel() {
     /** The settings, for the screens that depend on them (link previews). */
     val appSettings: StateFlow<AppSettings> get() = settings
 
     // The conversation shown before the app was last ended comes back (a small file, read once here).
-    private val _messages = MutableStateFlow(withoutEarlierHeadlines(chatStore?.load().orEmpty()))
+    private val _messages = MutableStateFlow(if (sheet) emptyList() else withoutEarlierHeadlines(chatStore?.load().orEmpty()))
     val messages: StateFlow<List<ChatMessage>> = _messages
 
     val status: StateFlow<AgentStatus> = connection.status
@@ -258,6 +264,25 @@ class ChatViewModel(
     private var conversation = Job(viewModelScope.coroutineContext[Job])
 
     init {
+        if (!sheet) followTheChat()
+        // Only the screen whose spoken request is open asks aloud; the other one just shows the question.
+        viewModelScope.launch {
+            consent.pending.collectLatest { question ->
+                if (question != null && busy.value && spokenRequest && settings.value.speakReplies) {
+                    askAloud(question)
+                } else if (question == null && askedAloud != null) {
+                    // Answered with a tap, or expired: the microphone opened for the answer is not needed any more,
+                    // nor the rest of the question still being read (five options take a while to say).
+                    askedAloud = null
+                    voice.cancel()
+                    spokenOutput.stop()
+                }
+            }
+        }
+    }
+
+    /** What only the app's chat does: keep the conversation, and take in what the agent sends on its own. */
+    private fun followTheChat() {
         // Kept a moment after each change, off the main thread: a burst of a streamed reply is written once.
         chatStore?.let { store ->
             viewModelScope.launch {
@@ -282,20 +307,6 @@ class ChatViewModel(
                 if (!idle) return@collect
                 busy.first { !it }
                 startOverAt(null)
-            }
-        }
-        // Only the screen whose spoken request is open asks aloud; the other one just shows the question.
-        viewModelScope.launch {
-            consent.pending.collectLatest { question ->
-                if (question != null && busy.value && spokenRequest && settings.value.speakReplies) {
-                    askAloud(question)
-                } else if (question == null && askedAloud != null) {
-                    // Answered with a tap, or expired: the microphone opened for the answer is not needed any more,
-                    // nor the rest of the question still being read (five options take a while to say).
-                    askedAloud = null
-                    voice.cancel()
-                    spokenOutput.stop()
-                }
             }
         }
     }
@@ -551,8 +562,11 @@ class ChatViewModel(
 
     /** Messages of the assistant sheet, appended to this chat when the app is opened from it. */
     fun adopt(handed: List<ChatMessage>) {
-        // Its "Nuovo avviso" lines come back through [showMissedAlerts], with their link to the alert.
-        for (m in handed) if (m.alertId == null) add(m.text, m.fromUser, m.image, m.photo, m.quote)
+        // As they were in the sheet (time, failed, barcode, photo), under ids of this chat. Its "Nuovo avviso" lines,
+        // if any, come back through [showMissedAlerts] with their link to the alert.
+        val adopted = handed.filter { it.alertId == null && !it.notice }
+        if (adopted.isEmpty()) return
+        _messages.update { list -> list + adopted.map { it.copy(id = nextId++, earlier = false) } }
     }
 
     /**

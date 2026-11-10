@@ -26,21 +26,36 @@ import java.util.Base64
  * kept. Never in a backup: the app opts out of Android's cloud backup and device transfer.
  */
 class ChatStore(private val file: File) {
-    fun load(): List<ChatMessage> = try {
-        if (!file.isFile) emptyList() else decodeChat(file.readText()).map { it.toMessage() }
-    } catch (_: Exception) {
-        emptyList() // a damaged file is a lost conversation, never a crash
+    /** One reading or writing at a time: two saves on the same file could leave it half one, half the other. */
+    private val lock = Any()
+
+    fun load(): List<ChatMessage> = synchronized(lock) {
+        if (!file.isFile) return emptyList()
+        try {
+            decodeChat(file.readText()).map { it.toMessage() }
+        } catch (_: Exception) {
+            // A damaged file is never a crash. It is put aside, not overwritten by the next save, so what it still
+            // holds is not lost for good.
+            file.renameTo(File(file.parentFile, "${file.name}.bad"))
+            emptyList()
+        }
     }
 
-    fun save(messages: List<ChatMessage>) {
+    fun save(messages: List<ChatMessage>): Unit = synchronized(lock) {
         if (messages.isEmpty()) {
             file.delete()
+            File(file.parentFile, "${file.name}.bad").delete() // "Cancella i messaggi" leaves nothing behind
             return
         }
         file.parentFile?.mkdirs()
-        val temp = File(file.parentFile, "${file.name}.tmp")
-        temp.writeText(encodeChat(messages.takeLast(MAX_KEPT).map { it.toStored() }))
-        if (!temp.renameTo(file)) temp.delete()
+        // A name of its own each time, then the rename: the file is always a whole conversation, old or new.
+        val temp = File.createTempFile("${file.name}.", ".tmp", file.parentFile)
+        try {
+            temp.writeText(encodeChat(messages.takeLast(MAX_KEPT).map { it.toStored() }))
+            temp.renameTo(file)
+        } finally {
+            if (temp.exists()) temp.delete()
+        }
     }
 
     private fun ChatMessage.toStored() = StoredMessage(

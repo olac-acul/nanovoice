@@ -42,7 +42,7 @@ class AssistantActivity : ComponentActivity() {
     private var dismissing = false
 
     /** The conversation of this sheet; it lives as long as the sheet does, also while the sheet is off screen. */
-    private val sheetConversation: ChatViewModel by viewModels { chatViewModelFactory((application as NanoVoiceApp).container) }
+    private val sheetConversation: ChatViewModel by viewModels { chatViewModelFactory((application as NanoVoiceApp).container, sheet = true) }
 
     /** Closes the sheet once the reply that was still under way has been answered and read aloud. */
     private var closeWhenQuiet: Job? = null
@@ -91,7 +91,10 @@ class AssistantActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
-        locked = keyguard.isKeyguardLocked
+        val nowLocked = keyguard.isKeyguardLocked
+        // Back on screen with the phone locked after being used unlocked: what it holds was said unlocked.
+        if (nowLocked && !locked) return finish()
+        locked = nowLocked
     }
 
     /**
@@ -141,6 +144,8 @@ class AssistantActivity : ComponentActivity() {
             override fun onDismissSucceeded() {
                 dismissing = false
                 locked = false
+                // From now on it holds what is said unlocked: never again over the lock screen.
+                configureLockScreen()
                 then()
             }
 
