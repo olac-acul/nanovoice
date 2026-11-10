@@ -12,6 +12,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
@@ -184,6 +185,9 @@ fun SetupScreen(
     onStart: (voiceId: String) -> Unit,
     onFinish: (voiceId: String) -> Unit,
     onSkip: () -> Unit,
+    /** Android lets the app show notifications: without them reminders and alerts arrive unseen. */
+    notificationsAllowed: Boolean = true,
+    onRequestNotifications: () -> Unit = {},
 ) {
     var pairingStep by rememberSaveable { mutableStateOf(!paired) }
     // Paired here: on to the voice.
@@ -199,9 +203,23 @@ fun SetupScreen(
                 PairingSection(onPair = onPair, onPaired = onPaired, primary = true)
                 TextButton(onClick = { pairingStep = false }, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.setup_pair_later)) }
             } else {
-                VoiceStep(voices, voiceStates, modelState, initialVoiceId, onStart, onFinish, onSkip)
+                VoiceStep(voices, voiceStates, modelState, initialVoiceId, onStart, onFinish, onSkip) {
+                    AlertsStep(notificationsAllowed, onRequestNotifications)
+                }
             }
         }
+    }
+}
+
+/** Reminders and alerts come as notifications: asked here, with what they are for, not discovered missing later. */
+@Composable
+private fun AlertsStep(allowed: Boolean, onRequest: () -> Unit) {
+    Text(stringResource(R.string.setup_alerts_title), style = MaterialTheme.typography.titleMedium)
+    Text(stringResource(R.string.setup_alerts_text))
+    if (allowed) {
+        Text(stringResource(R.string.setup_alerts_allowed), color = MaterialTheme.colorScheme.onSurfaceVariant)
+    } else {
+        OutlinedButton(onClick = onRequest, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.push_allow_notifications)) }
     }
 }
 
@@ -215,6 +233,8 @@ private fun VoiceStep(
     onStart: (voiceId: String) -> Unit,
     onFinish: (voiceId: String) -> Unit,
     onSkip: () -> Unit,
+    /** Shown before the button that ends the first run. */
+    beforeStart: @Composable () -> Unit = {},
 ) {
     var selected by remember { mutableStateOf(initialVoiceId) }
     var started by remember { mutableStateOf(false) }
@@ -243,6 +263,7 @@ private fun VoiceStep(
     )
     Text(stringResource(R.string.setup_recognition), style = MaterialTheme.typography.titleMedium)
     VoskModelSection(modelState, onDownload = {}, showActions = false)
+    beforeStart()
 
     Button(
         onClick = { started = true; onStart(selected) },

@@ -22,7 +22,7 @@ Serve un telefono Android 8 o successivo (arm64) e un server NanoClaw con la ski
 3. Al primo avvio l'app chiede i permessi e scarica i modelli per la voce (riconoscimento e sintesi, circa 165 MB;
    il riconoscimento più preciso, Parakeet, è facoltativo e più grande).
 4. Abbina l'app al server: nel pannello di NanoClaw, pagina *Phone*, "Pair the app with a QR code"; nell'app,
-   Impostazioni → Server NanoClaw → "Scansiona il QR del pannello" (vedi **Collegamento a NanoClaw**).
+   Impostazioni → Collegamento → "Scansiona il QR del pannello" (vedi **Collegamento a NanoClaw**).
 
 Le versioni successive si installano sopra quella presente, senza perdere impostazioni e abbinamento. Se un giorno il
 server e l'app non parlano più la stessa versione del collegamento, l'app dice quale dei due aggiornare.
@@ -66,9 +66,9 @@ Le due versioni hanno lo stesso identificativo ma firme diverse: sullo stesso te
 
 ## Collegamento a NanoClaw
 
-**Abbinamento con un QR:** nel pannello di NanoClaw, pagina *Phone*, "Pair the app with a QR code"; nell'app, Impostazioni → Server NanoClaw → "Scansiona il QR del pannello". Il QR contiene un codice che vale una volta sola e per cinque minuti, non il token: l'app lo scambia con il token dopo aver mostrato il server e chiesto conferma (formato e regole in `docs/PROTOCOL.md`).
+**Abbinamento con un QR:** nel pannello di NanoClaw, pagina *Phone*, "Pair the app with a QR code"; nell'app, Impostazioni → Collegamento → "Scansiona il QR del pannello". Il QR contiene un codice che vale una volta sola e per cinque minuti, non il token: l'app lo scambia con il token dopo aver mostrato il server e chiesto conferma (formato e regole in `docs/PROTOCOL.md`).
 
-A mano: Impostazioni → Server NanoClaw: indirizzo (`ws://host:8767` in rete locale/VPN, `wss://` su internet) e token.
+A mano: Impostazioni → Collegamento → Dettagli avanzati: indirizzo (`ws://host:8767` in rete locale/VPN, `wss://` su internet) e token.
 Il token è cifrato con una chiave dell'Android Keystore. `ws://` è accettato solo per host privati
 (loopback, reti private, Tailscale/`.ts.net`, nomi `.local`, nomi senza punto) e con una VPN attiva; altrimenti l'app chiede la VPN o `wss://`.
 Lato server serve la skill `add-voice` di [skills-for-nanoclaw](https://github.com/olac-acul/skills-for-nanoclaw) (canale WebSocket per NanoClaw, con uno script che lo attiva e mostra indirizzo e token da inserire nell'app). Protocollo: `docs/PROTOCOL.md`.
@@ -121,7 +121,7 @@ aperta; con il telefono bloccato sono disponibili solo ora, data, timer e svegli
 
 ### Modificare il calendario
 
-In **Impostazioni → Permessi → Letture per l'agente → Modifiche al calendario** si abilitano le modifiche e si concedono lettura e scrittura.
+In **Impostazioni → Cosa può fare sul telefono → Letture per l'agente → Modifiche al calendario** si abilitano le modifiche e si concedono lettura e scrittura.
 L'interruttore è spento per impostazione predefinita e abilita anche la lettura. L'agente legge prima gli eventi con
 `phone_calendar_read`, che restituisce gli `event_id`, poi usa `phone_calendar_update` o `phone_calendar_delete`.
 Il telefono mostra i dati reali e i nuovi valori in una scheda Approva / Non approvare, letta anche a voce dopo una

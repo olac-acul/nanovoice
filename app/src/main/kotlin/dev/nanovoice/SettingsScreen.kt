@@ -103,8 +103,14 @@ fun SettingsScreen(
     vosk: dev.nanovoice.voice.VoskSpeechToText? = null,
     micGranted: Boolean = false,
     onRequestMic: () -> Unit = {},
-    /** Asks Android for these runtime permissions (the reads' switches). */
-    onRequestPermissions: (Array<String>) -> Unit = {},
+    /** Asks Android for these runtime permissions (the reads' switches); then says whether all were given. */
+    onRequestPermissions: (Array<String>, (Boolean) -> Unit) -> Unit = { _, _ -> },
+    /** Opens the app's page in Android's settings, where a permission refused for good can be given again. */
+    onOpenAppSettings: () -> Unit = {},
+    /** Opens the store page of ntfy, the app that wakes NanoVoice for alerts when it is closed. */
+    onInstallNtfy: () -> Unit = {},
+    /** Android refused the contacts: asking again does nothing, only its settings can give them. */
+    contactsBlocked: Boolean = false,
     /** Not connected: try to connect again now. */
     onRetryConnection: () -> Unit = {},
     /** Opens the VPN app (or Android's VPN settings). */
@@ -153,6 +159,8 @@ fun SettingsScreen(
     var editCalendar by remember { mutableStateOf(initial.editCalendar) }
     var readLocation by remember { mutableStateOf(initial.readLocation) }
     var readNotifications by remember { mutableStateOf(initial.readNotifications) }
+    /** Android refused a permission a reading's switch asked for: said under the switches until the next try. */
+    var refusedRead by remember { mutableStateOf(false) }
     var navidromeUrl by remember { mutableStateOf(initial.navidromeUrl) }
     var navidromeUser by remember { mutableStateOf(initial.navidromeUser) }
     var navidromePassword by remember { mutableStateOf(initial.navidromePassword) }
@@ -320,7 +328,13 @@ fun SettingsScreen(
                             ) { pageName = SettingsPage.Music.name }
                             CategoryRow(
                                 R.string.cat_notifications,
-                                stringResource(if (pushActive) R.string.sum_on else R.string.sum_off),
+                                stringResource(
+                                    when {
+                                        !notificationsAllowed -> R.string.sum_alerts_silent
+                                        pushActive -> R.string.sum_alerts_always
+                                        else -> R.string.sum_alerts_open_only
+                                    },
+                                ),
                             ) { pageName = SettingsPage.Notifications.name }
                             CategoryRow(R.string.cat_appearance, stringResource(themeLabel(theme))) { pageName = SettingsPage.Appearance.name }
                             if (updates != null) {
@@ -553,26 +567,32 @@ fun SettingsScreen(
                         Text(stringResource(R.string.photos_search_title), style = MaterialTheme.typography.titleSmall)
                         Hint(R.string.photos_search_hint)
                     }
+                    // What happens to the alerts first, then what to do about it; how it works comes last.
                     SettingsPage.Notifications -> Card {
-                        Hint(R.string.push_hint)
-                        if (notificationsAllowed) {
-                            Text(stringResource(R.string.push_notifications_allowed))
-                        } else {
+                        if (!notificationsAllowed) {
+                            Text(stringResource(R.string.alerts_state_silent), color = MaterialTheme.colorScheme.error)
                             OutlinedButton(onClick = onRequestNotifications, modifier = Modifier.fillMaxWidth()) {
                                 Text(stringResource(R.string.push_allow_notifications))
                             }
+                            // Refused for good, Android does not ask again: only its settings can turn them on.
+                            TextButton(onClick = onOpenAppSettings) { Text(stringResource(R.string.open_phone_settings)) }
                         }
                         when {
                             pushActive -> {
-                                Text(stringResource(R.string.push_active))
+                                Text(stringResource(R.string.alerts_state_always))
                                 OutlinedButton(onClick = onDisablePush, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.push_disable)) }
                             }
-                            !pushDistributorAvailable -> Text(stringResource(R.string.push_no_distributor), color = MaterialTheme.colorScheme.error)
+                            !pushDistributorAvailable -> {
+                                Text(stringResource(R.string.alerts_state_open_only))
+                                OutlinedButton(onClick = onInstallNtfy, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.push_install_ntfy)) }
+                                Hint(R.string.push_after_install)
+                            }
                             else -> {
-                                Text(stringResource(R.string.push_inactive))
+                                Text(stringResource(R.string.alerts_state_open_only))
                                 OutlinedButton(onClick = onEnablePush, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.push_enable)) }
                             }
                         }
+                        Hint(R.string.push_hint)
                     }
                     SettingsPage.Permissions -> {
                         Card {
@@ -595,34 +615,62 @@ fun SettingsScreen(
                             @Composable
                             fun toggle(label: Int, hint: Int, checked: Boolean, set: (Boolean) -> Unit) =
                                 SwitchRow(label, checked, hint = hint) { set(it); commit() }
+                            // A switch follows what Android really gives: refused, it goes back off and says so.
+                            fun ask(permissions: Array<String>, undo: () -> Unit) = onRequestPermissions(permissions) { granted ->
+                                refusedRead = !granted
+                                if (!granted) {
+                                    undo()
+                                    commit()
+                                }
+                            }
                             toggle(R.string.agent_read_calendar, R.string.agent_read_calendar_hint, readCalendar) { on ->
                                 readCalendar = on
                                 if (!on) editCalendar = false
-                                if (on) onRequestPermissions(arrayOf(android.Manifest.permission.READ_CALENDAR))
+                                if (on) ask(arrayOf(android.Manifest.permission.READ_CALENDAR)) { readCalendar = false; editCalendar = false }
                             }
                             toggle(R.string.agent_edit_calendar, R.string.agent_edit_calendar_hint, editCalendar) { on ->
                                 editCalendar = on
                                 if (on) {
+                                    val wasReading = readCalendar
                                     readCalendar = true
-                                    onRequestPermissions(arrayOf(android.Manifest.permission.READ_CALENDAR, android.Manifest.permission.WRITE_CALENDAR))
+                                    ask(arrayOf(android.Manifest.permission.READ_CALENDAR, android.Manifest.permission.WRITE_CALENDAR)) {
+                                        editCalendar = false
+                                        readCalendar = wasReading
+                                    }
                                 }
                             }
                             toggle(R.string.agent_read_location, R.string.agent_read_location_hint, readLocation) { on ->
                                 readLocation = on
-                                if (on) onRequestPermissions(arrayOf(android.Manifest.permission.ACCESS_FINE_LOCATION, android.Manifest.permission.ACCESS_COARSE_LOCATION))
+                                if (on) {
+                                    ask(arrayOf(android.Manifest.permission.ACCESS_FINE_LOCATION, android.Manifest.permission.ACCESS_COARSE_LOCATION)) {
+                                        readLocation = false
+                                    }
+                                }
                             }
                             toggle(R.string.agent_read_notifications, R.string.agent_read_notifications_hint, readNotifications) { on ->
                                 readNotifications = on
                                 if (on) onOpenNotificationAccess()
                             }
+                            if (refusedRead) {
+                                Text(stringResource(R.string.permission_refused), color = MaterialTheme.colorScheme.error)
+                                TextButton(onClick = onOpenAppSettings) { Text(stringResource(R.string.open_phone_settings)) }
+                            }
                         }
                         Card {
                             Text(stringResource(R.string.contacts_section), style = MaterialTheme.typography.titleMedium)
                             Hint(R.string.contacts_hint)
-                            if (contactsGranted) {
-                                Text(stringResource(R.string.contacts_granted))
-                            } else {
-                                OutlinedButton(onClick = onRequestContacts, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.contacts_grant)) }
+                            when {
+                                contactsGranted -> Text(stringResource(R.string.contacts_granted))
+                                // Refused for good: the button would do nothing, Android's settings can.
+                                contactsBlocked -> {
+                                    Text(stringResource(R.string.contacts_blocked), color = MaterialTheme.colorScheme.error)
+                                    OutlinedButton(onClick = onOpenAppSettings, modifier = Modifier.fillMaxWidth()) {
+                                        Text(stringResource(R.string.open_phone_settings))
+                                    }
+                                }
+                                else -> OutlinedButton(onClick = onRequestContacts, modifier = Modifier.fillMaxWidth()) {
+                                    Text(stringResource(R.string.contacts_grant))
+                                }
                             }
                         }
                         Card {

@@ -126,6 +126,10 @@ fun ChatScreen(
     hasMicPermission: () -> Boolean,
     requestMicPermission: () -> Unit,
     onOpenSettings: () -> Unit,
+    /** Android refused the microphone: the circle says so instead of doing nothing at a tap. */
+    micBlocked: Boolean = false,
+    /** Opens the app's page in Android's settings, where a refused permission can be given. */
+    onOpenAppSettings: () -> Unit = {},
     /** A newer version of the app is out: a dot on the settings button, as on "Aggiornamenti" inside. */
     updateBadge: Boolean = false,
     /** Opens the connection page of the settings. */
@@ -194,8 +198,11 @@ fun ChatScreen(
     }
     // The scanner needs the camera permission; once the app declares it, Android asks it for the camera app too.
     var afterCameraGrant by remember { mutableStateOf<(() -> Unit)?>(null) }
+    // Refused: said under the circle with the way to Android's settings, not in a toast gone in two seconds.
+    var cameraBlocked by remember { mutableStateOf(false) }
     val cameraPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        if (granted) afterCameraGrant?.invoke() else Toast.makeText(context, R.string.camera_denied, Toast.LENGTH_SHORT).show()
+        cameraBlocked = !granted
+        if (granted) afterCameraGrant?.invoke()
         afterCameraGrant = null
     }
     fun withCamera(action: () -> Unit) {
@@ -433,6 +440,10 @@ fun ChatScreen(
                     modifier = Modifier.fillMaxWidth().padding(top = 12.dp, bottom = if (typing) 4.dp else 12.dp),
                 ) {
                     Column(modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                        when {
+                            micBlocked -> PermissionNote(R.string.mic_blocked, onOpenAppSettings)
+                            cameraBlocked -> PermissionNote(R.string.camera_blocked) { cameraBlocked = false; onOpenAppSettings() }
+                        }
                         VoiceCaption(voice, speaking, orbAction)
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -622,6 +633,19 @@ private fun VoiceCaption(voice: VoiceUiState, speaking: Boolean, action: OrbActi
         textAlign = TextAlign.Center,
         modifier = Modifier.padding(horizontal = 16.dp).semantics { if (announce) liveRegion = LiveRegionMode.Polite },
     )
+}
+
+/** A permission Android refused: what does not work, and the way to its settings (announced by a screen reader). */
+@Composable
+private fun PermissionNote(text: Int, onOpenSettings: () -> Unit) {
+    Text(
+        stringResource(text),
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.error,
+        textAlign = TextAlign.Center,
+        modifier = Modifier.padding(horizontal = 16.dp).semantics { liveRegion = LiveRegionMode.Polite },
+    )
+    TextButton(onClick = onOpenSettings) { Text(stringResource(R.string.open_phone_settings)) }
 }
 
 /** Tap to talk, tap to stop; while the request is answered, a tap cancels it (the stop mark says so). */

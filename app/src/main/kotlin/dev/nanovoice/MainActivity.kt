@@ -27,6 +27,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.viewmodel.compose.viewModel
 
 class MainActivity : ComponentActivity() {
@@ -68,6 +69,20 @@ class MainActivity : ComponentActivity() {
             startActivity(Intent(Settings.ACTION_VOICE_INPUT_SETTINGS))
         } catch (_: ActivityNotFoundException) {
             startActivity(Intent(Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS))
+        }
+    }
+
+    /** The app's page in Android's settings: where a permission refused for good can be given again. */
+    private fun openAppSettings() {
+        startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", packageName, null)))
+    }
+
+    /** ntfy, which wakes NanoVoice for alerts when it is closed: its store page (any store), or F-Droid's on the web. */
+    private fun installNtfy() {
+        try {
+            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=$NTFY_PACKAGE")))
+        } catch (_: ActivityNotFoundException) {
+            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://f-droid.org/packages/$NTFY_PACKAGE/")))
         }
     }
 
@@ -141,12 +156,35 @@ class MainActivity : ComponentActivity() {
                 val voiceStates by container.voices.states.collectAsState(initial = emptyMap())
                 val ttsStatus by container.spokenOutput.status.collectAsState()
                 var micGranted by remember { mutableStateOf(hasMicPermission()) }
-                val micLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { micGranted = it }
-                val permissionsLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {}
+                // Refused: the circle says so, with the way to Android's settings, instead of doing nothing at a tap.
+                var micBlocked by remember { mutableStateOf(false) }
+                val micLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
+                    micGranted = it
+                    micBlocked = !it
+                }
+                var afterPermissions by remember { mutableStateOf<((Boolean) -> Unit)?>(null) }
+                val permissionsLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { result ->
+                    afterPermissions?.invoke(result.values.all { it })
+                    afterPermissions = null
+                }
                 var contactsGranted by remember { mutableStateOf(hasContactsPermission()) }
+                var contactsBlocked by remember { mutableStateOf(false) }
                 var notificationsAllowed by remember { mutableStateOf(container.notifier.canNotify()) }
                 val notificationsLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { notificationsAllowed = it }
-                val contactsLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { contactsGranted = it }
+                val contactsLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
+                    contactsGranted = it
+                    // Refused for good when Android would not even ask again: only its settings can give them now.
+                    contactsBlocked = !it && !shouldShowRequestPermissionRationale(Manifest.permission.READ_CONTACTS)
+                }
+                // Back from Android's settings (or anywhere): what was given or taken there shows at once.
+                LifecycleResumeEffect(Unit) {
+                    micGranted = hasMicPermission()
+                    if (micGranted) micBlocked = false
+                    contactsGranted = hasContactsPermission()
+                    if (contactsGranted) contactsBlocked = false
+                    notificationsAllowed = container.notifier.canNotify()
+                    onPauseOrDispose {}
+                }
 
                 if (!settings.setupDone) {
                     SetupScreen(
@@ -166,6 +204,8 @@ class MainActivity : ComponentActivity() {
                         },
                         onFinish = { container.finishSetup() },
                         onSkip = container::finishSetup,
+                        notificationsAllowed = notificationsAllowed,
+                        onRequestNotifications = { notificationsLauncher.launch(Manifest.permission.POST_NOTIFICATIONS) },
                     )
                 } else if (showAlerts) {
                     val alerts by container.inbox.alerts.collectAsState()
@@ -228,7 +268,13 @@ class MainActivity : ComponentActivity() {
                         vosk = container.vosk,
                         micGranted = micGranted,
                         onRequestMic = { micLauncher.launch(Manifest.permission.RECORD_AUDIO) },
-                        onRequestPermissions = { permissionsLauncher.launch(it) },
+                        onRequestPermissions = { permissions, then ->
+                            afterPermissions = then
+                            permissionsLauncher.launch(permissions)
+                        },
+                        onOpenAppSettings = ::openAppSettings,
+                        onInstallNtfy = ::installNtfy,
+                        contactsBlocked = contactsBlocked,
                         onTestMusic = container::testMusic,
                         onPair = container::pair,
                         onRetryConnection = container.connection::retryNow,
@@ -254,6 +300,8 @@ class MainActivity : ComponentActivity() {
                         viewModel = vm,
                         hasMicPermission = ::hasMicPermission,
                         requestMicPermission = { micLauncher.launch(Manifest.permission.RECORD_AUDIO) },
+                        micBlocked = micBlocked && !micGranted,
+                        onOpenAppSettings = ::openAppSettings,
                         onOpenSettings = { settingsStart = null; showSettings = true },
                         updateBadge = updateBadge,
                         onCheckConnection = { settingsStart = SettingsPage.Server.name; showSettings = true },
@@ -268,3 +316,6 @@ class MainActivity : ComponentActivity() {
         }
     }
 }
+
+/** ntfy, the UnifiedPush app the README suggests (F-Droid and Google Play). */
+private const val NTFY_PACKAGE = "io.heckel.ntfy"
