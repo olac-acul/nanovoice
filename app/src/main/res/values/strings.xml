@@ -242,6 +242,9 @@
     <string name="advanced_hide">Nascondi i dettagli avanzati</string>
     <string name="cat_server">Collegamento</string>
     <string name="cat_notifications">Avvisi e notifiche</string>
+    <string name="cat_licenses">Licenze</string>
+    <string name="sum_licenses">software di altri usato nell\'app</string>
+    <string name="licenses_intro">NanoVoice usa librerie, modelli e un carattere fatti da altri, ognuno con la sua licenza. Qui c\'è l\'elenco (NOTICE) e i testi completi.</string>
     <string name="cat_permissions">Cosa può fare sul telefono</string>
     <string name="theme_label">Tema</string>
     <string name="theme_system">Automatico</string>

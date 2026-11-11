@@ -2,8 +2,8 @@ NanoVoice
 Copyright 2026 the NanoVoice authors
 Licensed under the Apache License, Version 2.0 (see LICENSE).
 
-Third-party components. They keep their own licences; this list is for attribution and is not a substitute
-for the licence texts distributed with each component.
+Third-party components. They keep their own licences; their texts are in docs/licenses/ (and LICENSE for
+Apache-2.0), and in the app under Impostazioni, Licenze.
 
 Included in the app (libraries)
   Kotlin, kotlinx.coroutines, kotlinx.serialization    Apache-2.0
@@ -11,10 +11,12 @@ Included in the app (libraries)
   OkHttp                                               Apache-2.0
   ZXing core                                           Apache-2.0
   Vosk Android (com.alphacephei:vosk-android)          Apache-2.0
-  JNA (a dependency of Vosk)                           LGPL-2.1-or-later or Apache-2.0, at your choice
+  JNA (a dependency of Vosk)                           LGPL-2.1-or-later or Apache-2.0, at your choice: used under
+                                                       Apache-2.0 (docs/licenses/JNA-LICENSE.txt)
   sherpa-onnx (AAR, downloaded and hash-checked at build time) and the ONNX Runtime it links  Apache-2.0 and MIT
+                                                       (docs/licenses/ONNX-Runtime-MIT.txt)
   UnifiedPush connector                                Apache-2.0
-  CommonMark Java and its GFM extensions               BSD-2-Clause
+  CommonMark Java and its GFM extensions               BSD-2-Clause (docs/licenses/CommonMark-BSD-2-Clause.txt)
 
 Included in the repository
   Comfortaa (app/src/main/res/font/comfortaa.ttf)      SIL Open Font License 1.1, see docs/licenses/Comfortaa-OFL.txt

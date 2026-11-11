@@ -72,6 +72,7 @@ enum class SettingsPage(val title: Int) {
     Notifications(R.string.cat_notifications),
     Appearance(R.string.cat_appearance),
     Updates(R.string.cat_updates),
+    Licenses(R.string.cat_licenses),
 }
 
 /** Settings as a list of categories; each opens its own page. Changes are saved when a page is left. */
@@ -348,6 +349,7 @@ fun SettingsScreen(
                                     dot = badge,
                                 ) { pageName = SettingsPage.Updates.name }
                             }
+                            CategoryRow(R.string.cat_licenses, stringResource(R.string.sum_licenses)) { pageName = SettingsPage.Licenses.name }
                         }
                         // The messages themselves, last: the one that deletes away from the rest, and asked first.
                         CategoryGroup {
@@ -377,6 +379,7 @@ fun SettingsScreen(
                         }
                     }
                     SettingsPage.Updates -> if (updates != null) UpdatesPage(updates)
+                    SettingsPage.Licenses -> LicensesPage()
                     SettingsPage.Appearance -> Card {
                         Text(stringResource(R.string.theme_label), style = MaterialTheme.typography.titleMedium)
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -884,3 +887,31 @@ fun statusLabel(status: AgentStatus): String = stringResource(
         AgentStatus.NeedsVpn -> R.string.status_needs_vpn
     },
 )
+
+/**
+ * The licences of what the app is made with, as shipped in the APK (assets/licenses: the NOTICE first, then each
+ * text): BSD, MIT and Apache ask for their notice to go with the app, the font's OFL with the font.
+ */
+@Composable
+private fun LicensesPage() {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val files = remember {
+        context.assets.list("licenses").orEmpty().sortedWith(compareBy({ it != "NOTICE.txt" }, { it.lowercase() }))
+    }
+    var open by remember { mutableStateOf<String?>(null) }
+    Card {
+        Hint(R.string.licenses_intro)
+        for (name in files) {
+            TextButton(onClick = { open = if (open == name) null else name }) { Text(name.removeSuffix(".txt")) }
+            if (open == name) {
+                val text = remember(name) { context.assets.open("licenses/$name").bufferedReader().use { it.readText() } }
+                androidx.compose.foundation.text.selection.SelectionContainer {
+                    Text(
+                        text,
+                        style = MaterialTheme.typography.bodySmall.copy(fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace),
+                    )
+                }
+            }
+        }
+    }
+}
