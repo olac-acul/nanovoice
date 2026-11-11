@@ -170,6 +170,9 @@ class MainActivity : ComponentActivity() {
                 var contactsGranted by remember { mutableStateOf(hasContactsPermission()) }
                 var contactsBlocked by remember { mutableStateOf(false) }
                 var notificationsAllowed by remember { mutableStateOf(container.notifier.canNotify()) }
+                // Asked of Android once and on each return to the app (ntfy installed meanwhile), not on every frame: the
+                // settings screen redraws many times a second while a model downloads.
+                var pushDistributorAvailable by remember { mutableStateOf(container.push.distributors().isNotEmpty()) }
                 val notificationsLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { notificationsAllowed = it }
                 val contactsLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
                     contactsGranted = it
@@ -183,6 +186,7 @@ class MainActivity : ComponentActivity() {
                     contactsGranted = hasContactsPermission()
                     if (contactsGranted) contactsBlocked = false
                     notificationsAllowed = container.notifier.canNotify()
+                    pushDistributorAvailable = container.push.distributors().isNotEmpty()
                     onPauseOrDispose {}
                 }
 
@@ -260,7 +264,7 @@ class MainActivity : ComponentActivity() {
                         contactsGranted = contactsGranted,
                         onRequestContacts = { contactsLauncher.launch(Manifest.permission.READ_CONTACTS) },
                         pushActive = settings.pushEndpoint.isNotEmpty(),
-                        pushDistributorAvailable = container.push.distributors().isNotEmpty(),
+                        pushDistributorAvailable = pushDistributorAvailable,
                         notificationsAllowed = notificationsAllowed,
                         onEnablePush = { container.push.enable(this@MainActivity) },
                         onDisablePush = container.push::disable,

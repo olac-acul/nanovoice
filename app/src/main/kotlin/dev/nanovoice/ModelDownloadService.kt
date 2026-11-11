@@ -17,6 +17,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
@@ -73,12 +75,16 @@ class ModelDownloadService : Service() {
                         container.downloadState(key).map { downloadNotice(running.values.toList(), it) }
                     }
                     .distinctUntilChanged()
+                    // Android drops updates past about five a second (a fast download changes its percent many times a
+                    // second): one update a second at most, always the latest.
+                    .conflate()
                     .collect { notice ->
                         if (notice == null) {
                             stopForeground(STOP_FOREGROUND_REMOVE)
                             stopSelf()
                         } else {
                             manager.notify(NOTIFICATION_ID, notification(notice))
+                            delay(UPDATE_EVERY_MS)
                         }
                     }
             }
@@ -124,6 +130,7 @@ class ModelDownloadService : Service() {
         private const val TAG = "ModelDownloadService"
         private const val CHANNEL = "model_downloads"
         private const val NOTIFICATION_ID = 7101
+        private const val UPDATE_EVERY_MS = 1000L
 
         /** Started with each install from the app's screens; it ends itself when no download is left. */
         fun start(context: Context) {
