@@ -189,7 +189,7 @@ class ImageSearchActivity : ComponentActivity() {
     }
 
     private fun openInBrowser() {
-        val url = web?.url?.takeIf { it.startsWith("https://") } ?: return
+        val url = web?.url?.let { dev.nanovoice.core.net.LinkPolicy.webLink(it, httpsOnly = true)?.url } ?: return
         try {
             startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
         } catch (_: ActivityNotFoundException) {
@@ -219,11 +219,8 @@ class ImageSearchActivity : ComponentActivity() {
 
         private fun searchDir(context: Context) = File(context.cacheDir, "search")
 
-        internal fun isTinEye(url: String): Boolean {
-            val u = runCatching { Uri.parse(url) }.getOrNull() ?: return false
-            val host = u.host?.lowercase() ?: return false
-            return u.scheme == "https" && (host == "tineye.com" || host.endsWith(".tineye.com"))
-        }
+        internal fun isTinEye(url: String): Boolean =
+            dev.nanovoice.core.net.LinkPolicy.webLink(url, httpsOnly = true)?.isOn("tineye.com") == true
 
         /** Opens the search for [image]; from a non-activity context (an agent action) in a new task. */
         fun open(context: Context, image: AgentImage, engine: Engine) {

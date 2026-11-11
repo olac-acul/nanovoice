@@ -1,5 +1,6 @@
 package dev.nanovoice
 
+import dev.nanovoice.core.net.LinkPolicy
 import dev.nanovoice.agent.ActionHandler
 import dev.nanovoice.agent.ActionOutcome
 import dev.nanovoice.agent.ActionRequest
@@ -95,7 +96,7 @@ class PhoneActionHandler(
                 val url = safeLink(args.text("url") ?: return ActionOutcome(false, "manca il parametro url"))
                     ?: return ActionOutcome(false, "il link deve essere https, con un host e senza nome utente")
                 // The address the person is shown is the one that opens, not the text the agent sent.
-                PhoneAction.OpenUrl(url.toASCIIString())
+                PhoneAction.OpenUrl(url)
             }
             "play_music" -> PhoneAction.PlayMusic(args.text("query") ?: return ActionOutcome(false, "manca il parametro query"))
             "note" -> PhoneAction.Note(args.text("text") ?: return ActionOutcome(false, "manca il parametro text"), args.text("title"))
@@ -167,13 +168,8 @@ class PhoneActionHandler(
         private const val MAX_OPTIONS = 5
         private const val MAX_OPTION = 60
 
-        /**
-         * An https link with a host and no user name ("https://bank.example.com@other.test" opens other.test), or null.
-         * java.net.URI is strict: what it accepts, Android's Uri reads with the same host.
-         */
-        internal fun safeLink(raw: String): java.net.URI? = runCatching { java.net.URI(raw) }.getOrNull()?.takeIf {
-            it.scheme.equals("https", ignoreCase = true) && !it.host.isNullOrBlank() && it.rawUserInfo == null
-        }
+        /** An https link with a host and no user name, in the form that opens (see [LinkPolicy]), or null. */
+        internal fun safeLink(raw: String): String? = LinkPolicy.webLink(raw, httpsOnly = true)?.url
 
         /** Always available: the agent asks the person to approve a change, or to choose (see [ActionConsent]). */
         val CONFIRM = setOf("confirm", "choose")

@@ -37,14 +37,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.nanovoice.LinkPreview
+import dev.nanovoice.core.net.LinkPolicy
 import dev.nanovoice.LinkPreviews
 import dev.nanovoice.R
 
-/** The first web address in [text], or null. */
-fun firstUrl(text: String): String? = findUrls(text).firstOrNull()?.let { range ->
-    val shown = text.substring(range)
-    if (shown.startsWith("www.", ignoreCase = true)) "https://$shown" else shown
-}
+/** The first web address in [text], in the form that opens ([LinkPolicy]), or null. */
+fun firstUrl(text: String): String? = findUrls(text).firstOrNull()?.let { LinkPolicy.webLinkInText(text.substring(it))?.url }
 
 /** A wider picture than this goes full width under the text; a squarer one is a thumbnail beside it. */
 private const val WIDE_IMAGE = 1.4f
@@ -57,7 +55,7 @@ private const val WIDE_IMAGE = 1.4f
 fun LinkPreviewCard(url: String, previews: LinkPreviews, modifier: Modifier = Modifier, autoLoad: Boolean = true) {
     // A link the agent wrote is fetched only after a tap: the download itself would tell the site that the phone saw it.
     var wanted by rememberSaveable(url) { mutableStateOf(autoLoad) }
-    val host = remember(url) { runCatching { java.net.URI(url).host }.getOrNull().orEmpty().removePrefix("www.") }
+    val host = remember(url) { LinkPolicy.webLink(url)?.shownHost.orEmpty() }
     val accent = if (LocalContentColor.current == MaterialTheme.colorScheme.onSurface) MaterialTheme.colorScheme.primary else LocalContentColor.current
     if (!wanted) {
         Row(

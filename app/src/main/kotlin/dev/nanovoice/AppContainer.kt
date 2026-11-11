@@ -12,7 +12,12 @@ import dev.nanovoice.voice.SpokenOutput
 import dev.nanovoice.voice.SherpaSpokenOutput
 import dev.nanovoice.voice.VoiceLibrary
 import dev.nanovoice.voice.VoskModels
+import dev.nanovoice.voice.ModelState
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.flow.map
 import dev.nanovoice.wake.WakeWordService
 import dev.nanovoice.voice.FilesInstaller
@@ -29,6 +34,9 @@ import java.util.Locale
 
 /** Manual dependency injection. Italian is the only supported locale for now. */
 class AppContainer(context: Context) {
+    /** The application's context, for what runs after construction (model downloads). */
+    private val app: Context = context.applicationContext
+
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     /**
      * One HTTP client for the app: its connections and threads are shared; each use derives its own settings from it
@@ -116,6 +124,9 @@ class AppContainer(context: Context) {
     /** The conversation on screen, kept across restarts of the app (private files, no backup). */
     val chatStore = ChatStore(File(context.filesDir, "chat/conversation.json"))
     val inbox = Inbox(File(context.filesDir, "chat/alerts.json"), scope)
+
+    /** Files the agent sends on its own, kept until the app's chat shows them (never in a backup, as the chat). */
+    val fileInbox = FileInbox(File(context.filesDir, "chat/files"))
     private val sherpa = SherpaSpokenOutput(context, voices, settingsStore.settings.map { it.voiceId }, scope, phrases.fixedPhrases)
     val spokenOutput: SpokenOutput = sherpa
     val voskModels = ModelManager(File(context.filesDir, "vosk"), VoskModels.ITALIAN_SMALL)
@@ -151,20 +162,49 @@ class AppContainer(context: Context) {
                 if (notifier.shouldNotify()) if (alert != null) notifier.showAlert(alert) else notifier.showAgentMessage(text)
             }
         }
+        // Files the agent sends on its own: kept for the app's chat, even if it is closed and the process ends.
+        scope.launch {
+            connection.files.collect { file ->
+                fileInbox.receive(file)
+                if (notifier.shouldNotify()) notifier.showAgentFile(file)
+            }
+        }
     }
 
-    fun installVoskModel() {
-        scope.launch { voskModels.install() }
+    private val _downloading = MutableStateFlow<Map<String, String>>(emptyMap())
+
+    /** The model installs running now, by key, with the name their notification shows ([ModelDownloadService]). */
+    val downloading: StateFlow<Map<String, String>> = _downloading
+
+    /** The state of the install with [key] (see [download]). */
+    fun downloadState(key: String): Flow<ModelState?> = when (key) {
+        VOSK -> voskModels.state
+        PARAKEET -> parakeetModels.state
+        else -> voices.states.map { it[key.removePrefix(VOICE)] }
     }
 
-    fun installParakeet() {
-        scope.launch { parakeetModels.install() }
+    /** Runs [install] with the foreground service up, so the download is not cut short when the app leaves the screen. */
+    private fun download(key: String, name: String, install: suspend () -> Unit) {
+        _downloading.update { it + (key to name) }
+        ModelDownloadService.start(app)
+        scope.launch {
+            try {
+                install()
+            } finally {
+                _downloading.update { it - key }
+            }
+        }
     }
+
+    fun installVoskModel() = download(VOSK, app.getString(R.string.download_name_vosk)) { voskModels.install() }
+
+    fun installParakeet() = download(PARAKEET, app.getString(R.string.download_name_parakeet)) { parakeetModels.install() }
 
     fun deleteParakeet() = parakeetModels.delete()
 
     fun installVoice(id: String) {
-        scope.launch { voices.install(id) }
+        val name = voices.spec(id)?.displayName ?: return
+        download(VOICE + id, app.getString(R.string.download_name_voice, name)) { voices.install(id) }
     }
 
     fun deleteVoice(id: String) = voices.delete(id)
@@ -204,3 +244,8 @@ class AppContainer(context: Context) {
 
     fun takeHandOver(): List<ChatMessage>? = handedOver.also { handedOver = null }
 }
+
+/** Keys of the model installs in [AppContainer.downloading]: a voice's is [VOICE] followed by its id. */
+private const val VOSK = "vosk"
+private const val PARAKEET = "parakeet"
+private const val VOICE = "voice:"

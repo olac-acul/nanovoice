@@ -87,12 +87,16 @@ class ChatViewModel(
     private val chatStore: ChatStore? = null,
     /** Where the agent's own messages are sorted into late answers and alerts; none in tests (they come to the chat). */
     private val inbox: Inbox? = null,
+    /** Where the files the agent sends on its own wait for this chat; none in tests (they come straight to the chat). */
+    private val fileInbox: FileInbox? = null,
     /**
      * The assistant sheet: a conversation of its own, kept nowhere and starting empty. What the agent sends on its own
      * (alerts, late answers, files, the end of a pause) belongs to the app's chat, not here. So nothing of the app's
      * chat can show over the lock screen, and handing the sheet over to the app adds only what was said in it.
      */
     private val sheet: Boolean = false,
+    /** Time since boot, for the repeat window of the agent's replies; tests replace it (no Android clock there). */
+    private val elapsedRealtime: () -> Long = { android.os.SystemClock.elapsedRealtime() },
 ) : ViewModel() {
     /** The settings, for the screens that depend on them (link previews). */
     val appSettings: StateFlow<AppSettings> get() = settings
@@ -299,8 +303,6 @@ class ChatViewModel(
             viewModelScope.launch { inbox.lateAnswers.collect { if (!isLocked() && !repeatsLastReply(it)) add(it, fromUser = false) } }
             viewModelScope.launch { inbox.arrivals.collect { if (!isLocked()) addAlertLine(it) } }
         }
-        // Files the agent sends on its own (a chart with a recap) go to the chat, as its late answers do.
-        viewModelScope.launch { connection.files.collect { showFile(it) } }
         // The pause is over: the chat starts over now, not after the next request; once a reply still coming has ended.
         viewModelScope.launch {
             connection.conversationIdle.collect { idle ->
@@ -660,7 +662,7 @@ class ChatViewModel(
 
     private fun repeatsLastReply(text: String): Boolean {
         val last = _messages.value.lastOrNull { !it.fromUser && !it.notice } ?: return false
-        return last.text.trim() == text.trim() && android.os.SystemClock.elapsedRealtime() - lastReplyAt < REPEAT_WINDOW_MS
+        return last.text.trim() == text.trim() && elapsedRealtime() - lastReplyAt < REPEAT_WINDOW_MS
     }
 
     private fun add(
@@ -672,7 +674,7 @@ class ChatViewModel(
         barcode: String? = null,
         failed: Boolean = false,
     ): Long {
-        if (!fromUser) lastReplyAt = android.os.SystemClock.elapsedRealtime()
+        if (!fromUser) lastReplyAt = elapsedRealtime()
         val id = nextId++
         _messages.update { list ->
             val all = list + ChatMessage(id, text, fromUser, image, photo, quote = quote, barcode = barcode, failed = failed)
@@ -716,8 +718,32 @@ class ChatViewModel(
     }
 
     private fun replace(id: Long, text: String, failed: Boolean = false) {
-        lastReplyAt = android.os.SystemClock.elapsedRealtime()
+        lastReplyAt = elapsedRealtime()
         _messages.update { list -> list.map { if (it.id == id) it.copy(text = text, failed = failed) else it } }
+    }
+
+    // Last in the class: the files already waiting are shown at once, and showing one uses everything declared above.
+    init {
+        if (!sheet) takeFiles()
+    }
+
+    /**
+     * Files the agent sends on its own (a chart with a recap) go to the app's chat, as its late answers do. Each leaves
+     * the file inbox only once shown: a chat closed while decoding it leaves it there for the next one.
+     */
+    private fun takeFiles() {
+        if (fileInbox == null) {
+            viewModelScope.launch { connection.files.collect { showFile(it) } }
+            return
+        }
+        viewModelScope.launch {
+            fileInbox.pending.collect { waiting ->
+                for (item in waiting) {
+                    showFile(item.file)
+                    fileInbox.remove(item.id)
+                }
+            }
+        }
     }
 }
 

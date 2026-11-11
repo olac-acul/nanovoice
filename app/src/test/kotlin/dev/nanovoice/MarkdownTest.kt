@@ -21,7 +21,7 @@ class MarkdownTest {
         assertEquals(
             listOf(
                 Plain("Il "), Bold(listOf(Plain("treno"))), Plain(" parte "), Italic(listOf(Plain("presto"))),
-                Plain(", vedi "), LinkTo("https://transit.example.org", listOf(Plain("orari"))), Plain(" e "), CodeSpan("ncl"),
+                Plain(", vedi "), LinkTo("https://transit.example.org/", listOf(Plain("orari"))), Plain(" e "), CodeSpan("ncl"),
             ),
             inlines("Il **treno** parte *presto*, vedi [orari](https://transit.example.org) e `ncl`"),
         )
@@ -37,6 +37,19 @@ class MarkdownTest {
         )
         assertEquals(listOf(LinkTo("https://example.org/", listOf(Plain("www.example.org")))), inlines("[www.example.org](https://example.org/)"))
         assertEquals(listOf(LinkTo("mailto:a@example.com", listOf(Plain("scrivimi")))), inlines("[scrivimi](mailto:a@example.com)"))
+    }
+
+    @Test fun theHostShownIsTheOneThatOpens() {
+        // Characters java.net.URI refuses (SA-06): the link opens in its canonical form, and its real host shows.
+        assertEquals(
+            listOf(LinkTo("https://evil.example/%7Bx%7D", listOf(Plain("www.miabanca.it"), Plain(" (evil.example)")))),
+            inlines("[www.miabanca.it](https://evil.example/{x})"),
+        )
+        // A user name before the host only deceives: no link at all.
+        assertEquals(listOf(Plain("banca.it")), inlines("[banca.it](https://banca.it@evil.test/)"))
+        // The same site written with or without "www." and with an international name is no mismatch.
+        assertEquals(listOf(LinkTo("https://www.città.it/".let { "https://www.${java.net.IDN.toASCII("città.it")}/" }, listOf(Plain("città.it")))),
+            inlines("[città.it](https://www.città.it/)"))
     }
 
     @Test fun aPictureIsItsDescriptionAndRawHtmlStaysText() {
@@ -121,7 +134,7 @@ class MarkdownTest {
 
     @Test fun copiedTextHasNoSymbolsButKeepsTheAddresses() {
         assertEquals(
-            "Domani\nIl treno parte presto, vedi orari (https://transit.example.org).\n• pranzo\n• cena\n> nota",
+            "Domani\nIl treno parte presto, vedi orari (https://transit.example.org/).\n• pranzo\n• cena\n> nota",
             plainText("## Domani\nIl **treno** parte *presto*, vedi [orari](https://transit.example.org).\n\n- pranzo\n- cena\n\n> nota"),
         )
         assertEquals("vai su https://x.org", plainText("vai su [https://x.org](https://x.org)"))

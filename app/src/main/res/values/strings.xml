@@ -201,6 +201,17 @@
     <string name="contacts_grant">Consenti l\'accesso ai contatti</string>
     <string name="notif_private">Nuovo messaggio dal tuo assistente</string>
     <string name="notif_channel">Messaggi dell\'assistente</string>
+    <string name="download_channel">Download dei modelli vocali</string>
+    <string name="download_title">Download in corso</string>
+    <string name="download_models">Modelli vocali</string>
+    <string name="download_starting">%1$s: inizio…</string>
+    <string name="download_progress">%1$s: %2$d%%</string>
+    <string name="download_unpacking">%1$s: ultimi passaggi…</string>
+    <string name="download_name_vosk">Modello italiano</string>
+    <string name="download_name_parakeet">Trascrizione accurata (Parakeet)</string>
+    <string name="download_name_voice">Voce %1$s</string>
+    <string name="notif_agent_picture">L\'assistente ti ha mandato un\'immagine: «%1$s». La trovi nella chat.</string>
+    <string name="notif_agent_file">L\'assistente ti ha mandato il file «%1$s». Lo trovi nella chat.</string>
     <string name="push_hint">Come funziona: ad app chiusa il server sveglia NanoVoice attraverso un\'app UnifiedPush, come ntfy. Il segnale di risveglio non contiene testo: il messaggio arriva poi dal tuo server.</string>
     <string name="alerts_state_silent">Le notifiche sono spente: gli avvisi restano nella campanella, ma il telefono non li segnala.</string>
     <string name="alerts_state_open_only">Ora gli avvisi arrivano solo quando NanoVoice è aperta. Per riceverli sempre serve l\'app gratuita ntfy.</string>

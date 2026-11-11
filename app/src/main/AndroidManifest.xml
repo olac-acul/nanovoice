@@ -4,6 +4,7 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <!-- The barcode scanner's live camera; asked only when it is opened (and for taking a photo). -->
@@ -46,6 +47,10 @@
         <service android:name=".wake.WakeWordService"
             android:exported="false"
             android:foregroundServiceType="microphone" />
+
+        <service android:name=".ModelDownloadService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
 
         <activity android:name=".assistant.AssistantActivity"
             android:exported="false"

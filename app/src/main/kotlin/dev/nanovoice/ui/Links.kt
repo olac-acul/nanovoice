@@ -1,6 +1,7 @@
 package dev.nanovoice.ui
 
 import androidx.compose.ui.graphics.Color
+import dev.nanovoice.core.net.LinkPolicy
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.SpanStyle
@@ -31,8 +32,9 @@ fun linkified(text: String, linkColor: Color): AnnotatedString {
         for (range in urls) {
             append(text.substring(pos, range.first))
             val shown = text.substring(range)
-            val target = if (shown.startsWith("www.", ignoreCase = true)) "https://$shown" else shown
-            withLink(LinkAnnotation.Url(target, TextLinkStyles(SpanStyle(color = linkColor, textDecoration = TextDecoration.Underline)))) { append(shown) }
+            val target = LinkPolicy.webLinkInText(shown)?.url
+            if (target == null) append(shown)
+            else withLink(LinkAnnotation.Url(target, TextLinkStyles(SpanStyle(color = linkColor, textDecoration = TextDecoration.Underline)))) { append(shown) }
             pos = range.last + 1
         }
         append(text.substring(pos))

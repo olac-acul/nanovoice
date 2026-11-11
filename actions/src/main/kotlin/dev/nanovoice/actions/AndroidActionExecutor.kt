@@ -296,9 +296,9 @@ class AndroidActionExecutor(
     }
 
     private fun openUrl(url: String): ActionResult {
-        val uri = Uri.parse(url.trim())
-        if (uri.scheme != "https" || uri.host.isNullOrBlank()) return ActionResult(false, phrases.badLink)
-        return view(uri, phrases.openingLink, phrases.noBrowser)
+        // Checked again here, for any caller: the one rule of the app, and the form Android then reads alike.
+        val link = dev.nanovoice.core.net.LinkPolicy.webLink(url, httpsOnly = true) ?: return ActionResult(false, phrases.badLink)
+        return view(Uri.parse(link.url), phrases.openingLink, phrases.noBrowser)
     }
 
     private fun view(uri: Uri, done: String, missing: String): ActionResult = try {

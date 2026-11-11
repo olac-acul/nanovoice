@@ -263,8 +263,8 @@ private fun styled(inlines: List<Inline>, style: MdStyle, reserve: String?): Ann
         for (range in findUrls(text)) {
             append(text.substring(pos, range.first))
             val shown = text.substring(range)
-            val target = if (shown.startsWith("www.", ignoreCase = true)) "https://$shown" else shown
-            withLink(LinkAnnotation.Url(target, links)) { append(shown) }
+            val target = dev.nanovoice.core.net.LinkPolicy.webLinkInText(shown)?.url
+            if (target == null) append(shown) else withLink(LinkAnnotation.Url(target, links)) { append(shown) }
             pos = range.last + 1
         }
         append(text.substring(pos))

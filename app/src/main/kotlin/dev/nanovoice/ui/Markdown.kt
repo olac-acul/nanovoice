@@ -1,5 +1,6 @@
 package dev.nanovoice.ui
 
+import dev.nanovoice.core.net.LinkPolicy
 import org.commonmark.ext.gfm.strikethrough.Strikethrough
 import org.commonmark.ext.gfm.strikethrough.StrikethroughExtension
 import org.commonmark.ext.gfm.tables.TableBlock
@@ -119,18 +120,21 @@ private fun inline(node: Node): List<Inline> = when (node) {
     is Code -> listOf(Inline.CodeSpan(node.literal))
     is Link -> {
         val label = inlinesOf(node)
-        if (safeLink(node.destination)) {
-            val plain = label.plainText()
-            val shown = shownLabel(plain, node.destination)
-            listOf(Inline.LinkTo(node.destination, if (shown == plain) label else label + Inline.Plain(shown.removePrefix(plain))))
-        } else {
-            label
+        val web = LinkPolicy.webLink(node.destination)
+        when {
+            web != null -> {
+                val plain = label.plainText()
+                val shown = shownLabel(plain, web.host)
+                listOf(Inline.LinkTo(web.url, if (shown == plain) label else label + Inline.Plain(shown.removePrefix(plain))))
+            }
+            isMailLink(node.destination) -> listOf(Inline.LinkTo(node.destination, label))
+            else -> label
         }
     }
     // A picture is not shown inline: its description, tappable when the address is a web one.
     is Image -> {
         val alt = inlinesOf(node).plainText().ifBlank { "immagine" }
-        listOf(Inline.LinkTo(node.destination.takeIf(::safeLink), listOf(Inline.Plain("[$alt]"))))
+        listOf(Inline.LinkTo(LinkPolicy.webLink(node.destination)?.url, listOf(Inline.Plain("[$alt]"))))
     }
     is HtmlInline -> listOf(Inline.Plain(node.literal))
     else -> inlinesOf(node)
@@ -167,7 +171,10 @@ private fun List<Inline>.withAddresses(): String = joinToString("") { i ->
     when (i) {
         is Inline.LinkTo -> {
             val label = i.children.plainText()
-            if (i.url == null || i.url == label || label.contains(i.url)) label else "$label (${i.url})"
+            // A label that is the address itself (as written, or in the form that opens) is not repeated.
+            val sameAddress = i.url == null || i.url == label || label.contains(i.url) ||
+                LinkPolicy.webLinkInText(label.trim())?.url == i.url
+            if (sameAddress) label else "$label (${i.url})"
         }
         is Inline.Bold -> i.children.withAddresses()
         is Inline.Italic -> i.children.withAddresses()
@@ -194,14 +201,20 @@ private fun Block.plain(indent: String): String = when (this) {
     Block.Rule -> "$indent———"
 }
 
-/** Only web and mail links: a file:, intent: or javascript: target is shown as plain text. */
-internal fun safeLink(url: String): Boolean =
-    url.startsWith("https://", true) || url.startsWith("http://", true) || url.startsWith("mailto:", true)
+/**
+ * Besides web links ([LinkPolicy]), only mail links: a file:, intent: or javascript: target is shown as plain text.
+ */
+internal fun isMailLink(url: String): Boolean =
+    url.startsWith("mailto:", true) && url.length > "mailto:".length && url.none { it.isWhitespace() || it.isISOControl() }
 
-/** A label that looks like an address but points elsewhere gets the real host next to it. */
-internal fun shownLabel(label: String, url: String): String {
-    val realHost = runCatching { java.net.URI(url).host }.getOrNull()?.lowercase()?.removePrefix("www.") ?: return label
-    val labelHost = Regex("""^(?:https?://)?([\w.-]+\.[a-z]{2,})""", RegexOption.IGNORE_CASE).find(label.trim())
-        ?.groupValues?.get(1)?.lowercase()?.removePrefix("www.") ?: return label
-    return if (labelHost == realHost || realHost.endsWith(".$labelHost")) label else "$label ($realHost)"
+/**
+ * A label that looks like an address but points elsewhere gets the real host next to it. [realHost] is the host of
+ * the link as it opens ([LinkPolicy]); an international name in the label is compared in the same form.
+ */
+internal fun shownLabel(label: String, realHost: String): String {
+    val real = realHost.lowercase().removePrefix("www.")
+    val labelHost = Regex("""^(?:https?://)?([\p{L}\p{N}_.-]+\.[\p{L}]{2,})""", RegexOption.IGNORE_CASE).find(label.trim())
+        ?.groupValues?.get(1)?.lowercase()?.removePrefix("www.")
+        ?.let { runCatching { java.net.IDN.toASCII(it) }.getOrNull() } ?: return label
+    return if (labelHost == real || real.endsWith(".$labelHost")) label else "$label ($real)"
 }

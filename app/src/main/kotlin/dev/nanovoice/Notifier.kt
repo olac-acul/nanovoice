@@ -34,6 +34,11 @@ class Notifier(private val context: Context) {
 
     fun showAgentMessage(text: String) = show(text, MainActivity.openIntent(context), nextId.getAndIncrement())
 
+    /** A file the agent sent on its own: kept for the chat ([FileInbox]), which the tap opens. */
+    fun showAgentFile(file: dev.nanovoice.agent.AgentFile) = showAgentMessage(
+        context.getString(if (file.image != null) R.string.notif_agent_picture else R.string.notif_agent_file, file.name),
+    )
+
     /** An alert: its title over its text; a tap opens it in "Avvisi". Taken away once it is read in the app. */
     fun showAlert(alert: Alert) =
         show(alert.text, MainActivity.openAlertIntent(context, alert.id), ALERT_IDS + alert.id.toInt(), title = alert.title)

@@ -62,14 +62,14 @@ class SheetConversationTest {
         override fun stopListening() {}
     }
 
-    private fun vm(store: ChatStore?, sheet: Boolean = false): ChatViewModel {
+    private fun vm(store: ChatStore?, sheet: Boolean = false, files: FileInbox? = null): ChatViewModel {
         val settings = MutableStateFlow(AppSettings())
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
         val connection = AgentConnection(scope, settings, { emptySet() }, { error("no client") })
         val engine = ChatEngine({ LocalRouter.forLocale(Locale.ITALIAN)!! }, executor, ItalianPhrases, connection, { 0L })
         return ChatViewModel(
             engine, connection, speech, ItalianPhrases, settings, stt, LinkPreviews(), ActionConsent(), {},
-            chatStore = store, sheet = sheet,
+            chatStore = store, fileInbox = files, sheet = sheet, elapsedRealtime = { 0L },
         )
     }
 
@@ -143,5 +143,17 @@ class SheetConversationTest {
         store.save(emptyList())
         assertFalse(bad.exists())
         assertFalse(file.exists())
+    }
+
+    @Test fun `a file sent while the app was closed shows in the app's chat, never in the sheet`() {
+        val files = FileInbox(File(dir, "chat/files"), io = Dispatchers.Unconfined)
+        kotlinx.coroutines.runBlocking { files.receive(dev.nanovoice.agent.AgentFile("riepilogo.pdf", null)) }
+        val sheet = vm(store = null, sheet = true, files = files)
+        assertEquals(emptyList(), sheet.messages.value)
+        assertEquals(1, files.pending.value.size)
+        val main = vm(ChatStore(File(dir, "chat/conversation.json")), files = files)
+        assertTrue(main.messages.value.single().text.contains("riepilogo.pdf"))
+        assertEquals(emptyList(), files.pending.value)
+        assertEquals(emptyList(), File(dir, "chat/files").listFiles()!!.toList())
     }
 }

@@ -69,10 +69,10 @@ class AgentConnection(
     /** What the agent says on its own, for the one place that sorts it (late answer or alert). */
     val notifications: Flow<String> = _notifications.receiveAsFlow()
 
-    // Taken by one chat: each file goes to the conversation once, even with the assistant's sheet open too.
+    // Kept until read, as the notifications: each file is taken once, by the container's file inbox (or, in tests, a chat).
     private val _files = Channel<AgentFile>(capacity = 8, onBufferOverflow = BufferOverflow.DROP_OLDEST)
 
-    /** Files the agent sends on its own (a chart with a scheduled recap), for the chat to show. */
+    /** Files the agent sends on its own (a chart with a scheduled recap), for [FileInbox] to keep for the chat. */
     val files: Flow<AgentFile> = _files.receiveAsFlow()
 
     private val _conversationIdle = MutableStateFlow(false)

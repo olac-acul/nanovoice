@@ -21,6 +21,7 @@ fun chatViewModelFactory(container: AppContainer, sheet: Boolean = false) = obje
         saveSettings = container.settingsStore::save,
         chatStore = container.chatStore.takeUnless { sheet },
         inbox = container.inbox.takeUnless { sheet },
+        fileInbox = container.fileInbox.takeUnless { sheet },
         sheet = sheet,
     ) as T
 }

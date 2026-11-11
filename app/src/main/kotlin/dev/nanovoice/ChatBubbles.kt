@@ -619,7 +619,7 @@ private fun MessageMenu(
     val color = MaterialTheme.colorScheme.onSurface
     val shown = remember(message.text, message.fromUser) { if (message.fromUser) message.text else plainText(message.text) }
     val link = remember(message.text) { firstUrl(message.text) }
-    val host = remember(link) { link?.let { runCatching { java.net.URI(it).host }.getOrNull() } }
+    val host = remember(link) { link?.let { dev.nanovoice.core.net.LinkPolicy.webLink(it)?.host } }
     NanoMenu(expanded = expanded, onDismiss = onDismiss) {
         NanoMenuItem(stringResource(R.string.msg_reply), { Icons.Reply(color) }) { onDismiss(); actions.reply(message) }
         if (!message.fromUser && message.image != null) {

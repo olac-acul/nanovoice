@@ -147,7 +147,7 @@ class PhoneActionHandlerTest {
         assertEquals(
             listOf(
                 PhoneAction.Media(PhoneAction.MediaCommand.Next), PhoneAction.Volume(percent = 40), PhoneAction.Volume(up = false),
-                PhoneAction.Flashlight(true), PhoneAction.Navigate("Piazza Navona, Roma"), PhoneAction.OpenUrl("https://example.org"),
+                PhoneAction.Flashlight(true), PhoneAction.Navigate("Piazza Navona, Roma"), PhoneAction.OpenUrl("https://example.org/"),
                 PhoneAction.SmsDraft("Mario", "Arrivo tra dieci minuti"), PhoneAction.CalendarDraft("Dentista", "2026-10-20T15:30"), PhoneAction.Battery,
                 PhoneAction.CalendarRead(14), PhoneAction.Location, PhoneAction.Notifications(5),
             ),
@@ -203,7 +203,7 @@ class PhoneActionHandlerTest {
             assertTrue(handler.handle("location", json(), REQ).ok)
         }
         assertEquals(emptyList(), asked)
-        assertEquals(listOf(PhoneAction.OpenUrl("https://it.wikipedia.org"), PhoneAction.Location), executed)
+        assertEquals(listOf(PhoneAction.OpenUrl("https://it.wikipedia.org/"), PhoneAction.Location), executed)
     }
 
     @Test fun confirmAsksTheAgentsQuestion() {
