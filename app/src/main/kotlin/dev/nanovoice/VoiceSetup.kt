@@ -10,6 +10,9 @@ import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -58,7 +61,7 @@ fun VoskModelSection(state: ModelState, onDownload: () -> Unit, showActions: Boo
                 LinearProgressIndicator(progress = { state.progress }, modifier = Modifier.fillMaxWidth())
             }
             ModelState.Installed -> {
-                Text(stringResource(R.string.vosk_installed))
+                Text(stringResource(R.string.vosk_installed), style = MaterialTheme.typography.bodyMedium)
             }
             is ModelState.Failed -> {
                 Text(stringResource(R.string.download_failed, state.message), color = MaterialTheme.colorScheme.error)
@@ -84,9 +87,9 @@ fun AccurateSttSection(
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(stringResource(R.string.accurate_stt_label), style = MaterialTheme.typography.titleMedium)
                 // What it changes for the person first; the engine, its license and its memory on request.
-                Text(stringResource(R.string.accurate_stt_hint), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(stringResource(R.string.accurate_stt_hint), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 if (details) {
-                    Text(stringResource(R.string.accurate_stt_details, size), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(stringResource(R.string.accurate_stt_details, size), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
             if (state == ModelState.Installed) Switch(checked = enabled, onCheckedChange = onEnabled)
@@ -99,7 +102,7 @@ fun AccurateSttSection(
                 LinearProgressIndicator(progress = { state.progress }, modifier = Modifier.fillMaxWidth())
             }
             is ModelState.Unpacking -> LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-            ModelState.Installed -> TextButton(onClick = onDelete) { Text(stringResource(R.string.accurate_stt_delete, size)) }
+            ModelState.Installed -> dev.nanovoice.ui.DangerTextButton(stringResource(R.string.accurate_stt_delete, size), onDelete)
             is ModelState.Failed -> {
                 Text(stringResource(R.string.download_failed, state.message), color = MaterialTheme.colorScheme.error)
                 Button(onClick = onDownload) { Text(stringResource(R.string.retry)) }
@@ -131,13 +134,18 @@ fun VoiceList(
         for (voice in voices) {
             val state = states[voice.id] ?: ModelState.NotInstalled
             val installed = state == ModelState.Installed
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            // The whole row is the choice: a screen reader says the voice's name with "selected", not a bare radio button.
+            val choice = if (hasAlternatives) {
+                Modifier.selectable(
+                    selected = voice.id == selectedId,
+                    enabled = installed || selectUninstalled,
+                    role = androidx.compose.ui.semantics.Role.RadioButton,
+                    onClick = { onSelect(voice.id) },
+                )
+            } else Modifier
+            Row(choice, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (hasAlternatives) {
-                    RadioButton(
-                        selected = voice.id == selectedId,
-                        onClick = { onSelect(voice.id) },
-                        enabled = installed || selectUninstalled,
-                    )
+                    RadioButton(selected = voice.id == selectedId, onClick = null, enabled = installed || selectUninstalled)
                 }
                 Column(modifier = Modifier.weight(1f)) {
                     Text("${voice.displayName} · ${voice.quality} · ${mb(voice.sizeBytes)} MB")
@@ -157,8 +165,17 @@ fun VoiceList(
                 if (showActions) {
                     when (state) {
                         ModelState.Installed -> Column(horizontalAlignment = Alignment.End) {
-                            if (onPreview != null) TextButton(onClick = { onPreview(voice.id) }) { Text(stringResource(R.string.listen)) }
-                            if (hasAlternatives) TextButton(onClick = { onDelete(voice.id) }) { Text(stringResource(R.string.delete)) }
+                            if (onPreview != null) {
+                                val listenLabel = stringResource(R.string.listen_named, voice.displayName)
+                                TextButton(onClick = { onPreview(voice.id) }, modifier = Modifier.semantics { contentDescription = listenLabel }) {
+                                    Text(stringResource(R.string.listen))
+                                }
+                            }
+                            if (hasAlternatives) dev.nanovoice.ui.DangerTextButton(
+                                stringResource(R.string.delete),
+                                { onDelete(voice.id) },
+                                description = stringResource(R.string.delete_named, voice.displayName),
+                            )
                         }
                         is ModelState.Downloading, is ModelState.Unpacking -> Unit
                         else -> TextButton(onClick = { onDownload(voice.id) }) { Text(stringResource(R.string.download)) }

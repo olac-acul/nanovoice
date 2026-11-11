@@ -30,6 +30,9 @@ import androidx.compose.ui.unit.dp
 import dev.nanovoice.ActionConsent
 import dev.nanovoice.ConsentRequest
 import dev.nanovoice.R
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 
 /**
  * The agent's question before a change, with Approva and Non approvare, or a choice with one button per option. A card, not a dialog: the chat stays usable, so
@@ -41,7 +44,8 @@ fun ConsentCard(request: ConsentRequest, onAnswer: (Boolean) -> Unit, modifier: 
         shape = MaterialTheme.shapes.large,
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary),
-        modifier = modifier.fillMaxWidth(),
+        // Said at once by a screen reader: unseen, it would be refused when its time runs out.
+        modifier = modifier.fillMaxWidth().semantics { liveRegion = LiveRegionMode.Assertive },
     ) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text(

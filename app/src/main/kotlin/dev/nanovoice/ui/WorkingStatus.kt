@@ -28,6 +28,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 
 /** What the agent is doing ("Cerco sul Web..."): a free line, not a message: a small orb breathes and the text colours flow. */
 @Composable
@@ -61,7 +64,12 @@ fun WorkingStatus(text: String, modifier: Modifier = Modifier) {
         label = "pulse",
     )
     val p = if (animate) pulse else 0f
-    Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+    // Said by a screen reader as it changes ("Cerco sul Web..."): with the keyboard open nothing else says it.
+    Row(
+        modifier = modifier.semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite },
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
         // A tiny orb, the same one as the microphone, breathing next to the text.
         Canvas(Modifier.size(24.dp)) {
             val c = center

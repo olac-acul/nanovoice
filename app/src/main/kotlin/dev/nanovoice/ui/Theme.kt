@@ -116,12 +116,14 @@ private val NanoTypography = Typography(
     headlineMedium = TextStyle(fontSize = 30.sp, lineHeight = 36.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = (-0.4).sp),
     headlineSmall = TextStyle(fontSize = 24.sp, lineHeight = 30.sp, fontWeight = FontWeight.Bold, letterSpacing = (-0.2).sp),
     titleLarge = TextStyle(fontSize = 20.sp, lineHeight = 26.sp, fontWeight = FontWeight.SemiBold),
-    titleMedium = TextStyle(fontSize = 16.sp, lineHeight = 22.sp, fontWeight = FontWeight.Medium),
+    titleMedium = TextStyle(fontSize = 16.sp, lineHeight = 22.sp, fontWeight = FontWeight.SemiBold),
+    titleSmall = TextStyle(fontSize = 14.sp, lineHeight = 20.sp, fontWeight = FontWeight.Medium),
     bodyLarge = TextStyle(fontSize = 16.sp, lineHeight = 24.sp),
     bodyMedium = TextStyle(fontSize = 14.sp, lineHeight = 21.sp),
     bodySmall = TextStyle(fontSize = 12.sp, lineHeight = 18.sp),
     labelLarge = TextStyle(fontSize = 14.sp, lineHeight = 20.sp, fontWeight = FontWeight.Medium),
     labelMedium = TextStyle(fontSize = 12.sp, lineHeight = 16.sp, fontWeight = FontWeight.Medium, letterSpacing = 0.4.sp),
+    labelSmall = TextStyle(fontSize = 12.sp, lineHeight = 16.sp, fontWeight = FontWeight.Medium),
 )
 
 private val NanoShapes = Shapes(
@@ -152,7 +154,9 @@ fun NanoTheme(mode: ThemeMode, dynamicColors: Boolean = false, content: @Composa
     }
     val dynamic = dynamicColors && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
     val scheme = when {
-        dynamic -> if (dark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+        // The system's danger colour is a pink close to its accent: a deletion would look like any link. Kept red.
+        dynamic -> if (dark) dynamicDarkColorScheme(context).copy(error = Color(0xFFFF6E61), onError = Color(0xFF690005))
+        else dynamicLightColorScheme(context).copy(error = Color(0xFFB3261E), onError = Color.White)
         dark -> DarkColors
         else -> LightColors
     }

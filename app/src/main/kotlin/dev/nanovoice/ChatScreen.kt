@@ -351,6 +351,7 @@ fun ChatScreen(
                 }
             }
             StatusBanner(status, onCheck = onCheckConnection, onOpenVpn = onOpenVpn)
+            ReplyAnnouncement(viewModel)
             Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
                 if (messages.isEmpty() && !showStatus && !showTyping) {
                     EmptyHint(modifier = Modifier.align(Alignment.Center))
@@ -558,6 +559,28 @@ private fun HelpSection(icon: @Composable (Color) -> Unit, title: Int, body: Int
  * stays clean), a thin moving line while connecting, and a card when the server cannot be used, with the way to the
  * server settings right where the problem shows. No server set yet is a choice, not a fault: a neutral card.
  */
+/**
+ * A reply that has arrived, said once by a screen reader (its start) when it is complete: not each piece while it is
+ * written, and nothing for the messages already there when the chat opens.
+ */
+@Composable
+private fun ReplyAnnouncement(viewModel: ChatViewModel) {
+    val resources = androidx.compose.ui.platform.LocalResources.current
+    val busy by viewModel.busy.collectAsState()
+    var wasBusy by remember { mutableStateOf(false) }
+    var said by remember { mutableStateOf("") }
+    LaunchedEffect(busy) {
+        if (wasBusy && !busy) {
+            val last = viewModel.messages.value.lastOrNull()
+            if (last != null && !last.fromUser && !last.notice && last.alertId == null && last.text.isNotBlank()) {
+                said = resources.getString(R.string.reply_arrived, last.text.take(160))
+            }
+        }
+        wasBusy = busy
+    }
+    Box(Modifier.size(1.dp).semantics { liveRegion = LiveRegionMode.Polite; contentDescription = said })
+}
+
 @Composable
 private fun StatusBanner(status: AgentStatus, onCheck: () -> Unit, onOpenVpn: () -> Unit) {
     val colors = MaterialTheme.colorScheme

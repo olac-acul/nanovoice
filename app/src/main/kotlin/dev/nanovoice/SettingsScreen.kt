@@ -60,6 +60,8 @@ import dev.nanovoice.ui.Icons
 import dev.nanovoice.voice.ModelState
 import dev.nanovoice.voice.TtsStatus
 import dev.nanovoice.voice.VoiceCatalog
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.stateDescription
 
 /** Pages by what the person wants done, not by component: the technical parts sit in "Dettagli avanzati". */
 enum class SettingsPage(val title: Int) {
@@ -273,9 +275,7 @@ fun SettingsScreen(
             title = { Text(stringResource(R.string.clear_title)) },
             text = { Text(stringResource(R.string.clear_body)) },
             confirmButton = {
-                TextButton(onClick = { confirmClear = false; toChat(onClearMessages) }) {
-                    Text(stringResource(R.string.clear_confirm), color = MaterialTheme.colorScheme.error)
-                }
+                dev.nanovoice.ui.DangerConfirmButton(stringResource(R.string.clear_confirm)) { confirmClear = false; toChat(onClearMessages) }
             },
             dismissButton = { TextButton(onClick = { confirmClear = false }) { Text(stringResource(R.string.cancel)) } },
         )
@@ -293,7 +293,11 @@ fun SettingsScreen(
                         .semantics { contentDescription = backLabel }.clickable(role = Role.Button, onClick = ::leave),
                     contentAlignment = Alignment.Center,
                 ) { Icons.Back(MaterialTheme.colorScheme.onSurface) }
-                Text(stringResource(page?.title ?: R.string.settings_title), style = MaterialTheme.typography.headlineSmall)
+                Text(
+                    stringResource(page?.title ?: R.string.settings_title),
+                    style = MaterialTheme.typography.headlineSmall,
+                    modifier = Modifier.semantics { heading() },
+                )
             }
             Column(
                 modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(bottom = 24.dp),
@@ -407,7 +411,7 @@ fun SettingsScreen(
                         Card {
                             Text(stringResource(R.string.voice_choose), style = MaterialTheme.typography.titleMedium)
                             if (ttsStatus == TtsStatus.NeedsVoice || ttsStatus == TtsStatus.Failed) {
-                                Text(stringResource(R.string.tts_unavailable), color = MaterialTheme.colorScheme.error)
+                                Status(R.string.tts_unavailable, problem = true)
                             }
                             VoiceList(
                                 voices = VoiceCatalog.all,
@@ -573,7 +577,7 @@ fun SettingsScreen(
                     // What happens to the alerts first, then what to do about it; how it works comes last.
                     SettingsPage.Notifications -> Card {
                         if (!notificationsAllowed) {
-                            Text(stringResource(R.string.alerts_state_silent), color = MaterialTheme.colorScheme.error)
+                            Status(R.string.alerts_state_silent, problem = true)
                             OutlinedButton(onClick = onRequestNotifications, modifier = Modifier.fillMaxWidth()) {
                                 Text(stringResource(R.string.push_allow_notifications))
                             }
@@ -582,16 +586,16 @@ fun SettingsScreen(
                         }
                         when {
                             pushActive -> {
-                                Text(stringResource(R.string.alerts_state_always))
+                                Status(R.string.alerts_state_always)
                                 OutlinedButton(onClick = onDisablePush, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.push_disable)) }
                             }
                             !pushDistributorAvailable -> {
-                                Text(stringResource(R.string.alerts_state_open_only))
+                                Status(R.string.alerts_state_open_only)
                                 OutlinedButton(onClick = onInstallNtfy, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.push_install_ntfy)) }
                                 Hint(R.string.push_after_install)
                             }
                             else -> {
-                                Text(stringResource(R.string.alerts_state_open_only))
+                                Status(R.string.alerts_state_open_only)
                                 OutlinedButton(onClick = onEnablePush, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.push_enable)) }
                             }
                         }
@@ -655,7 +659,7 @@ fun SettingsScreen(
                                 if (on) onOpenNotificationAccess()
                             }
                             if (refusedRead) {
-                                Text(stringResource(R.string.permission_refused), color = MaterialTheme.colorScheme.error)
+                                Status(R.string.permission_refused, problem = true)
                                 TextButton(onClick = onOpenAppSettings) { Text(stringResource(R.string.open_phone_settings)) }
                             }
                         }
@@ -663,10 +667,10 @@ fun SettingsScreen(
                             Text(stringResource(R.string.contacts_section), style = MaterialTheme.typography.titleMedium)
                             Hint(R.string.contacts_hint)
                             when {
-                                contactsGranted -> Text(stringResource(R.string.contacts_granted))
+                                contactsGranted -> Status(R.string.contacts_granted)
                                 // Refused for good: the button would do nothing, Android's settings can.
                                 contactsBlocked -> {
-                                    Text(stringResource(R.string.contacts_blocked), color = MaterialTheme.colorScheme.error)
+                                    Status(R.string.contacts_blocked, problem = true)
                                     OutlinedButton(onClick = onOpenAppSettings, modifier = Modifier.fillMaxWidth()) {
                                         Text(stringResource(R.string.open_phone_settings))
                                     }
@@ -713,7 +717,8 @@ private fun Card(content: @Composable () -> Unit) {
 private fun Advanced(content: @Composable () -> Unit) {
     var open by rememberSaveable { mutableStateOf(false) }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        TextButton(onClick = { open = !open }) {
+        val state = stringResource(if (open) R.string.state_open else R.string.state_closed)
+        TextButton(onClick = { open = !open }, modifier = Modifier.semantics { stateDescription = state }) {
             Text(stringResource(if (open) R.string.advanced_hide else R.string.advanced_show))
         }
         if (open) content()
@@ -722,7 +727,20 @@ private fun Advanced(content: @Composable () -> Unit) {
 
 @Composable
 private fun Hint(text: Int) {
-    Text(stringResource(text), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    Text(stringResource(text), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+}
+
+/**
+ * How a thing stands ("Accesso ai contatti consentito.", "È la versione più recente."): the size of the explanations,
+ * not of the titles; [problem] in the danger colour.
+ */
+@Composable
+private fun Status(text: Int, problem: Boolean = false) {
+    Text(
+        stringResource(text),
+        style = MaterialTheme.typography.bodyMedium,
+        color = if (problem) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
+    )
 }
 
 /**
@@ -782,7 +800,7 @@ private fun UpdatesPage(updates: AppUpdates) {
                     Hint(R.string.update_dev_signed)
                 }
             }
-            latest != null -> Text(stringResource(R.string.update_latest))
+            latest != null -> Status(R.string.update_latest)
         }
         when (val w = work) {
             UpdateWork.Checking -> LinearProgressIndicator(Modifier.fillMaxWidth())

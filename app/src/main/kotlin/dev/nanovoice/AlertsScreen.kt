@@ -46,6 +46,7 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import androidx.compose.ui.semantics.heading
 
 /** When an alert came, as the list says it: the time today, "ieri", otherwise the day. */
 internal fun alertWhen(time: Long, today: LocalDate, zone: ZoneId): String {
@@ -101,7 +102,11 @@ fun AlertsScreen(
                         .semantics { contentDescription = backLabel }.clickable(role = Role.Button, onClick = leave),
                     contentAlignment = Alignment.Center,
                 ) { Icons.Back(colors.onSurface) }
-                Text(stringResource(R.string.alerts_title), style = MaterialTheme.typography.headlineSmall, modifier = Modifier.weight(1f))
+                Text(
+                    stringResource(R.string.alerts_title),
+                    style = MaterialTheme.typography.headlineSmall,
+                    modifier = Modifier.weight(1f).semantics { heading() },
+                )
                 if (openId == null && alerts.isNotEmpty()) {
                     val moreLabel = stringResource(R.string.alerts_more)
                     Box {
@@ -147,7 +152,7 @@ fun AlertsScreen(
             title = { Text(stringResource(R.string.alerts_delete_all_title)) },
             text = { Text(stringResource(R.string.alerts_delete_all_body)) },
             confirmButton = {
-                TextButton(onClick = { confirmDeleteAll = false; onDeleteAll() }) { Text(stringResource(R.string.alerts_delete_all)) }
+                dev.nanovoice.ui.DangerConfirmButton(stringResource(R.string.alerts_delete_all)) { confirmDeleteAll = false; onDeleteAll() }
             },
             dismissButton = { TextButton(onClick = { confirmDeleteAll = false }) { Text(stringResource(R.string.cancel)) } },
         )

@@ -13,6 +13,8 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.interaction.DragInteraction
@@ -103,6 +105,8 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import androidx.compose.ui.semantics.onLongClick
+import androidx.compose.ui.semantics.stateDescription
 
 /**
  * The opening of a conversation the server started over: the headline ("Rieccoci.") as large as the empty chat's, and
@@ -146,10 +150,12 @@ private fun EarlierToggle(shown: Boolean, onToggle: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         HorizontalDivider(Modifier.weight(1f), color = line)
+        val state = stringResource(if (shown) R.string.state_open else R.string.state_closed)
         Row(
             modifier = Modifier
                 .clip(RoundedCornerShape(16.dp))
                 .clickable(role = Role.Button, onClick = onToggle)
+                .semantics { stateDescription = state }
                 .padding(horizontal = 12.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(4.dp),
@@ -498,7 +504,9 @@ private fun MessageBubble(
                     .widthIn(max = maxWidth)
                     .clip(shape)
                     .semantics { customActions = a11yActions }
-                    .combinedClickable(onClick = {}, onLongClickLabel = moreLabel, onLongClick = { menu = true }),
+                    // A long press opens the menu; a tap does nothing, so a screen reader offers no "double tap" on it.
+                    .pointerInput(Unit) { detectTapGestures(onLongPress = { menu = true }) }
+                    .semantics { onLongClick(moreLabel) { menu = true; true } },
             ) {
                 Column {
                     message.quote?.let { QuoteLine(it, content, Modifier.padding(start = 10.dp, end = 10.dp, top = 8.dp)) }

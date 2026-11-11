@@ -155,7 +155,7 @@ object ItalianPhrases : SpokenPhrases {
     override val noNotesApp = "Nextcloud Notes non è installato."
     override val requestInterrupted = "Risposta interrotta."
     override fun fileNotShown(name: String, tooBig: Boolean) =
-        if (tooBig) "L'agente ha mandato l'immagine «$name», troppo grande da mostrare qui." else "L'agente ha mandato il file «$name», che l'app non può aprire."
+        if (tooBig) "L'assistente ha mandato l'immagine «$name», troppo grande da mostrare qui." else "L'assistente ha mandato il file «$name», che l'app non può aprire."
     // None masculine or feminine: the app does not know who is using it. Statements, not questions to answer: the line
     // sits above the request just made. Mostly the time of day; now and then the weekday, a lighter line, or the pause.
     private val withCharacter = listOf(
@@ -195,7 +195,7 @@ object ItalianPhrases : SpokenPhrases {
         }
     }
     override val unlockNeeded = "Per questo sblocca il telefono. Da bloccato posso dirti l'ora e la data, e impostare timer e sveglie."
-    override val newConversationFailed = "Il server non ha avviato una nuova conversazione: l'agente ricorda ancora la precedente. Riprova quando c'è collegamento."
+    override val newConversationFailed = "Il server non ha avviato una nuova conversazione: l'assistente ricorda ancora la precedente. Riprova quando c'è collegamento."
     override val startedOver = "Nuova conversazione"
 
     override val fixedPhrases get() = listOf(askTimerDuration, askAlarmTime, notUnderstood, timerTooLong, timerNoApp, timerDenied, alarmNoApp, alarmDenied, callingNumber, contactsPermissionNeeded, dialerNotFound)

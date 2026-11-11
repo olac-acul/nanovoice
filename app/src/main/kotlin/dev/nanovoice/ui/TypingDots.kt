@@ -24,6 +24,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 
 /** Three dots that swell in turn: the assistant is writing. They stay still if the system animations are off. */
 @Composable
@@ -61,10 +65,14 @@ fun TypingDots(modifier: Modifier = Modifier) {
 /** The assistant's bubble while its reply has not started: only the dots. */
 @Composable
 fun TypingBubble(modifier: Modifier = Modifier) {
+    val description = androidx.compose.ui.res.stringResource(dev.nanovoice.R.string.typing_description)
     Surface(
         shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp, bottomStart = 6.dp, bottomEnd = 20.dp),
         color = MaterialTheme.colorScheme.surfaceContainer,
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-        modifier = modifier,
+        modifier = modifier.semantics {
+            contentDescription = description
+            liveRegion = LiveRegionMode.Polite
+        },
     ) { TypingDots(Modifier.padding(horizontal = 18.dp, vertical = 16.dp)) }
 }
