@@ -1,5 +1,6 @@
 package dev.nanovoice.actions.music
 
+import dev.nanovoice.core.net.readAtMostOrNull
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.net.HttpURLConnection
@@ -38,17 +39,7 @@ class NavidromeClient(private val account: MusicAccount) {
             try {
                 if (conn.responseCode != 200) error("HTTP ${conn.responseCode}")
                 conn.inputStream.use { input ->
-                    // At most one byte over the limit is read (InputStream.readNBytes needs Android 13).
-                    val buffer = java.io.ByteArrayOutputStream()
-                    val chunk = ByteArray(8 * 1024)
-                    while (buffer.size() <= MAX_BYTES) {
-                        val read = input.read(chunk, 0, minOf(chunk.size, MAX_BYTES + 1 - buffer.size()))
-                        if (read < 0) break
-                        buffer.write(chunk, 0, read)
-                    }
-                    val bytes = buffer.toByteArray()
-                    if (bytes.size > MAX_BYTES) error("answer too large")
-                    String(bytes, Charsets.UTF_8)
+                    String(input.readAtMostOrNull(MAX_BYTES) ?: error("answer too large"), Charsets.UTF_8)
                 }
             } finally {
                 conn.disconnect()

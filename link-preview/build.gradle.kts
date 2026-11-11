@@ -5,8 +5,9 @@ plugins {
 kotlin { jvmToolchain(21) }
 
 dependencies {
+    implementation(project(":core"))
     api(libs.kotlinx.coroutines.core)
-    implementation(libs.okhttp)
+    api(libs.okhttp) // its constructors take the app's shared OkHttpClient
 
     testImplementation(kotlin("test"))
     testImplementation(libs.okhttp.mockwebserver)

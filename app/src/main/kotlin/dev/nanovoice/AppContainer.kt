@@ -30,6 +30,12 @@ import java.util.Locale
 /** Manual dependency injection. Italian is the only supported locale for now. */
 class AppContainer(context: Context) {
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    /**
+     * One HTTP client for the app: its connections and threads are shared; each use derives its own settings from it
+     * (newBuilder), the agent's WebSocket, the pairing, the link previews.
+     */
+    private val http = okhttp3.OkHttpClient()
+
     private val locale = Locale.ITALIAN
     val phrases = ItalianPhrases
     private val executor = AndroidActionExecutor(context, phrases, music = { settingsStore.settings.value.musicAccount() })
@@ -83,6 +89,7 @@ class AppContainer(context: Context) {
                     calendar = calendarActions,
                 ),
                 log = { android.util.Log.i("AgentActions", it) },
+                httpClient = http,
             )
         },
     )
@@ -121,7 +128,7 @@ class AppContainer(context: Context) {
     val vosk = VoskSpeechToText(context, voskModels, parakeet) { settingsStore.settings.value.accurateStt }
     val stt: SpeechToText = vosk
 
-    val linkPreviews = LinkPreviews()
+    val linkPreviews = LinkPreviews(dev.nanovoice.linkpreview.LinkPreviewFetcher(http))
 
     val notifier = Notifier(context)
 
@@ -171,7 +178,7 @@ class AppContainer(context: Context) {
         // The same rule as the connection: over ws:// the answer (the token) travels in clear, so only with a VPN up.
         if (dev.nanovoice.agent.ServerUrl.isCleartext(link.server) && !vpnActive()) return dev.nanovoice.agent.PairingResult.NeedsVpn
         return kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-            dev.nanovoice.agent.PairingClient().exchange(link.server, link.code, android.os.Build.MODEL.orEmpty().ifBlank { "Android" })
+            dev.nanovoice.agent.PairingClient(http).exchange(link.server, link.code, android.os.Build.MODEL.orEmpty().ifBlank { "Android" })
         }
     }
 

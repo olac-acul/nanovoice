@@ -1,5 +1,6 @@
 package dev.nanovoice.actions.photo
 
+import dev.nanovoice.core.net.readAtMostOrNull
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -57,16 +58,8 @@ private const val OPEN_DATA_RETRY_MS = 1_500L
 internal const val MAX_BODY_BYTES = 2 * 1024 * 1024
 
 /** The whole body, or an error naming [service] when it is larger than [max]. */
-internal fun java.io.InputStream.readCapped(service: String, max: Int = MAX_BODY_BYTES): ByteArray {
-    val out = java.io.ByteArrayOutputStream()
-    val buffer = ByteArray(16 * 1024)
-    while (true) {
-        val n = read(buffer)
-        if (n < 0) return out.toByteArray()
-        if (out.size() + n > max) error("$service ha mandato una risposta troppo grande")
-        out.write(buffer, 0, n)
-    }
-}
+internal fun java.io.InputStream.readCapped(service: String, max: Int = MAX_BODY_BYTES): ByteArray =
+    readAtMostOrNull(max) ?: error("$service ha mandato una risposta troppo grande")
 
 /** The few HTML entities these databases leave in their text ("&gt; 18%"). */
 internal fun withoutEntities(text: String): String = text

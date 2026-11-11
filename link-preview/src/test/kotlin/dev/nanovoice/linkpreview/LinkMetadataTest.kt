@@ -1,5 +1,6 @@
 package dev.nanovoice.linkpreview
 
+import dev.nanovoice.core.net.isPublicAddress
 import java.net.InetAddress
 import kotlin.test.Test
 import kotlin.test.assertEquals

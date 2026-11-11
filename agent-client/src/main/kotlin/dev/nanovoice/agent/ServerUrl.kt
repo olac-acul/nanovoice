@@ -1,5 +1,6 @@
 package dev.nanovoice.agent
 
+import dev.nanovoice.core.net.literalAddress
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import java.net.URI
 
@@ -57,11 +58,10 @@ object ServerUrl {
 
     internal fun isPrivateHost(host: String): Boolean {
         val h = host.lowercase()
-        if (h == "localhost" || h == "::1" || h.endsWith(".ts.net") || h.endsWith(".local")) return true
-        if (!h.contains('.') && !h.contains(':')) return true // bare hostname, e.g. a MagicDNS short name
-        val octets = h.split('.').map { it.toIntOrNull() ?: return false }
-        if (octets.size != 4 || octets.any { it !in 0..255 }) return false
-        val (a, b) = octets
-        return a == 127 || a == 10 || (a == 172 && b in 16..31) || (a == 192 && b == 168) || (a == 100 && b in 64..127)
+        if (h == "localhost" || h.endsWith(".ts.net") || h.endsWith(".local")) return true
+        // An address: the same rule as everywhere in the app (core), IPv6 too (Tailscale's fd7a:…, link-local).
+        literalAddress(h)?.let { return !dev.nanovoice.core.net.isPublicAddress(it) }
+        if (h.all { it.isDigit() || it == '.' }) return false // looks like an IPv4 address but is not a valid one
+        return !h.contains('.') && !h.contains(':') // bare hostname, e.g. a MagicDNS short name
     }
 }

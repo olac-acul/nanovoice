@@ -64,12 +64,15 @@ sealed interface PairingResult {
 
 /** Trades a pairing code for the token. The code is never logged and nothing is kept of it. */
 class PairingClient(
-    private val client: OkHttpClient = OkHttpClient.Builder()
+    /** The app's shared client: its connections and threads; this one only changes the timeout and the redirects. */
+    base: OkHttpClient = OkHttpClient(),
+) {
+    private val client = base.newBuilder()
         .callTimeout(12, TimeUnit.SECONDS)
         .followRedirects(false)
         .followSslRedirects(false)
-        .build(),
-) {
+        .build()
+
     fun exchange(server: String, code: String, device: String): PairingResult {
         val http = server.trim().replaceFirst(Regex("^(?i)ws"), "http").trimEnd('/')
         val body = buildJsonObject { put("code", code); put("device", device.take(40)) }.toString()
@@ -81,8 +84,11 @@ class PairingClient(
                 when (response.code) {
                     200 -> {
                         // A small answer only: a token is a few dozen characters.
-                        val text = response.body?.source()?.let { it.request(MAX_ANSWER + 1L); it.buffer.snapshot().utf8() }.orEmpty()
-                        if (text.length > MAX_ANSWER) return PairingResult.Unreachable
+                        // Counted in bytes, as the limit is: a text of fewer characters can still be more bytes.
+                        val source = response.body?.source()
+                        source?.request(MAX_ANSWER + 1L)
+                        if ((source?.buffer?.size ?: 0L) > MAX_ANSWER) return PairingResult.Unreachable
+                        val text = source?.buffer?.snapshot()?.utf8().orEmpty()
                         val token = runCatching { Json.parseToJsonElement(text).jsonObject["token"]?.jsonPrimitive?.takeIf { it.isString }?.contentOrNull }.getOrNull()
                         if (token != null && ServerUrl.tokenIsValid(token)) PairingResult.Paired(token) else PairingResult.Unreachable
                     }

@@ -1,5 +1,6 @@
 package dev.nanovoice
 
+import dev.nanovoice.core.net.readAtMostOrNull
 import android.app.job.JobInfo
 import android.app.job.JobParameters
 import android.app.job.JobScheduler
@@ -270,9 +271,7 @@ class AppUpdates(private val context: Context, private val scope: CoroutineScope
         val connection = open(url)
         try {
             connection.inputStream.use { input ->
-                val bytes = input.readNBytesCompat(max + 1)
-                if (bytes.size > max) error("too long")
-                return bytes
+                return input.readAtMostOrNull(max) ?: error("too long")
             }
         } finally {
             connection.disconnect()
@@ -358,18 +357,6 @@ class AppUpdates(private val context: Context, private val scope: CoroutineScope
         private const val KEY_PAGE = "latest_page"
         private const val KEY_PUBLISHED = "latest_published"
     }
-}
-
-/** Up to [max] bytes of the stream (InputStream.readNBytes is Android 13+). */
-private fun java.io.InputStream.readNBytesCompat(max: Int): ByteArray {
-    val out = java.io.ByteArrayOutputStream()
-    val buffer = ByteArray(16 * 1024)
-    while (out.size() < max) {
-        val n = read(buffer, 0, minOf(buffer.size, max - out.size()))
-        if (n < 0) break
-        out.write(buffer, 0, n)
-    }
-    return out.toByteArray()
 }
 
 /** The daily look at GitHub's releases, run by Android when the phone has a network. */
