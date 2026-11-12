@@ -55,8 +55,13 @@ private val bareDomain = Regex(
     """(?<![\p{L}\p{N}@./-])(?:[\p{L}\p{N}-]+\.)+(?:it|com|org|net|eu|info|io|gov|edu|uk|de|fr|es|ch|co|news|tv|me|app|dev)(?:/\S*)?(?![\p{L}\p{N}-])""",
     RegexOption.IGNORE_CASE,
 )
-/** A source in brackets at the end of a list item, "([Corriere](https://…))": for the eyes only, not even its name. */
-private val sourceInBrackets = Regex("""\s*\(\s*\[[^\]]*]\((?:https?://|www\.)[^)\s]*\)\s*\)""")
+private const val LINK = """\[[^\]]*]\((?:https?://|www\.)[^)\s]*\)"""
+
+/**
+ * Sources in brackets, "([Corriere](https://…))" or several, "([Reddit](…), [Reddit](…))": brackets holding only links
+ * are for the eyes, not even their names.
+ */
+private val sourceInBrackets = Regex("""\s*\(\s*$LINK(?:\s*(?:[,;]|\be\b|\band\b)\s*$LINK)*\s*\)""")
 
 private val sourceLabel = Regex("""^(?:fonte|fonti|source|sources)\s*[:.]?$""", RegexOption.IGNORE_CASE)
 

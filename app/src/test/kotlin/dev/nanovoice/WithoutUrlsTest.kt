@@ -23,6 +23,11 @@ class WithoutUrlsTest {
         )
         // Brackets that only hold words stay.
         assertEquals("Il museo (chiuso il lunedì) apre alle nove.", withoutUrls("Il museo (chiuso il lunedì) apre alle nove."))
+        // Several sources in the same brackets: none of their names is read either.
+        assertEquals("", withoutUrls("([safereddit](https://example.com/r/a/1), [safereddit](https://example.com/r/a/2))"))
+        assertEquals("Due novità.", withoutUrls("Due novità. ([Reddit](https://example.com/1); [Il Post](https://example.it/2) e [ANSA](https://example.it/3))"))
+        // Brackets with words besides the links are read, the links as their names.
+        assertEquals("Due novità (vedi Reddit, Il Post).", withoutUrls("Due novità (vedi [Reddit](https://example.com/1), [Il Post](https://example.it/2))."))
     }
 
     @Test
